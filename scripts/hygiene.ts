@@ -406,7 +406,20 @@ function knip(out: string) {
   return knipCounts(json("knip", text));
 }
 
-export function gitleaksArgs(reportPath: string, repo = "."): string[] {
+// git log prints no patch for a merge by default. `history` scans every commit, a two-parent merge
+// by what its resolution added (remerge); remerge prints nothing for a merge of 3+ parents, so
+// `octopus` scans those against their first parent, which shows all they add beyond it (#811).
+// A set --log-opts replaces gitleaks' default `--full-history --all`, so it is named again.
+export const GITLEAKS_PASSES = {
+  history: "--full-history --all --diff-merges=remerge",
+  octopus: "--full-history --all --min-parents=3 --diff-merges=first-parent",
+} as const;
+
+export function gitleaksArgs(
+  reportPath: string,
+  repo = ".",
+  pass: keyof typeof GITLEAKS_PASSES = "history",
+): string[] {
   return [
     "git",
     "--no-banner",
@@ -415,26 +428,69 @@ export function gitleaksArgs(reportPath: string, repo = "."): string[] {
     "json",
     "--report-path",
     reportPath,
-    // git log prints no patch for a merge by default; remerge shows what its resolution added.
-    // A set --log-opts replaces gitleaks' default `--full-history --all`, so it is named again.
     "--log-opts",
-    "--full-history --all --diff-merges=remerge",
+    GITLEAKS_PASSES[pass],
     repo,
   ];
 }
 
-function gitleaks(out: string) {
-  checkVersion("gitleaks", ["version"]);
-  let stderr = "";
-  // `gitleaks git` scans the full history; exit 1 only means it found leaks. `--redact` keeps a
-  // found secret out of the report on disk.
-  const findings = freshReport<unknown[]>(join(out, "gitleaks.json"), "gitleaks", () => {
-    stderr = run("gitleaks", gitleaksArgs(join(out, "gitleaks.json"))).stderr;
+type Leak = { Commit: string; File: string; StartLine: number };
+
+// The octopus pass diffs against the first parent, so it also shows what the other parents bring
+// in. A finding whose line one of the merge's parents already holds came with that parent: the
+// history pass found it there (or .gitleaksignore excused it there), so it is not counted again.
+// Only lines the merge itself adds count; an unreadable line counts.
+export function octopusOwnLeaks<T extends Leak>(leaks: T[], repo: string): T[] {
+  const lines = (rev: string): string[] | undefined => {
+    const shown = run("git", ["show", rev], repo);
+    return shown.status === 0 ? shown.stdout.split("\n") : undefined;
+  };
+  return leaks.filter((leak) => {
+    const line = lines(`${leak.Commit}:${leak.File}`)?.[leak.StartLine - 1];
+    if (line === undefined) return true;
+    const parents = run("git", ["rev-parse", `${leak.Commit}^@`], repo).stdout.split(/\s+/);
+    return !parents.some((parent) => parent && lines(`${parent}:${leak.File}`)?.includes(line));
   });
-  const commits = gitleaksCommitsScanned(stderr);
+}
+
+// Both passes' logs must name their number of scanned commits; the history pass needs at least
+// one, the octopus pass may scan none (a history without octopus merges is clean of them).
+export function gitleaksCounts(
+  history: { log: string; leaks: number },
+  octopus: { log: string; leaks: number },
+): { counts: Counts; note: string } {
+  const commits = gitleaksCommitsScanned(history.log);
   if (!commits)
     throw new Unreadable(`gitleaks scanned ${commits ?? "no reported number of"} commits`);
-  return { counts: { "gitleaks.history": findings.length }, note: `${commits} commits scanned` };
+  if (gitleaksCommitsScanned(octopus.log) === undefined)
+    throw new Unreadable("gitleaks scanned no reported number of octopus merges");
+  return {
+    counts: { "gitleaks.history": history.leaks + octopus.leaks },
+    note: `${commits} commits scanned`,
+  };
+}
+
+// `gitleaks git` scans the full history; exit 1 only means it found leaks. `--redact` keeps a
+// found secret out of the report on disk.
+export function gitleaksScan(out: string, repo = root) {
+  const pass = (name: keyof typeof GITLEAKS_PASSES, file: string) => {
+    let log = "";
+    const leaks = freshReport<Leak[]>(join(out, file), "gitleaks", () => {
+      log = run("gitleaks", gitleaksArgs(join(out, file), ".", name), repo).stderr;
+    });
+    return { log, leaks };
+  };
+  const history = pass("history", "gitleaks.json");
+  const octopus = pass("octopus", "gitleaks-octopus.json");
+  return gitleaksCounts(
+    { log: history.log, leaks: history.leaks.length },
+    { log: octopus.log, leaks: octopusOwnLeaks(octopus.leaks, repo).length },
+  );
+}
+
+function gitleaks(out: string) {
+  checkVersion("gitleaks", ["version"]);
+  return gitleaksScan(out);
 }
 
 // --- modes ---------------------------------------------------------------------------------------

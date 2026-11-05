@@ -21,6 +21,14 @@ export const GITLEAKS_VERSION = "8.30.1";
 // gitleaks exits 1 on a leak and on its own errors alike; a code of our own tells them apart.
 const LEAK_EXIT = 42;
 const ZERO = /^0+$/;
+// git log prints no patch for a merge by default. The first pass scans every commit, a two-parent
+// merge by what its resolution added (remerge); remerge prints nothing for a merge of 3+ parents,
+// so the second scans those against their first parent, which shows all they add beyond it (#811).
+// Hygiene's GITLEAKS_PASSES scans history the same way (a test holds the two equal).
+export const MERGE_PASSES = [
+  ["--diff-merges=remerge"],
+  ["--min-parents=3", "--diff-merges=first-parent"],
+] as const;
 
 export type PushedRef = {
   localRef: string;
@@ -130,46 +138,47 @@ function guard(refs: PushedRef[], remote: string): string[] | undefined {
           `  ${list.stderr.trim().split("\n")[0] ?? ""}`,
         ];
       }
-      const path = join(report, "leaks.json");
-      const scan = spawnSync(
-        "gitleaks",
-        [
-          "git",
-          "--no-banner",
-          "--redact",
-          "--exit-code",
-          String(LEAK_EXIT),
-          "--report-format",
-          "json",
-          "--report-path",
-          path,
-          "--log-opts",
-          // git log prints no patch for a merge by default; remerge shows what its resolution added.
-          ["--diff-merges=remerge", ...range].join(" "),
-          ".",
-        ],
-        { stdio: ["ignore", "ignore", "inherit"] },
-      );
-      if (scan.status === LEAK_EXIT) {
-        const leaks = JSON.parse(readFileSync(path, "utf8")) as {
-          Commit: string;
-          File: string;
-          RuleID: string;
-        }[];
-        return [
-          "push refused: the secret guard found a secret",
-          ...leaks.map(
-            (leak) =>
-              `  commit ${leak.Commit.slice(0, 12)}, file ${leak.File} (gitleaks rule ${leak.RuleID})`,
-          ),
-          "  take it out of that commit (amend or rebase), rotate the secret, and push again",
-        ];
-      }
-      if (scan.status !== 0) {
-        return [
-          `push refused: the secret guard could not scan (gitleaks exit ${scan.status ?? scan.signal})`,
-          "  nothing was found and nothing was proven clean; fix gitleaks and push again",
-        ];
+      for (const pass of MERGE_PASSES) {
+        const path = join(report, "leaks.json");
+        const scan = spawnSync(
+          "gitleaks",
+          [
+            "git",
+            "--no-banner",
+            "--redact",
+            "--exit-code",
+            String(LEAK_EXIT),
+            "--report-format",
+            "json",
+            "--report-path",
+            path,
+            "--log-opts",
+            [...pass, ...range].join(" "),
+            ".",
+          ],
+          { stdio: ["ignore", "ignore", "inherit"] },
+        );
+        if (scan.status === LEAK_EXIT) {
+          const leaks = JSON.parse(readFileSync(path, "utf8")) as {
+            Commit: string;
+            File: string;
+            RuleID: string;
+          }[];
+          return [
+            "push refused: the secret guard found a secret",
+            ...leaks.map(
+              (leak) =>
+                `  commit ${leak.Commit.slice(0, 12)}, file ${leak.File} (gitleaks rule ${leak.RuleID})`,
+            ),
+            "  take it out of that commit (amend or rebase), rotate the secret, and push again",
+          ];
+        }
+        if (scan.status !== 0) {
+          return [
+            `push refused: the secret guard could not scan (gitleaks exit ${scan.status ?? scan.signal})`,
+            "  nothing was found and nothing was proven clean; fix gitleaks and push again",
+          ];
+        }
       }
     }
   } finally {

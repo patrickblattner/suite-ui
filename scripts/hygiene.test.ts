@@ -10,8 +10,11 @@ import {
   depcruiseCounts,
   falls,
   freshReport,
+  GITLEAKS_PASSES,
   gitleaksArgs,
   gitleaksCommitsScanned,
+  gitleaksCounts,
+  gitleaksScan,
   jscpdCounts,
   knipCounts,
   rises,
@@ -169,8 +172,9 @@ describe("hygiene tool counts", () => {
     expect(gitleaksCommitsScanned("fatal: not a git repository")).toBeUndefined();
   });
 
-  // #808: builds a scratch repo, scans it with the hygiene's gitleaks args, returns the files found.
-  const scanRepo = (build: (git: (...args: string[]) => string, token: string) => void) => {
+  type Build = (git: (...args: string[]) => string, token: string) => void;
+  // #808: builds a scratch repo and hands it to the scan.
+  const inRepo = <R>(build: Build, scan: (dir: string) => R): R => {
     const dir = mkdtempSync(join(tmpdir(), "suite-ui-hygiene-gitleaks-"));
     try {
       const git = (...args: string[]) => execFileSync("git", args, { cwd: dir, encoding: "utf8" });
@@ -183,36 +187,100 @@ describe("hygiene tool counts", () => {
         .replace(/[^A-Za-z0-9]/g, "x")
         .slice(0, 36)}`;
       build(git, token);
-      const report = join(dir, "gitleaks.json");
-      const scan = spawnSync("gitleaks", gitleaksArgs(report, dir), { encoding: "utf8" });
-      expect(scan.status).toBe(1);
-      return (JSON.parse(readFileSync(report, "utf8")) as { File: string }[]).map((f) => f.File);
+      return scan(dir);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
   };
+  // Scans with the hygiene's gitleaks args of one pass, returns the files found.
+  const scanRepo = (build: Build, pass: keyof typeof GITLEAKS_PASSES = "history") =>
+    inRepo(build, (dir) => {
+      const report = join(dir, "gitleaks.json");
+      const scan = spawnSync("gitleaks", gitleaksArgs(report, dir, pass), { encoding: "utf8" });
+      expect(scan.status).toBe(1);
+      return (JSON.parse(readFileSync(report, "utf8")) as { File: string }[]).map((f) => f.File);
+    });
+  // #811: the hygiene's full gitleaks count, both passes.
+  const historyCount = (build: Build) =>
+    inRepo(build, (dir) => gitleaksScan(dir, dir).counts["gitleaks.history"]);
   const write = (git: (...args: string[]) => string, file: string, text: string) => {
     writeFileSync(join(git("rev-parse", "--show-toplevel").trim(), file), text);
     git("add", file);
   };
 
-  // #808: git log prints no patch for a merge by default, so a secret only its resolution adds hid.
-  it("finds a secret that only a merge resolution adds", () => {
-    const files = scanRepo((git, token) => {
+  // Merges the given branches into main with a secret the merge resolution adds, or with one the
+  // first side branch commits (`onSide`).
+  const mergeSecret =
+    (sides: string[], onSide = false): Build =>
+    (git, token) => {
       const commit = (message: string, file: string, text: string) => {
         write(git, file, text);
         git("commit", "-q", "-m", message);
       };
       commit("base", "notes.txt", "base\n");
-      git("checkout", "-q", "-b", "side");
-      commit("side", "side.txt", "side\n");
+      for (const side of sides) {
+        git("checkout", "-q", "-b", side, "main");
+        commit(side, `${side}.txt`, `${side}\n`);
+        if (onSide && side === sides[0]) commit("secret", "config.txt", `token = "${token}"\n`);
+      }
       git("checkout", "-q", "main");
       commit("ahead", "notes.txt", "ahead\n");
-      git("merge", "-q", "--no-ff", "--no-commit", "side");
-      write(git, "config.txt", `token = "${token}"\n`);
-      git("commit", "-q", "-m", "merge side");
+      git("merge", "-q", "--no-ff", "--no-commit", ...sides);
+      if (!onSide) write(git, "config.txt", `token = "${token}"\n`);
+      git("commit", "-q", "-m", `merge ${sides.join(" and ")}`);
+    };
+  const scanMergeSecret = (sides: string[], pass?: keyof typeof GITLEAKS_PASSES) =>
+    scanRepo(mergeSecret(sides), pass);
+
+  // #808: git log prints no patch for a merge by default, so a secret only its resolution adds hid.
+  it("finds a secret that only a merge resolution adds", () => {
+    expect(scanMergeSecret(["side"])).toEqual(["config.txt"]);
+  });
+
+  // #811: remerge prints no patch for a merge of 3+ parents; the octopus pass scans those.
+  it("finds a secret that only an octopus merge resolution adds", () => {
+    expect(scanMergeSecret(["side", "other"], "octopus")).toEqual(["config.txt"]);
+  });
+
+  // #811: the hygiene count adds what the octopus pass finds to the history pass.
+  it("counts a secret that only an octopus merge resolution adds", () => {
+    expect(historyCount(mergeSecret(["side", "other"]))).toBe(1);
+  });
+
+  // #811: the octopus pass also shows what the side branches bring in; that counts once only.
+  it("counts a side-branch secret an octopus merges once", () => {
+    expect(historyCount(mergeSecret(["side", "other"], true))).toBe(1);
+  });
+
+  // #811: a fingerprint .gitleaksignore excuses on the side commit stays excused under the octopus.
+  it("keeps a side-branch secret excused by .gitleaksignore excused under an octopus merge", () => {
+    const build = mergeSecret(["side", "other"], true);
+    const count = historyCount((git, token) => {
+      build(git, token);
+      const side = git("rev-parse", "side").trim();
+      writeFileSync(
+        join(git("rev-parse", "--show-toplevel").trim(), ".gitleaksignore"),
+        `${side}:config.txt:github-pat:1\n`,
+      );
     });
-    expect(files).toEqual(["config.txt"]);
+    expect(count).toBe(0);
+  });
+
+  it("sums both passes and needs a scanned-commit count from each", () => {
+    const log = (n: number) => `INF ${n} commits scanned.`;
+    expect(gitleaksCounts({ log: log(5), leaks: 2 }, { log: log(1), leaks: 1 })).toEqual({
+      counts: { "gitleaks.history": 3 },
+      note: "5 commits scanned",
+    });
+    expect(gitleaksCounts({ log: log(5), leaks: 0 }, { log: log(0), leaks: 0 }).counts).toEqual({
+      "gitleaks.history": 0,
+    });
+    expect(() => gitleaksCounts({ log: log(0), leaks: 0 }, { log: log(0), leaks: 0 })).toThrow(
+      Unreadable,
+    );
+    expect(() => gitleaksCounts({ log: log(5), leaks: 0 }, { log: "fatal", leaks: 0 })).toThrow(
+      Unreadable,
+    );
   });
 
   // #808: a set --log-opts drops gitleaks' default --all; a branch HEAD does not reach stays scanned.

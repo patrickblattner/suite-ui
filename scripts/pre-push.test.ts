@@ -14,8 +14,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { TOOL_VERSIONS } from "./hygiene";
-import { checkPlan, GITLEAKS_VERSION, isWipSubject, parseRefs, scanRanges } from "./pre-push";
+import { GITLEAKS_PASSES, TOOL_VERSIONS } from "./hygiene";
+import {
+  checkPlan,
+  GITLEAKS_VERSION,
+  isWipSubject,
+  MERGE_PASSES,
+  parseRefs,
+  scanRanges,
+} from "./pre-push";
 
 // The pre-push hook (#794, PROC-DEV-005 rev 6, PROC-REL-017): the secret guard on every ref, the
 // preflight and the pin check on the pushed tree unless every tip of a non-main push is `wip:`.
@@ -32,6 +39,13 @@ const REPIN = "spec-sync repin --check";
 describe("pre-push decisions", () => {
   it("guards with the gitleaks version hygiene pins", () => {
     expect(GITLEAKS_VERSION).toBe(TOOL_VERSIONS.gitleaks);
+  });
+
+  // #811: the hook scans merges the way hygiene scans history, octopus merges included.
+  it("scans merges with hygiene's passes", () => {
+    expect(MERGE_PASSES.map((pass) => `--full-history --all ${pass.join(" ")}`)).toEqual(
+      Object.values(GITLEAKS_PASSES),
+    );
   });
 
   it("reads git's ref lines and drops anything else", () => {
@@ -216,6 +230,23 @@ describe("pre-push hook on a real push", () => {
     writeFileSync(join(work, "config.txt"), `token = "${fakeToken()}"\n`);
     git("add", "config.txt");
     git("commit", "-q", "-m", "wip: merge side");
+    refusesHeadSecret();
+  });
+
+  // #811: remerge prints no patch for a merge of 3+ parents; a secret its resolution adds hid.
+  it("refuses a secret that only an octopus merge resolution adds", () => {
+    pushed();
+    for (const side of ["side", "other"]) {
+      git("checkout", "-q", "-b", side, "feat/x");
+      commit(`feat: ${side} #2`, `${side}.txt`, `${side}\n`);
+    }
+    git("checkout", "-q", "feat/x");
+    commit("feat: ahead #1", "notes.txt", "ahead\n");
+    git("merge", "-q", "--no-ff", "--no-commit", "side", "other");
+    writeFileSync(join(work, "config.txt"), `token = "${fakeToken()}"\n`);
+    git("add", "config.txt");
+    git("commit", "-q", "-m", "wip: merge side and other");
+    expect(git("rev-list", "--parents", "-n", "1", "HEAD").split(" ")).toHaveLength(4);
     refusesHeadSecret();
   });
 
