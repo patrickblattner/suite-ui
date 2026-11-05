@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased — #815: settings-scaffold tests wait for the save end instead of a fixed 30 ms (patch)
+
+- **Test (#815):** three `settings-scaffold.test.tsx` tests raced a fixed 30 ms wait against the page's nested `setTimeout(0)` → 5 ms save; under a stalled event loop the wait ended first and the error still showed. They now await a deferred the save end resolves. Test-only, assertions unchanged.
+
 ## Unreleased — #814: the octopus secret pass compares whole finding blocks; the hook keeps inherited, excused side-branch secrets excused (patch)
 
 - **Fix (#814, Codex review v0.224.1 CX1):** the hook's octopus pass (#811) refused every finding, so a side-branch secret `.gitleaksignore` excuses by its side-commit fingerprint was reported again under an octopus merge that brought it in, and the push was refused. The hook now applies hygiene's rule (`octopusOwnLeaks`): an octopus finding a merge parent already holds is dropped; findings the merge itself adds still refuse the push.

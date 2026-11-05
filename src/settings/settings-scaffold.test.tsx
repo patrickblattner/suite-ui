@@ -573,7 +573,15 @@ describe("SettingsScaffold: a successful save ends the submit state", () => {
 
   // A mutation-like save: `saving` set in the submit's handler, or only after `setTimeout(0)` (as
   // TanStack v5 delivers `isPending`); it saves a tick later.
-  function Pending({ timing, ok }: { timing: "handler" | "timeout"; ok: boolean }) {
+  function Pending({
+    timing,
+    ok,
+    onEnd,
+  }: {
+    timing: "handler" | "timeout";
+    ok: boolean;
+    onEnd: () => void;
+  }) {
     const [saved, setSaved] = useState("Init");
     const [name, setName] = useState("");
     const [saving, setSaving] = useState(false);
@@ -605,6 +613,7 @@ describe("SettingsScaffold: a successful save ends the submit state", () => {
               setTimeout(() => {
                 if (ok) setSaved(name);
                 setSaving(false);
+                onEnd();
               }, 5);
             if (timing === "handler") {
               setSaving(true);
@@ -629,7 +638,8 @@ describe("SettingsScaffold: a successful save ends the submit state", () => {
   ] as const)(
     "saving set in the %s, saved %s: a cleared value then shows its error late only when saved",
     async (timing, ok) => {
-      render(<Pending timing={timing} ok={ok} />);
+      const ended = deferred();
+      render(<Pending timing={timing} ok={ok} onEnd={ended.resolve} />);
       submit();
       expect(await screen.findByText("Enter a name.")).toBeInTheDocument();
       const name = screen.getByLabelText("Name");
@@ -637,7 +647,7 @@ describe("SettingsScaffold: a successful save ends the submit state", () => {
       fireEvent.blur(name);
       submit();
       // The save starts and ends.
-      await act(() => new Promise((resolve) => setTimeout(resolve, 30)));
+      await act(() => ended.promise);
       fireEvent.click(screen.getByTestId("clear"));
       if (ok) expect(screen.queryByText("Enter a name.")).toBeNull();
       else expect(screen.getByText("Enter a name.")).toBeInTheDocument();
@@ -788,6 +798,7 @@ describe("SettingsScaffold: an edit drops the started save, other events do not"
     ["a trusted input in a portal (a combobox search)", "portal"],
     ["an untrusted change of a control in the form (a Radix Select set by code)", "own"],
   ])("%s keeps the started save: its clean end ends the submit state", async (_case, source) => {
+    const ended = deferred();
     function Page() {
       const [saved, setSaved] = useState("Init");
       const [name, setName] = useState("");
@@ -827,6 +838,7 @@ describe("SettingsScaffold: an edit drops the started save, other events do not"
                 setTimeout(() => {
                   setSaved(name);
                   setSaving(false);
+                  ended.resolve();
                 }, 5);
               }, 0),
             onReset: () => setName(saved),
@@ -848,7 +860,7 @@ describe("SettingsScaffold: an edit drops the started save, other events do not"
     if (source === "portal")
       fireEvent.input(screen.getByTestId("portal"), { target: { value: "x" } });
     else fireEvent.change(screen.getByTestId("own"), { target: { value: "b" } });
-    await act(() => new Promise((resolve) => setTimeout(resolve, 30)));
+    await act(() => ended.promise);
     fireEvent.click(screen.getByTestId("clear"));
     expect(screen.queryByText("Enter a name.")).toBeNull();
   });
