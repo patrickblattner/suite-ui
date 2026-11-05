@@ -215,10 +215,20 @@ const textOf = (txBody: X | undefined) =>
     )
     .join("\n");
 
-// An error the app's own callback threw: handed back to the app as it was thrown, never as `corrupt`.
+// An error the app's own callback threw: handed back to the app as it was thrown, never as `internal`.
 class AppError extends Error {
   constructor(readonly error: unknown) {
     super("an error of the app's callback");
+  }
+}
+
+// A thrown value as text; a value that cannot be made one (no callable `toString`) is named as such,
+// so building the `internal` error never throws itself.
+function describe(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return "a value that cannot be shown as text";
   }
 }
 
@@ -234,11 +244,16 @@ export function importPptx(
   } catch (error) {
     // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors -- the app's own value, as thrown
     if (error instanceof AppError) return Promise.reject(error.error);
-    // Whatever else fails (a stack too deep for the file's nesting, a bug) is a file it cannot read,
-    // never a raw error.
     if (error instanceof PptxImportError) return Promise.reject(error);
+    // Whatever else fails (a stack too deep for the file's nesting, a bug) is the importer's own
+    // failure, not the file's: `internal`, the original error in `cause`, never a raw error.
     return Promise.reject(
-      new PptxImportError("corrupt", `the file cannot be read: ${String(error).slice(0, 200)}`),
+      new PptxImportError(
+        "internal",
+        `the importer failed: ${describe(error).slice(0, 200)}`,
+        undefined,
+        { cause: error },
+      ),
     );
   }
 }
@@ -483,41 +498,9 @@ function importDocument(input: Uint8Array, options: PptxImportOptions): PptxImpo
 
   slideIds.forEach((sldId, index) => {
     const rel = presentationRels.get(sldId.attrs["r:id"] ?? "");
-    // A slide the file lists but does not carry stays a page with a placeholder over all of it, so
-    // every index matches the source's slide number; the report names it.
-    if (rel === undefined || rel.external || !files.has(rel.target)) {
-      const elementId = `p${index + 1}-1`;
-      // Named by its bare slide number (language-neutral; the importer has no text of its own), so it
-      // reads apart from an unknown shape (Q#5405).
-      const name = String(index + 1);
-      const label = `${options.labels.other}: ${name}`;
-      report.push({
-        index: pages.length,
-        asImage: [{ kind: "other", name, elementId }],
-        dropped: [],
-        fonts: [],
-        truncated: [],
-      });
-      pages.push({
-        id: `page-${index + 1}`,
-        background: white,
-        elements: [
-          {
-            id: elementId,
-            x: 0,
-            y: 0,
-            ...format,
-            rotation: 0,
-            hidden: false,
-            name,
-            type: "image",
-            media: { id: placeholder(options.labels.other, name, format.width, format.height) },
-            alt: label.slice(0, 1000),
-          },
-        ],
-      });
-      return;
-    }
+    // A slide the file lists but does not carry breaks the format: no document (rev 4).
+    if (rel === undefined || rel.external || !files.has(rel.target))
+      throw new PptxImportError("corrupt", `slide ${index + 1}: missing part`);
     const slideRels = relationshipsOf(files, rel.target);
     const layoutPath = target(slideRels, "slideLayout");
     if (layoutPath === undefined)

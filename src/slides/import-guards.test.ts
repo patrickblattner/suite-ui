@@ -2,7 +2,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { unzipSync, zipSync } from "fflate";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { importPptx, PptxImportError } from "./import.js";
 import type { SlideElement } from "./schema.js";
@@ -164,7 +164,8 @@ const depthOf = (elements: readonly SlideElement[]): number =>
   Math.max(0, ...elements.map((e) => (e.type === "group" ? 1 + depthOf(e.children) : 0)));
 
 describe("importPptx limits and codes (review #792 code, ux)", () => {
-  // C1: groups nested deeper than the model takes are flattened; deeper still is never a raw error.
+  // C1: groups nested deeper than the model takes are flattened; deeper still is never a raw error
+  // (a stack overflow of the importer's own walk is `internal` since rev 4, Q#5409).
   it("flattens groups beyond the model's depth and never throws a raw error", async () => {
     const { document } = await run(withShapes(nested(40)));
     expect(depthOf(document.pages[0]!.elements)).toBeLessThanOrEqual(32);
@@ -173,7 +174,7 @@ describe("importPptx limits and codes (review #792 code, ux)", () => {
       () => "imported",
       (error: unknown) => (error instanceof PptxImportError ? error.code : String(error)),
     );
-    expect(["imported", "corrupt", "limit"]).toContain(outcome);
+    expect(["imported", "corrupt", "limit", "internal"]).toContain(outcome);
   });
 
   // C2, X3: text and tables beyond the model's limits are cut and reported, never `corrupt`.
@@ -279,7 +280,8 @@ describe("importPptx limits and codes (review #792 code, ux)", () => {
     expect(error.limit).toEqual({ kind: "pages", max: 1000 });
   });
 
-  // SUI-FEATURE-138 rev 3 AC5: the six rejections carry six distinct codes and no document.
+  // SUI-FEATURE-138 rev 4 AC5: the seven rejections carry seven distinct codes and no document;
+  // `internal` comes from a fault injected into the importer's own code.
   it("rejects each kind of file it cannot take with a code of its own", async () => {
     const ole = [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1, ...new Array<number>(504).fill(0)];
     const utf16 = (value: string) => Array.from(value).flatMap((c) => [c.charCodeAt(0), 0]);
@@ -312,7 +314,16 @@ describe("importPptx limits and codes (review #792 code, ux)", () => {
       );
       codes.push(outcome);
     }
-    expect(codes).toEqual(["corrupt", "encrypted", "legacy-ppt", "too-large", "zip-bomb", "limit"]);
+    codes.push(await internalFault());
+    expect(codes).toEqual([
+      "corrupt",
+      "encrypted",
+      "legacy-ppt",
+      "too-large",
+      "zip-bomb",
+      "limit",
+      "internal",
+    ]);
   });
 
   // X2: ink stands as a placeholder at its place.
@@ -327,36 +338,26 @@ describe("importPptx limits and codes (review #792 code, ux)", () => {
     expect(report.slides[0]?.asImage).toContainEqual({ kind: "other", elementId: ink?.id });
   });
 
-  // X3: a slide the file lists but lacks stays a page, so the index matches the source's slide number.
-  it("keeps a missing slide as a page with one placeholder, listed in the report", async () => {
+  // SUI-FEATURE-138 rev 4: a slide the file lists but lacks breaks the format — `corrupt`, no document.
+  it("rejects a listed slide whose part is missing as corrupt", async () => {
     const files = basic();
     delete files["ppt/slides/slide1.xml"];
-    const { document, report } = await run(zipSync(files));
-    expect(document.pages).toHaveLength(2);
-    const [stand] = document.pages[0]!.elements;
-    expect(document.pages[0]?.elements).toHaveLength(1);
-    expect(stand).toMatchObject({ type: "image", x: 0, y: 0, width: 1280, height: 720 });
-    // Named by its slide number, so it reads apart from an unknown shape (review #792 ux, Q#5405).
-    expect(stand).toMatchObject({ alt: "Object: 1", name: "1" });
-    expect(report.slides[0]).toMatchObject({
-      index: 0,
-      asImage: [{ kind: "other", name: "1", elementId: stand?.id }],
-      dropped: [],
-    });
-    expect(report.slides[1]?.index).toBe(1);
+    await rejects(zipSync(files), "corrupt");
   });
 
   // Review #792 ui: at the smallest size the name is shortened, never the kind; a kind too long for
   // the box on its own is squeezed into it.
   it("shortens the name of a placeholder before its kind, and squeezes a kind too long", async () => {
-    const files = basic();
-    delete files["ppt/slides/slide1.xml"];
+    // A page-wide ink object stands as a placeholder over the whole page (1280 px).
+    const ink = withShapes(
+      `<p:contentPart xmlns:p14="http://schemas.microsoft.com/office/powerpoint/2010/main" r:id="rId99"><p14:nvContentPartPr><p14:cNvPr id="70" name="1"/><p14:cNvContentPartPr/><p14:nvPr/></p14:nvContentPartPr><p14:xfrm><a:off x="0" y="0"/><a:ext cx="12192000" cy="6858000"/></p14:xfrm></p:contentPart>`,
+    );
     const svgOf = async (other: string) => {
-      const { document, assets } = await importPptx(zipSync(files), {
+      const { document, assets } = await importPptx(ink, {
         ...options,
         labels: { ...options.labels, other },
       });
-      const [stand] = document.pages[0]!.elements;
+      const stand = document.pages[0]!.elements.at(-1);
       const id = stand?.type === "image" ? stand.media.id : "";
       return text(assets.find((a) => a.id === id)?.bytes);
     };
@@ -393,6 +394,34 @@ describe("importPptx limits and codes (review #792 code, ux)", () => {
   });
 });
 
+// A fault of the importer's own code (its theme reader throws), not the file's: the fresh module graph
+// under the mock carries its own `PptxImportError`, so the code is read by name.
+async function internalFault(
+  fault: unknown = new TypeError("injected importer fault"),
+): Promise<string> {
+  vi.resetModules();
+  vi.doMock("./pptx-style-internal.js", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("./pptx-style-internal.js")>()),
+    readTheme: () => {
+      throw fault;
+    },
+  }));
+  try {
+    const fresh = await import("./import.js");
+    return await fresh.importPptx(zipSync(basic()), options).then(
+      () => "imported",
+      (error: unknown) => {
+        if (!(error instanceof fresh.PptxImportError)) return "raw";
+        expect(error.cause).toBe(fault);
+        return error.code;
+      },
+    );
+  } finally {
+    vi.doUnmock("./pptx-style-internal.js");
+    vi.resetModules();
+  }
+}
+
 describe("importPptx app errors and odd values (review #792 code round 2)", () => {
   // An error of the app's own callback reaches the app unchanged, never as a corrupt file.
   it("hands an error thrown by substitute back unchanged", async () => {
@@ -407,6 +436,17 @@ describe("importPptx app errors and odd values (review #792 code round 2)", () =
       },
     });
     await expect(outcome).rejects.toBe(bug);
+  });
+
+  // SUI-FEATURE-138 rev 4: an unexpected failure of the importer is `internal` with its cause; an
+  // error of the app's callback still is not wrapped.
+  it("rejects an importer fault as internal with the original error in cause", async () => {
+    expect(await internalFault()).toBe("internal");
+  });
+
+  // A thrown value with no callable `toString` still gives `internal`, the value kept in `cause`.
+  it("rejects an importer fault that cannot be shown as text as internal", async () => {
+    expect(await internalFault(Object.create(null))).toBe("internal");
   });
 
   // A line spacing or run size of 0 is valid in the file; it is left unset, not the file refused.

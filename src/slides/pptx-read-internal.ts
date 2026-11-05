@@ -7,10 +7,11 @@ import { Unzip, UnzipInflate, unzipSync } from "fflate";
 
 // Why a file is rejected: not a .pptx at all (`corrupt`), a password-protected one (`encrypted`), an
 // old binary .ppt (`legacy-ppt`), larger than `maxBytes` (`too-large`), an archive that unpacks far
-// beyond its own size (`zip-bomb`), or a sound file beyond one of the importer's limits (`limit`,
-// which `limit` names).
+// beyond its own size (`zip-bomb`), a sound file beyond one of the importer's limits (`limit`,
+// which `limit` names), or an unexpected failure of the importer itself, not the file's fault
+// (`internal`, the original error in `cause`).
 export type PptxImportErrorCode =
-  "corrupt" | "encrypted" | "legacy-ppt" | "too-large" | "zip-bomb" | "limit";
+  "corrupt" | "encrypted" | "legacy-ppt" | "too-large" | "zip-bomb" | "limit" | "internal";
 
 // The limit a file is beyond: slides, elements of one page, elements of one XML part, or another
 // limit of the slide model (`SLIDE_LIMITS`), with its path in the document.
@@ -24,8 +25,13 @@ export interface PptxImportLimit {
 export class PptxImportError extends Error {
   readonly code: PptxImportErrorCode;
   readonly limit?: PptxImportLimit;
-  constructor(code: PptxImportErrorCode, message: string, limit?: PptxImportLimit) {
-    super(message);
+  constructor(
+    code: PptxImportErrorCode,
+    message: string,
+    limit?: PptxImportLimit,
+    options?: ErrorOptions,
+  ) {
+    super(message, options);
     this.name = "PptxImportError";
     this.code = code;
     if (limit !== undefined) this.limit = limit;
