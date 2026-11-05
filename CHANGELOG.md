@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased — #813: slide-editor-follow tests drain the focus-scope timer after cleanup (patch)
+
+- **Test (#813):** `slide-editor-follow.test.tsx` `afterEach` now drains one macrotask after `cleanup()`, so a focus-scope `setTimeout` left by an unmounted dialog no longer fires into the next test. Test-only.
+
 ## Unreleased — #815: settings-scaffold tests wait for the save end instead of a fixed 30 ms (patch)
 
 - **Test (#815):** three `settings-scaffold.test.tsx` tests raced a fixed 30 ms wait against the page's nested `setTimeout(0)` → 5 ms save; under a stalled event loop the wait ended first and the error still showed. They now await a deferred the save end resolves. Test-only, assertions unchanged.
