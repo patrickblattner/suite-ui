@@ -1,14 +1,14 @@
 # Changelog
 
-## Unreleased — #813: slide-editor-follow tests drain the focus-scope timer after cleanup (patch)
+## 0.225.0 — #813: slide-editor-follow tests drain the focus-scope timer after cleanup (patch)
 
 - **Test (#813):** `slide-editor-follow.test.tsx` `afterEach` now drains one macrotask after `cleanup()`, so a focus-scope `setTimeout` left by an unmounted dialog no longer fires into the next test. Test-only.
 
-## Unreleased — #815: settings-scaffold tests wait for the save end instead of a fixed 30 ms (patch)
+## 0.225.0 — #815: settings-scaffold tests wait for the save end instead of a fixed 30 ms (patch)
 
 - **Test (#815):** three `settings-scaffold.test.tsx` tests raced a fixed 30 ms wait against the page's nested `setTimeout(0)` → 5 ms save; under a stalled event loop the wait ended first and the error still showed. They now await a deferred the save end resolves. Test-only, assertions unchanged.
 
-## Unreleased — #818: SlideEditor `subtitle`, `onSaveBlock`, `pickMedia` context, inner gutter, `maxPages` (SUI-FEATURE-380, SUI-FEATURE-381) (minor)
+## 0.225.0 — #818: SlideEditor `subtitle`, `onSaveBlock`, `pickMedia` context, inner gutter, `maxPages` (SUI-FEATURE-380, SUI-FEATURE-381) (minor)
 
 - **Added (#818, SUI-FEATURE-380 AC1):** `SlideEditor` prop `subtitle?: ReactNode`, handed unchanged to `EditorHeader.subtitle` — the one `page-subtitle` under the title; without it the header is unchanged.
 - **Added (#818, SUI-FEATURE-380 AC2):** `SlideEditor` prop `onSaveBlock?: (block: { elements: SlideElement[] }) => void`. With it, a selection offers "Save as block" in the canvas's context menu and as the Add drawer library's last action (locked with "Select elements first" as its reason while nothing is selected). The callback gets a deep copy of the selection as drawn on the page, positioned relative to the common bounding box, several elements wrapped as one group; the document and `onChange` are untouched. No action without `onSaveBlock` or under `readOnly`. New strings `slides.editor.saveAsBlock`, `slides.editor.saveAsBlockNeedsSelection` (de/en/es, spec wording).
@@ -21,7 +21,7 @@
 - **Changed (#818, SUI-FEATURE-381 rev 4, Q#5437):** the cap covers new page and duplicate page, also by keyboard (there is no page paste): with the app's layouts the new-page button, too, stays focusable at the cap with `aria-disabled` and the reason, and opens no layout menu; the gallery's `?maxPages=<n>` caps the deck as it is.
 - **Tests (#818, review round):** gallery — every property-panel label on one line at 1920 px with classic scrollbars, de/en/es (page, text, rectangle with shadow, line, table, chart, image); the pie panel's default category names unclipped. Unit — a nested text run of the handed block changed by the host leaves the document alone; `maxPages` 0, 0.5 and −3 count as 1, 2.5 as 2; no Document pane read-only at one page under cap 1; focus on the canvas after the delete; the Blocks section with the action first, the host's entries after it, before the icons, its heading text de/en/es. Gallery — at the cap, new page is disabled and duplicate page adds nothing on Enter or Space. Baselines whose text or table changed are refreshed.
 
-## Unreleased — #814: the octopus secret pass compares whole finding blocks; the hook keeps inherited, excused side-branch secrets excused (patch)
+## 0.225.0 — #814: the octopus secret pass compares whole finding blocks; the hook keeps inherited, excused side-branch secrets excused (patch)
 
 - **Fix (#814, Codex review v0.224.1 CX1):** the hook's octopus pass (#811) refused every finding, so a side-branch secret `.gitleaksignore` excuses by its side-commit fingerprint was reported again under an octopus merge that brought it in, and the push was refused. The hook now applies hygiene's rule (`octopusOwnLeaks`): an octopus finding a merge parent already holds is dropped; findings the merge itself adds still refuse the push.
 - **Security (#814):** that rule (hook and hygiene) compared only a finding's first line, so a second private key an octopus resolution added to a file whose parent already held one (the same `BEGIN … PRIVATE KEY` line) was dropped. Both now compare the finding's whole block (StartLine..EndLine) against the parent's same file; a block past the file's end, a reversed range or an unreadable file counts. The hook reads `git show` output with hygiene's buffer (512 MiB). Tests: unit (`scripts/pre-push.test.ts`, `scripts/hygiene.test.ts`) — an octopus merging an excused side-branch secret pushes; a key an octopus resolution adds next to a parent's key refuses the push and counts in hygiene (both dropped before the fix); hook and hygiene agree on a table of merge-added line, inherited line and block, new block with a shared first line, out-of-range and reversed blocks and a missing file; an octopus resolution's own secret is still refused.
