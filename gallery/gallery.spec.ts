@@ -1361,7 +1361,10 @@ test("toast: Tab onto a FilterBar control during the toast's slide-in closes all
       true,
     );
   });
-  await page.clock.install({ time: T0 });
+  // Install 60 s before T0 (only a safety margin): after install the clock follows real
+  // time and syncs about every 100 ms, so by the pauseAt call T0 can already lie in the
+  // past and pauseAt throws "Cannot fast-forward to the past" (#809).
+  await page.clock.install({ time: T0.getTime() - 60_000 });
   await page.clock.pauseAt(T0);
   await page.goto("/?page=list&toast=1");
   const success = page.locator("[data-sonner-toast][data-type=success]");
@@ -5285,7 +5288,10 @@ test("media tile: the overflow tooltip at the viewport's top and left edge is ne
 test("media tile: the overflow tooltip under a fixed app header never stands over it", async ({
   page,
 }) => {
-  await page.clock.install({ time: T0 });
+  // Install 60 s before T0 (only a safety margin): after install the clock follows real
+  // time and syncs about every 100 ms, so by the pauseAt call T0 can already lie in the
+  // past and pauseAt throws "Cannot fast-forward to the past" (#809).
+  await page.clock.install({ time: T0.getTime() - 60_000 });
   await page.clock.pauseAt(T0);
   await page.setViewportSize({ width: 1280, height: 600 });
   const grid = await mediaTiles(page);
