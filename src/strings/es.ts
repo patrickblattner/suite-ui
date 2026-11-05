@@ -956,6 +956,11 @@ export const es: SuiteStrings = {
       shadowOffsetY: "Desplazamiento vertical",
       shadowOffsetYHint: "Mueve la sombra hacia arriba o hacia abajo del elemento.",
       shadowOffsetYValueHint: "Píxeles; un número positivo la mueve hacia abajo.",
+      shadowNone: "Ninguna",
+      flipShown: "Reflejo",
+      flipShownHorizontal: "Horizontal",
+      flipShownVertical: "Vertical",
+      flipShownNone: "Ninguno",
       strokeWidth: "Grosor del trazo",
       strokeWidthRange:
         "Introduce un grosor mayor que 0 y de hasta {{max}} px, o deja el campo vacío.",

@@ -5,13 +5,14 @@ import { formatDecimal } from "../ui/decimal-number.js";
 import type { SlideBrandSet } from "./brand.js";
 import { ColorText } from "./brand-color-items-internal.js";
 import { DEFAULT_TEXT_SIZE } from "./render-style.js";
-import type { SlideElement, SlidePage } from "./schema.js";
+import type { Background, ColorValue, SlideElement, SlidePage } from "./schema.js";
 import { shownFormat, type TextBody } from "./slide-editor-text.js";
 
-// The inspector under `readOnly` (`SUI-FEATURE-133` rev 3): the properties its fields show, with the
+// The inspector under `readOnly` (`SUI-FEATURE-133` rev 4): the properties its fields show, with the
 // values they show (a number as its field rounds and writes it, a brand colour or font by its brand
 // name, an option by its name), as text and no field to type in. Its tabs are the editable
-// inspector's: the text format under Content, the box, animation and the page under Layout.
+// inspector's: the text format under Content; the flip, box, line, shadow, animation and the page
+// (its background's flip, its transition) under Layout.
 
 type Row = { key: string; label: string; value: React.ReactNode };
 
@@ -23,6 +24,36 @@ function useNumber() {
   return (value: number, unit: string) => {
     const shown = formatDecimal(Math.round(value * 100) / 100, i18n.resolvedLanguage);
     return unit === "" ? shown : unit === "°" ? `${shown}°` : `${shown} ${unit}`;
+  };
+}
+
+// A colour as its field shows it: a brand colour of the set by its name, a free one as own colour
+// with its value (`SUI-FEATURE-137`), the swatch beside it; a brand key the set lacks as own colour.
+function useColor(brand: SlideBrandSet) {
+  const { t } = useTranslation("suite");
+  return (color: ColorValue, swatchTestId: string) =>
+    color.kind === "free" || Object.hasOwn(brand.colors, color.key) ? (
+      <span className="inline-flex items-center gap-2">
+        <ColorText color={color} brand={brand} swatchTestId={swatchTestId} />
+      </span>
+    ) : (
+      t("slides.editor.textOwnColor")
+    );
+}
+
+// The flips of an image or a background image, as its two toggles hold them.
+function useFlip() {
+  const { t } = useTranslation("suite");
+  return (flipped: boolean, flippedVertical: boolean): Row => {
+    const axes = [
+      flipped ? t("slides.editor.flipShownHorizontal") : undefined,
+      flippedVertical ? t("slides.editor.flipShownVertical") : undefined,
+    ].filter((one) => one !== undefined);
+    return {
+      key: "flip",
+      label: t("slides.editor.flipShown"),
+      value: axes.join(", ") || t("slides.editor.flipShownNone"),
+    };
   };
 }
 
@@ -75,18 +106,24 @@ function Section({
   );
 }
 
-// The Layout tab of a single selection: its box, rotation and animation.
+// The Layout tab of a single selection: an image's flip, its box and rotation, a line's colour, width
+// and ends, the shadow of text, shapes, images and lines, and its animation.
 export function ReadOnlyLayout({
   element,
   rotation,
+  brand,
 }: {
   element: SlideElement;
   // The rotation the field shows: the element's own plus its turned groups'.
   rotation: number;
+  brand: SlideBrandSet;
 }) {
   const { t } = useTranslation("suite");
   const number = useNumber();
+  const colorOf = useColor(brand);
+  const flip = useFlip();
   const geometry: Row[] = [
+    ...(element.type === "image" ? [flip(element.flipped, element.flippedVertical)] : []),
     ...(["x", "y", "width", "height"] as const).map((key) => ({
       key,
       label: t(`slides.editor.${key}`),
@@ -98,9 +135,67 @@ export function ReadOnlyLayout({
       value: number(rotation, t("slides.editor.degrees")),
     },
   ];
+  // Text, shapes, images and lines carry a shadow (`null` for the rest): off, one row says so; on,
+  // its colour, blur and offset under its heading.
+  const shadow =
+    element.type === "text" ||
+    element.type === "shape" ||
+    element.type === "image" ||
+    element.type === "line"
+      ? element.shadow
+      : null;
   return (
     <Sheet>
       <Section rows={geometry} />
+      {element.type === "line" ? (
+        <Section
+          title={t("slides.editor.lineSection")}
+          rows={[
+            {
+              key: "line-color",
+              label: t("slides.editor.lineColor"),
+              value: colorOf(element.stroke.color, "slide-editor-readonly-line-swatch"),
+            },
+            {
+              key: "line-width",
+              label: t("slides.editor.lineWidth"),
+              value: number(element.stroke.width, "px"),
+            },
+            {
+              key: "line-cap",
+              label: t("slides.editor.lineCap"),
+              value: t(`slides.editor.lineCap${cap(element.cap)}`),
+            },
+          ]}
+        />
+      ) : null}
+      {shadow === null ? null : shadow === undefined ? (
+        <Section
+          rows={[
+            {
+              key: "shadow",
+              label: t("slides.editor.shadowSection"),
+              value: t("slides.editor.shadowNone"),
+            },
+          ]}
+        />
+      ) : (
+        <Section
+          title={t("slides.editor.shadowSection")}
+          rows={[
+            {
+              key: "shadow-color",
+              label: t("slides.editor.shadowColor"),
+              value: colorOf(shadow.color, "slide-editor-readonly-shadow-swatch"),
+            },
+            ...(["blur", "offsetX", "offsetY"] as const).map((key) => ({
+              key: `shadow-${key}`,
+              label: t(`slides.editor.shadow${cap(key)}`),
+              value: number(shadow[key], "px"),
+            })),
+          ]}
+        />
+      )}
       <section className="col-span-2 grid grid-cols-subgrid gap-y-2">
         <h3 className="col-span-2 text-base font-semibold">{t("slides.editor.animation")}</h3>
         {(["entrance", "exit"] as const).map((kind) => {
@@ -168,6 +263,7 @@ export function ReadOnlyContent({
 }) {
   const { t } = useTranslation("suite");
   const number = useNumber();
+  const colorOf = useColor(brand);
   return (
     <Sheet>
       {body === undefined ? null : (
@@ -191,9 +287,6 @@ export function ReadOnlyContent({
     const { format, mixed, font, color } = shownFormat(of, undefined);
     const mixedText = t("slides.editor.textMixed");
     const brandFont = font?.kind === "brand" ? brand.fonts[font.key] : undefined;
-    // A brand colour of the set by its name, a free one marked as own colour (`SUI-FEATURE-137`).
-    const named =
-      color !== undefined && (color.kind === "free" || Object.hasOwn(brand.colors, color.key));
     const styles = [
       !mixed.has("weight") && (format.weight ?? 400) >= 600
         ? t("slides.editor.textBold")
@@ -222,20 +315,11 @@ export function ReadOnlyContent({
       {
         key: "color",
         label: t("slides.editor.textColor"),
-        value: mixed.has("fill") ? (
-          mixedText
-        ) : color === undefined || !named ? (
-          t("slides.editor.textOwnColor")
-        ) : (
-          // The swatch beside the colour's name, as the editable field shows it.
-          <span className="inline-flex items-center gap-2">
-            <ColorText
-              color={color}
-              brand={brand}
-              swatchTestId="slide-editor-readonly-color-swatch"
-            />
-          </span>
-        ),
+        value: mixed.has("fill")
+          ? mixedText
+          : color === undefined
+            ? t("slides.editor.textOwnColor")
+            : colorOf(color, "slide-editor-readonly-color-swatch"),
       },
       {
         key: "style",
@@ -261,18 +345,28 @@ export function ReadOnlyContent({
   }
 }
 
-// The Layout tab without a selection: the page's transition and the document's format.
+// The Layout tab without a selection: a background image's flip, the page's transition and the
+// document's format.
 export function ReadOnlyPage({
+  background,
   transition,
   format,
 }: {
+  background: Background;
   transition: SlidePage["transition"];
   format: string;
 }) {
   const { t } = useTranslation("suite");
   const number = useNumber();
+  const flip = useFlip();
   return (
     <Sheet>
+      {background.type === "image" ? (
+        <Section
+          title={t("slides.editor.pageBackground")}
+          rows={[flip(background.flipped, background.flippedVertical)]}
+        />
+      ) : null}
       <Section
         title={t("slides.editor.transition")}
         rows={[
