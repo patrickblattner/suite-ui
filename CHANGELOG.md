@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — #812: the slide importer caps every XML part in bytes, whatever its name (patch)
+
+- **Security (#812, Codex review v0.224.0 CX2, SUI-FEATURE-138):** the 20 MiB cap on an XML part was enforced by file name only, so an XML part renamed (e.g. `slide1.bin`, relationships updated) was decoded and parsed without it. `parseXml` now checks the part's byte length before decoding, for every part it parses; an oversized part is rejected as `zip-bomb` — the same code as an oversized `.xml` part — and gives no document.
+- **Tests (#812):** unit (`src/slides/import-guards.test.ts`) — a 21 MiB slide part renamed to `slide1.bin`, its relationships updated, is rejected as `zip-bomb` naming the part (imported a document before the fix).
+
 ## Unreleased — #811: the secret guard scans octopus merges (patch)
 
 - **Security (#811, Codex review v0.224.0 CX1):** the pre-push secret guard and the hygiene history scan read a merge by what its resolution added (`--diff-merges=remerge`), which prints no patch for a merge of three or more parents — a secret added in an octopus merge (e.g. a `wip:` push to a non-main branch) passed unscanned. Both now run a second gitleaks pass over merges of 3+ parents against their first parent (`--min-parents=3 --diff-merges=first-parent`), which shows everything such a merge adds beyond it. Hygiene's `gitleaks.history` count is the sum of both passes; an octopus finding whose line one of the merge's parents already holds came with that parent and is not counted again (the history pass found it there, or `.gitleaksignore` excused it there). Tests: unit (`scripts/hygiene.test.ts`, `scripts/pre-push.test.ts`) — an octopus merge resolution's secret is found by the hygiene scan and refuses a `wip:` push; the hook's passes equal hygiene's; the hygiene count adds the octopus pass, counts a side-branch secret an octopus merges once and keeps its `.gitleaksignore` fingerprint excused; a pass without a scanned-commit count is unreadable; the two-parent and WIP cases stay.

@@ -118,6 +118,26 @@ describe("importPptx guards (review #792 security)", () => {
     expect(error.limit).toEqual({ kind: "xml-elements", max: 200_000 });
   });
 
+  // #812: the byte cap does not hang on the name — an XML part renamed to .bin is still capped.
+  it("rejects an XML part beyond 20 MB under a name other than .xml", async () => {
+    const files = basic();
+    const rels = "ppt/slides/_rels/slide1.xml.rels";
+    files["ppt/_rels/presentation.xml.rels"] = bytesOf(
+      text(files["ppt/_rels/presentation.xml.rels"]).replace(
+        "slides/slide1.xml",
+        "slides/slide1.bin",
+      ),
+    );
+    files["ppt/slides/_rels/slide1.bin.rels"] = bytesOf(text(files[rels]));
+    delete files[rels];
+    const slide = text(files[SLIDE]);
+    delete files[SLIDE];
+    const padding = " ".repeat(21 * 1024 * 1024);
+    files["ppt/slides/slide1.bin"] = bytesOf(slide.replace("</p:spTree>", `${padding}</p:spTree>`));
+    const error = await rejects(zipSync(files, { level: 0 }), "zip-bomb");
+    expect(error.message).toContain("ppt/slides/slide1.bin");
+  });
+
   // S3: a picture's type comes from its bytes; an SVG or a file only named .png is no medium.
   it("never passes a file's SVG or a disguised file on as a medium", async () => {
     for (const fake of [

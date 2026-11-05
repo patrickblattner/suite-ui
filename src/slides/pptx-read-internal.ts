@@ -219,6 +219,9 @@ function toTree(element: XmlElement): X {
 }
 
 export function parseXml(bytes: Uint8Array, part: string): X {
+  // The byte cap holds for every part parsed as XML, whatever its name (#812).
+  if (bytes.length > MAX_XML_BYTES)
+    throw new PptxImportError("zip-bomb", `the part ${part} unpacks beyond ${MAX_XML_BYTES} bytes`);
   let elements = 0;
   for (const byte of bytes) if (byte === 0x3c) elements += 1;
   if (elements > MAX_XML_ELEMENTS)
