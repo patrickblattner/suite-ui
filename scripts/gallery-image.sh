@@ -13,10 +13,12 @@
 # Gentle on the host:
 # - The container's dependencies live in a Docker volume per architecture. It is reinstalled only
 #   when the lockfile or the image changes; otherwise the run installs nothing.
-# - At most one gallery run at a time, across all worktrees: a lock directory in the main checkout's
-#   `.spec-sync/`, taken and waited for by `scripts/gallery-lock.ts` (PROC-REL-040 rev 7). A second
-#   run waits while the holder is within its cap plus five minutes, then exits 75 (lock deadline
-#   expired, a non-run); the holder's own run ends red at its cap.
+# - A heavy local step in one of the dev box's machine-wide slots (PROC-REL-060): `npm run
+#   gallery:image` takes one through `spec-sync slot run --step gallery --cap 35` (exit 75: the wait
+#   expired, a non-run; 124: killed at the cap); the merge gate's gallery phase runs this script
+#   directly, inside the slot the gate already holds. Either way this script kills its container
+#   at its own 34 min cap and the run ends red — one minute before the slot's 35 min cap ends the
+#   script, so no container outlives the slot.
 #
 # It works on a throwaway copy of the working tree: the checkout's `node_modules` are built for the
 # host. Only the baselines and the reports come back.
@@ -37,10 +39,9 @@ case "$ENGINE_ARCH" in
     ;;
 esac
 
-COMMON="$(git -C "$ROOT" rev-parse --path-format=absolute --git-common-dir)"
-MAIN="$(dirname "$COMMON")"
-LOCK="$MAIN/.spec-sync/gallery.lock"
-mkdir -p "$MAIN/.spec-sync"
+# One minute under the slot's cap (35 min: the longest of the last five green gallery runs,
+# 25.4 min, plus a third, rounded up to five minutes), so the container is killed first.
+CAP=34
 
 STAGE=""
 WATCHDOG=""
@@ -53,19 +54,14 @@ cleanup() {
     kill "$WATCHDOG" 2>/dev/null || true
   fi
   [ -n "$STAGE" ] && rm -rf "$STAGE"
-  # Only this run's own lock: a lock another run took over stays.
-  [ "$(cat "$LOCK/pid" 2>/dev/null || true)" = "$$" ] && rm -rf "$LOCK"
   return 0
 }
 trap cleanup EXIT
 trap 'exit 130' INT TERM
 
-# Exit 75: the wait ran out (lock deadline expired) — a non-run, passed through unchanged.
-node "$ROOT/scripts/gallery-lock.ts" "$LOCK" "$$" "$ROOT"
-# The cap of the locked work is the one this run wrote into its holder line; past it the container is
-# killed and the run ends red, so a hung run never holds the lock beyond what its waiters allow.
-CAP="$(sed -n 's/.* cap=\([0-9]*\).*/\1/p' "$LOCK/holder")"
-(sleep $((CAP * 60)) && echo "gallery-image: the run passed its cap of $CAP min — the container is killed and the phase is red; look for a hung test, or if the suite legitimately grew, raise GALLERY_CAP_MIN in scripts/gallery-lock.ts (PROC-REL-040)" >&2 &&
+# Past the cap the container is killed and the run ends red, so a hung run never holds its slot
+# beyond what the waiters allow.
+(sleep $((CAP * 60)) && echo "gallery-image: the run passed its cap of $CAP min — the container is killed and the phase is red; look for a hung test, or if the suite legitimately grew, raise CAP in scripts/gallery-image.sh and --cap in package.json (PROC-REL-060)" >&2 &&
   docker kill "$CONTAINER" >/dev/null 2>&1) &
 WATCHDOG=$!
 

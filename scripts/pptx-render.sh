@@ -4,7 +4,9 @@
 # the gallery page `slide-import` shows beside the imported document. Runs in a one-off Docker
 # container, never on the host; regenerate after `node scripts/pptx-fixtures.ts` changed the fixture:
 #
-#   scripts/pptx-render.sh
+#   npm run pptx:render
+#
+# A heavy local step: the npm script runs it in a dev-box slot with a 15 min cap (PROC-REL-060).
 #
 # Liberation and Carlito stand in for Arial and Calibri with the same metrics; Georgia has no such
 # twin, so LibreOffice picks a serif of its own.
@@ -14,8 +16,15 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DIR="$ROOT/test/fixtures/pptx"
 IMAGE="debian:bookworm-slim"
 
+CONTAINER="suite-ui-pptx-$$"
+# `--init` makes tini PID 1, so the container's bash gets the signal; the trap kills the container
+# when the slot's cap ends this script, so it never outlives the slot.
+trap 'docker kill "$CONTAINER" >/dev/null 2>&1 || true' EXIT
+trap 'exit 143' TERM
+trap 'exit 130' INT
+
 rm -f "$DIR"/basic.pdf "$DIR"/basic-*.png
-docker run --rm -v "$DIR:/work" -w /work "$IMAGE" bash -euo pipefail -c '
+docker run --rm --init --name "$CONTAINER" -v "$DIR:/work" -w /work "$IMAGE" bash -euo pipefail -c '
   export DEBIAN_FRONTEND=noninteractive
   apt-get update -qq
   apt-get install -y -qq --no-install-recommends libreoffice-impress poppler-utils \

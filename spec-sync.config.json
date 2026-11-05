@@ -41,7 +41,7 @@
       },
       {
         "name": "gallery",
-        "cmd": "npm run gallery:image",
+        "cmd": "bash scripts/gallery-image.sh",
         "imageOnly": "Playwright screenshots in the pinned Docker image (SUI-FEATURE-076); the pre-run never starts a browser"
       }
     ]

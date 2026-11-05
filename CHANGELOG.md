@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased — #820: toolkit pin 0.37.0, dev-box slots, the gallery lock folds into them (PROC-REL-060) (patch)
+
+- **Changed (#820, PROC-REL-060 rev 2):** `spec-sync-toolkit` is pinned to v0.37.0. Heavy local steps take one of the dev box's machine-wide slots: `npm run gallery:image` runs through `spec-sync slot run --step gallery --cap 35`, the new `npm run pptx:render` (the fixture render container) through `slot run --step pptx-render --cap 15`; exit 75 is a non-run (wait expired), 124 killed at the cap. The merge gate and the pre-push preflight hold a slot of their own (toolkit `gate`), so the gate's gallery phase calls `scripts/gallery-image.sh` directly instead of taking a second one. The gallery lock script `scripts/gallery-lock.ts` (and its test) is replaced by the slots. `gallery-image.sh` kills its container at its own 34 min cap, one minute before the slot's 35 min cap; `pptx-render.sh` runs its container with `--init` under a name and kills it when the script ends, so neither container outlives its slot.
+
 ## 0.225.0 — #813: slide-editor-follow tests drain the focus-scope timer after cleanup (patch)
 
 - **Test (#813):** `slide-editor-follow.test.tsx` `afterEach` now drains one macrotask after `cleanup()`, so a focus-scope `setTimeout` left by an unmounted dialog no longer fires into the next test. Test-only.
