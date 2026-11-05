@@ -2,7 +2,7 @@
 
 ## Unreleased — #807: spec-sync-toolkit v0.36.2 (patch)
 
-- **Changed (#807, architect Q#5371/Q#5372):** the `spec-sync-toolkit` devDependency moved from v0.36.1 to v0.36.2 (74803eb). A gate phase that exits 75 (gallery lock deadline expired, PROC-REL-040) now ends the gate with exit 2 and the note `phase gallery: lock deadline expired (exit 75) — not run`, instead of red. Checked by reading the toolkit's gate code (the toolkit carries the test); not reproduced here.
+- **Changed (#807, architect Q#5371/Q#5372):** the `spec-sync-toolkit` devDependency moved from v0.36.1 to v0.36.2 (74803eb). A gate phase that exits 75 (gallery lock deadline expired, PROC-REL-040) now counts as unprovable, not red, and carries the note `phase gallery: lock deadline expired (exit 75) — not run`. The gate exits 2 only when every red phase is unprovable; if another phase in the same run is truly red, the gate still exits 1. Checked by reading the toolkit's gate code (the toolkit carries the test); not reproduced here.
 - **Operations (#807, Q#5372):** the stale ledger entries #525 #575 #585 #675 #679 #680 (closed long ago, pre-format squash subjects) were closed with `spec-sync ledger close` in the main checkout; doctor no longer reports them as merge-incomplete.
 
 ## Unreleased — #806: SlideEditor overlays take `hint` and `bleed` (SUI-FEATURE-134 rev 8) (minor)
