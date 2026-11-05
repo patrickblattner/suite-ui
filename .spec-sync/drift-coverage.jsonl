@@ -868,3 +868,4 @@
 {"ts":"2026-11-05T17:49:36.249Z","key":"SUI-FEATURE-381","from":3,"to":4,"disposition":"ticket","ref":"818"}
 {"ts":"2026-11-05T20:04:23.001Z","key":"SUI-FEATURE-382","from":null,"to":2,"disposition":"ticket","ref":"822"}
 {"ts":"2026-11-05T20:04:23.337Z","key":"PROC-REL-060","from":null,"to":2,"disposition":"ticket","ref":"820"}
+{"ts":"2026-11-05T20:55:05.549Z","key":"PROC-DEV-035","from":5,"to":6,"disposition":"editorial","ref":"harness-side stop/question semantics (worker-harness), no suite-ui code impact"}
