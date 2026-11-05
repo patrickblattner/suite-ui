@@ -855,3 +855,4 @@
 {"ts":"2026-11-04T18:06:16.040Z","key":"SUI-FEATURE-138","from":2,"to":3,"disposition":"ticket","ref":"792"}
 {"ts":"2026-11-04T18:06:27.181Z","key":"SUI-FEATURE-134","from":6,"to":7,"disposition":"ticket","ref":"806"}
 {"ts":"2026-11-05T00:42:44.209Z","key":"SUI-FEATURE-134","from":7,"to":8,"disposition":"ticket","ref":"806"}
+{"ts":"2026-11-05T04:31:05.817Z","key":"SUI-FEATURE-133","from":4,"to":5,"disposition":"editorial","ref":"rev 5 reconciles delta wording with AC (background flip as text, Q#5397); already built and merged in #801 (6308590c)"}
