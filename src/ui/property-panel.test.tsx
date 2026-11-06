@@ -126,3 +126,40 @@ describe("PropertyPanel (SUI-FEATURE-071)", () => {
     expect(screen.getByRole("tabpanel")).toHaveTextContent("Layout fields");
   });
 });
+
+describe("PropertyPanel without tabs (SUI-FEATURE-371)", () => {
+  const HINT = "Select a product to edit its settings.";
+
+  // AC 1
+  it("no tab list, the path stays, the hint is one muted line in the body", () => {
+    render(<Panel tabs={[]} emptyHint={HINT} />);
+    expect(screen.queryByRole("tablist")).toBeNull();
+    expect(screen.getByTestId("property-path-current")).toHaveTextContent("Spring newsletter");
+    const body = screen.getByTestId("property-panel-body");
+    const hint = within(body).getByTestId("property-panel-empty-hint");
+    expect(hint).toHaveTextContent(HINT);
+    expect(hint).toHaveClass("text-sm", "text-muted-foreground");
+    expect(body.children).toHaveLength(1);
+  });
+
+  // AC 2
+  it("without a hint the body stays empty and no tab list is drawn", () => {
+    render(<Panel tabs={[]} />);
+    expect(screen.queryByRole("tablist")).toBeNull();
+    expect(screen.getByTestId("property-panel-body")).toBeEmptyDOMElement();
+  });
+
+  it("an empty hint renders no line", () => {
+    render(<Panel tabs={[]} emptyHint="" />);
+    expect(screen.queryByTestId("property-panel-empty-hint")).toBeNull();
+    expect(screen.getByTestId("property-panel-body")).toBeEmptyDOMElement();
+  });
+
+  // AC 3
+  it("with tabs the hint is not shown", () => {
+    render(<Panel emptyHint={HINT} />);
+    expect(screen.getByRole("tablist")).toBeInTheDocument();
+    expect(screen.queryByText(HINT)).toBeNull();
+    expect(screen.queryByTestId("property-panel-empty-hint")).toBeNull();
+  });
+});

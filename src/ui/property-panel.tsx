@@ -16,6 +16,9 @@ type PropertyPanelProps = {
   tabs: readonly { id: PropertyTabId; content: React.ReactNode }[];
   activeTab: PropertyTabId;
   onTab: (id: PropertyTabId) => void;
+  // Shown, already translated, as the body's one muted line when the panel has no tabs
+  // (`SUI-FEATURE-371`); with tabs it is not shown.
+  emptyHint?: string;
 };
 
 // The properties of the canvas selection (`GL-UI-040`, `SUI-FEATURE-071`): a fixed column on the
@@ -25,8 +28,9 @@ type PropertyPanelProps = {
 // it, sizes the canvas, sets `--property-panel-share` and caps every other child of that row at the
 // rest, except a `dialog` or `[popover]` child; an absolute overlay in the row is capped too. The head
 // holds the path and the tabs in the fixed order Content · Layout · Background, narrower padded below
-// 640 px so all three fit 320 px; only the body scrolls.
-function PropertyPanel({ path, tabs, activeTab, onTab }: PropertyPanelProps) {
+// 640 px so all three fit 320 px; only the body scrolls. Without tabs the head holds the path alone and
+// the body `emptyHint` or nothing (`SUI-FEATURE-371`): an empty tab list would be an a11y finding.
+function PropertyPanel({ path, tabs, activeTab, onTab, emptyHint }: PropertyPanelProps) {
   const { t } = useTranslation("suite");
   const ordered = TAB_ORDER.flatMap((id) => tabs.filter((tab) => tab.id === id));
   return (
@@ -67,18 +71,20 @@ function PropertyPanel({ path, tabs, activeTab, onTab }: PropertyPanelProps) {
               </li>
             ))}
           </ol>
-          <TabsList className="w-full">
-            {ordered.map(({ id }) => (
-              <TabsTrigger
-                key={id}
-                value={id}
-                className="max-sm:px-1.5"
-                data-testid={`property-tab-${id}`}
-              >
-                {t(`canvas.tab.${id}`)}
-              </TabsTrigger>
-            ))}
-          </TabsList>
+          {ordered.length === 0 ? null : (
+            <TabsList className="w-full">
+              {ordered.map(({ id }) => (
+                <TabsTrigger
+                  key={id}
+                  value={id}
+                  className="max-sm:px-1.5"
+                  data-testid={`property-tab-${id}`}
+                >
+                  {t(`canvas.tab.${id}`)}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          )}
         </div>
         <div
           // An inner scroll area (`GL-UI-018`, `SUI-FEATURE-380`): its start flush with the head's
@@ -86,6 +92,11 @@ function PropertyPanel({ path, tabs, activeTab, onTab }: PropertyPanelProps) {
           className="min-h-0 flex-1 scroll-py-2 overflow-y-auto py-4 ps-4 pe-[var(--page-gutter)] [scrollbar-gutter:stable]"
           data-testid="property-panel-body"
         >
+          {ordered.length === 0 && emptyHint ? (
+            <p className="text-sm text-muted-foreground" data-testid="property-panel-empty-hint">
+              {emptyHint}
+            </p>
+          ) : null}
           {ordered.map(({ id, content }) => (
             <TabsContent key={id} value={id}>
               {content}

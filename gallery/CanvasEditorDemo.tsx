@@ -33,7 +33,8 @@ const CONTENT_FIELDS = [
 // element of its own, which the package's editor rules must leave alone; `wide-canvas`, a canvas sized
 // by its content (`flex-auto`) wider than the frame, which must not push the panel onto a second line;
 // `extra-aside`, a fixed 300 px aside between canvas and panel, which keeps its width; `gap`, a row
-// with `gap-4`, whose two lines below 1024 px still fit the editor.
+// with `gap-4`, whose two lines below 1024 px still fit the editor; `no-tabs` (`SUI-FEATURE-371`), a
+// canvas with no settings of its own and nothing selected: the panel without tabs, with its hint.
 const EDITOR_VARIANT = new URLSearchParams(window.location.search).get("editor");
 
 // `SUI-FEATURE-136`: the editor's own word for its document, from its own i18n in a real app. It names
@@ -46,20 +47,26 @@ export function CanvasEditorRow() {
   const [open, setOpen] = useState<DrawerId | undefined>("style");
   const [tab, setTab] = useState<PropertyTabId>("content");
   const [styleDirty, setStyleDirty] = useState(true);
-  const [path, setPath] = useState([DOCUMENT_LABEL, "Hero", "Heading"]);
+  const noTabs = EDITOR_VARIANT === "no-tabs";
+  const [path, setPath] = useState(noTabs ? [DOCUMENT_LABEL] : [DOCUMENT_LABEL, "Hero", "Heading"]);
   const panel = (
     <PropertyPanel
       path={path.map((label, index) => ({
         label,
         onSelect: () => setPath((steps) => steps.slice(0, index + 1)),
       }))}
-      tabs={[
-        { id: "content", content: <Fields names={CONTENT_FIELDS} /> },
-        { id: "layout", content: <Fields names={["Width", "Spacing"]} /> },
-        { id: "background", content: <Fields names={["Colour", "Image"]} /> },
-      ]}
+      tabs={
+        noTabs
+          ? []
+          : [
+              { id: "content", content: <Fields names={CONTENT_FIELDS} /> },
+              { id: "layout", content: <Fields names={["Width", "Spacing"]} /> },
+              { id: "background", content: <Fields names={["Colour", "Image"]} /> },
+            ]
+      }
       activeTab={tab}
       onTab={setTab}
+      emptyHint={noTabs ? "Select a block to edit its settings." : undefined}
     />
   );
   return (

@@ -1065,6 +1065,8 @@ const AXE_PAGES: [
       page.locator("[data-testid=slide-editor] [data-slot=slide-view][data-slide-ready=true]"),
     "&maxPages=1",
   ],
+  // `SUI-FEATURE-371` AC4: the property panel without tabs.
+  ["components", (page) => page.getByTestId("property-panel-empty-hint"), "&editor=no-tabs"],
 ];
 
 // A new gallery page cannot skip axe: the page switch offers exactly the pages axe scans.
@@ -12024,6 +12026,24 @@ test("canvas editor: at 700 px a row with gap-4 keeps the panel inside", async (
   expect(panel.y).toBeGreaterThanOrEqual(canvas.y + canvas.height - 0.5);
   expect(panel.y + panel.height).toBeLessThanOrEqual(frame.y + frame.height + 0.5);
 });
+
+// #817 (`SUI-FEATURE-371` AC 1, AC 4): a panel without tabs draws no tab list, keeps the path and
+// shows its hint as one muted line in the body.
+for (const theme of THEMES) {
+  test(`property panel: without tabs no tab list, the hint in the body, ${theme}`, async ({
+    page,
+  }) => {
+    await page.goto(`/?page=components&lng=en&theme=${theme}&editor=no-tabs`);
+    const panel = page.getByTestId("canvas-editor").getByTestId("property-panel");
+    await expect(panel.getByTestId("property-path-current")).toHaveText("Newsletter");
+    await expect(panel.getByRole("tablist")).toHaveCount(0);
+    await expect(
+      panel.getByTestId("property-panel-body").getByTestId("property-panel-empty-hint"),
+    ).toHaveText("Select a block to edit its settings.");
+    await parkPointer(page);
+    await expect(panel).toHaveScreenshot(`property-panel-no-tabs-${theme}.png`);
+  });
+}
 
 // #232 (`SUI-FEATURE-071` rev 7): the switch sits at 1024 px of the editor row's content box — a row of
 // exactly 1024 px keeps the panel beside the canvas, 1023 px stacks it.
