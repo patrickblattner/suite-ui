@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased — #828: spec-sync-toolkit v0.39.0 (PROC-REL-060 rev 3–4) (patch)
+
+- **Changed (#828):** devDependency `spec-sync-toolkit` raised from `v0.37.0` to `v0.39.0` — load ceiling on dev-box slots, waiters served first come first served (PROC-REL-060 rev 3–4); no API change for callers.
+
 ## Unreleased — #829: two gallery flakes made deterministic (patch)
 
 - **Test (#829, GL-TEST-027):** the gallery helper `restUntilClosed` no longer measures the rest before a row bubble closes in wall-clock time against a 50 ms band (a loaded box measured 385 ms for the 300 ms close). It pauses the page clock once the bubble is open, moves the pointer, and steps the clock: where the point lies on the way to the bubble, still open at 250 ms and closed at 350 ms; elsewhere closed by 350 ms; then the clock resumes for the next hint's delay. The six tests that use it (the three row-rest tests and the 390 px category-name test in de/en/es) assert the same bounds without a timing band. Test-only.
