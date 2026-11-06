@@ -869,3 +869,8 @@
 {"ts":"2026-11-05T20:04:23.001Z","key":"SUI-FEATURE-382","from":null,"to":2,"disposition":"ticket","ref":"822"}
 {"ts":"2026-11-05T20:04:23.337Z","key":"PROC-REL-060","from":null,"to":2,"disposition":"ticket","ref":"820"}
 {"ts":"2026-11-05T20:55:05.549Z","key":"PROC-DEV-035","from":5,"to":6,"disposition":"editorial","ref":"harness-side stop/question semantics (worker-harness), no suite-ui code impact"}
+{"ts":"2026-11-06T10:13:33.206Z","key":"PROC-REL-003","from":8,"to":9,"disposition":"editorial","ref":"runner-label topology (harness/CI); suite-ui has no .github/workflows — no code impact"}
+{"ts":"2026-11-06T10:13:33.206Z","key":"PROC-REL-019","from":26,"to":27,"disposition":"editorial","ref":"runner-label topology (harness/CI); suite-ui has no .github/workflows — no code impact"}
+{"ts":"2026-11-06T10:14:34.191Z","key":"SUI-FEATURE-152","from":null,"to":2,"disposition":"ticket","ref":"825"}
+{"ts":"2026-11-06T10:14:34.607Z","key":"SUI-FEATURE-254","from":null,"to":2,"disposition":"ticket","ref":"826"}
+{"ts":"2026-11-06T10:14:35.014Z","key":"SUI-FEATURE-382","from":2,"to":3,"disposition":"ticket","ref":"827"}
