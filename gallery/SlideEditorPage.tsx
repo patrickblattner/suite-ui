@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 import { safeParseSlideDocument } from "../src/slides/document.js";
 import { keepInClipboard } from "../src/slides/element-clipboard-internal.js";
@@ -25,6 +25,7 @@ import {
 } from "../src/ui/dialog.js";
 import { Toaster, useEditorShellToastOffset } from "../src/ui/toaster.js";
 import type { SlideDocument, SlideFormat, SlideLayoutInput } from "../src/slides/schema.js";
+import { phoneFrame } from "./phone-frame.js";
 import { SLIDE_BRAND, SLIDE_EDITOR_DOC } from "./slide-showcase.js";
 import { GALLERY_SLIDE_PROPS, imageFilter } from "./SlidesPage.js";
 
@@ -355,47 +356,70 @@ const GALLERY_EDITOR_EXTENSIONS: SlideExtensions = {
 
 // `SUI-FEATURE-134` (`?host=1`): the host's slots — an upload's status in the header, the record's
 // name in the page panel (a rename is a host step in the editor's undo, Reset restores it), and two
-// labelled overlays with their toggles and hints in the view band; the phone frame draws in a 40 format px
-// bleed around the page (rev 7). `SUI-FEATURE-380`: the record's id as the header's subtitle and
+// labelled overlays with their toggles and hints in the view band; the phone frame draws in a bleed
+// around the page (rev 7) as a thin ring with a speaker and a camera (`SUI-FEATURE-382`), sized from
+// the shown page's format. `SUI-FEATURE-380`: the record's id as the header's subtitle and
 // "Save as block", whose block the app line below keeps for the tests.
 const HOST = PARAMS.get("host") === "1";
-const HOST_EXTENSIONS: SlideExtensions = {
-  ...GALLERY_SLIDE_PROPS.extensions,
-  overlays: [
-    {
-      id: "safe-zones",
-      label: "Safe zones",
-      hint: "Shows where text stays clear of the edge",
-      render: ({ width, height }) => (
-        <div
-          className="absolute border border-dashed border-destructive"
-          style={{
-            left: width * 0.05,
-            top: height * 0.05,
-            right: width * 0.05,
-            bottom: height * 0.05,
-          }}
-          data-testid="gallery-host-safe-zones"
-        />
-      ),
-    },
-    {
-      id: "phone-frame",
-      label: "Phone frame",
-      hint: "Shows the page in a phone frame",
-      bleed: 40,
-      render: ({ zoom }) => (
-        <div
-          // A mid grey in both themes, all in the bleed: the page inside stays uncovered.
-          // Its radius follows the band, so the inner corners stay square on the page's corners.
-          className="absolute inset-0 border-solid border-ring"
-          style={{ borderWidth: 40 * zoom, borderRadius: 40 * zoom }}
-          data-testid="gallery-host-phone-frame"
-        />
-      ),
-    },
-  ],
-};
+function hostExtensions(format: SlideFormat): SlideExtensions {
+  return {
+    ...GALLERY_SLIDE_PROPS.extensions,
+    overlays: [
+      {
+        id: "safe-zones",
+        label: "Safe zones",
+        hint: "Shows where text stays clear of the edge",
+        render: ({ width, height }) => (
+          <div
+            className="absolute border border-dashed border-destructive"
+            style={{
+              left: width * 0.05,
+              top: height * 0.05,
+              right: width * 0.05,
+              bottom: height * 0.05,
+            }}
+            data-testid="gallery-host-safe-zones"
+          />
+        ),
+      },
+      {
+        id: "phone-frame",
+        label: "Phone frame",
+        hint: "Shows the page in a phone frame",
+        bleed: phoneFrame(format).bleed,
+        render: ({ format: shown, zoom }) => <PhoneFrame format={shown} zoom={zoom} />,
+      },
+    ],
+  };
+}
+
+// The ring, the speaker and the camera in the `ring` mid grey, the quietest token at least 3:1 on the
+// canvas in both themes; all in the bleed, so the page inside stays uncovered.
+function PhoneFrame({ format, zoom }: { format: SlideFormat; zoom: number }) {
+  const { bleed, gap, ring, radius, speaker, camera } = phoneFrame(format);
+  const margin = (bleed - gap - ring) * zoom;
+  // The cues' centre line, half the gap off the page edge.
+  const cue = (bleed - gap / 2) * zoom;
+  return (
+    <div className="absolute inset-0" data-testid="gallery-host-phone-frame">
+      <div
+        className="absolute border-solid border-ring"
+        style={{ inset: margin, borderWidth: ring * zoom, borderRadius: radius * zoom }}
+        data-testid="gallery-host-phone-ring"
+      />
+      <div
+        className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-ring"
+        style={{ left: cue, width: speaker.thickness * zoom, height: speaker.length * zoom }}
+        data-testid="gallery-host-phone-speaker"
+      />
+      <div
+        className="absolute top-1/2 translate-x-1/2 -translate-y-1/2 rounded-full bg-ring"
+        style={{ right: cue, width: camera * zoom, height: camera * zoom }}
+        data-testid="gallery-host-phone-camera"
+      />
+    </div>
+  );
+}
 const HOST_NAME = "Workshop deck";
 
 // The record's name as the host keeps it: a change, once the field is left, is a host step. Under
@@ -477,6 +501,20 @@ export function SlideEditorPage() {
   const [backs, setBacks] = useState(0);
   const [copy, setCopy] = useState<{ document: SlideDocument; overflowIds: string[] } | null>(null);
   const [opened, setOpened] = useState<SlideDocument | null>(null);
+  // The document the editor shows; the phone frame's bleed follows its format.
+  const shown =
+    opened ??
+    FULL_DOC ??
+    BADGE_DOC ??
+    NUMBERED_DOC ??
+    GROUND_DOC ??
+    PICTURE_DOC ??
+    SINGLE_DOC ??
+    (INVALID
+      ? ({ ...SLIDE_EDITOR_DOC, schemaVersion: 99 } as unknown as typeof SLIDE_EDITOR_DOC)
+      : SLIDE_EDITOR_DOC);
+  const shownFormat = shown.format;
+  const shownHostExtensions = useMemo(() => hostExtensions(shownFormat), [shownFormat]);
   const [picking, setPicking] = useState(false);
   const [presenting, setPresenting] = useState(false);
   // The editor route is a full-screen editor's shell: its toasts start below the editor's header and
@@ -536,18 +574,7 @@ export function SlideEditorPage() {
         >
           <SlideEditor
             key={opened === null ? "deck" : "copy"}
-            document={
-              opened ??
-              FULL_DOC ??
-              BADGE_DOC ??
-              NUMBERED_DOC ??
-              GROUND_DOC ??
-              PICTURE_DOC ??
-              SINGLE_DOC ??
-              (INVALID
-                ? ({ ...SLIDE_EDITOR_DOC, schemaVersion: 99 } as unknown as typeof SLIDE_EDITOR_DOC)
-                : SLIDE_EDITOR_DOC)
-            }
+            document={shown}
             title={HOST ? name : "Workshop deck"}
             headerRef={header}
             {...GALLERY_SLIDE_PROPS}
@@ -555,7 +582,7 @@ export function SlideEditorPage() {
             {...(HOST
               ? {
                   ref: editor,
-                  extensions: HOST_EXTENSIONS,
+                  extensions: shownHostExtensions,
                   subtitle: "Record WS-0042",
                   onSaveBlock: setBlock,
                   status: (

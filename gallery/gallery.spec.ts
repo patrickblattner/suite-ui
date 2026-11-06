@@ -11,6 +11,7 @@ import {
   settingsFooterViolations,
   userMenuOrderViolations,
 } from "../src/testing/index.js";
+import { phoneFrame } from "./phone-frame.js";
 import { shellTexts } from "./shell-labels.js";
 import { de } from "../src/strings/de.js";
 import { en } from "../src/strings/en.js";
@@ -20062,8 +20063,8 @@ test("slide editor host slots in the gallery", async ({ page }) => {
   await safe.hover();
   await expect(page.getByRole("tooltip")).toContainText("Shows where text stays clear of the edge");
   await page.mouse.move(0, 0);
-  // Rev 7 AC4: the phone frame draws in its 40 format px bleed around the page, fit shows it whole,
-  // and it takes no press.
+  // Rev 7 AC4: the phone frame draws in its bleed around the page, fit shows it whole, and it takes
+  // no press.
   const geometry = await editor.getByTestId("slide-editor-overlay-phone-frame").evaluate((box) => {
     const rect = (node: Element) => {
       const { left, top, right, bottom, width, height } = node.getBoundingClientRect();
@@ -20083,7 +20084,7 @@ test("slide editor host slots in the gallery", async ({ page }) => {
       events: getComputedStyle(box).pointerEvents,
     };
   });
-  const room = (geometry.page.width / 800) * 40;
+  const room = (geometry.page.width / 800) * phoneFrame({ width: 800, height: 450 }).bleed;
   expect(geometry.page.left - geometry.box.left).toBeCloseTo(room, 0);
   expect(geometry.page.top - geometry.box.top).toBeCloseTo(room, 0);
   expect(geometry.box.right - geometry.page.right).toBeCloseTo(room, 0);
@@ -20117,6 +20118,168 @@ test("slide editor host slots in the gallery", async ({ page }) => {
   await expect(name).toHaveValue("Workshop deck");
   await expect(editor.getByTestId("editor-state").first()).toContainText("Saved");
   await expect(editor.getByTestId("editor-undo").first()).toHaveAttribute("aria-disabled", "true");
+});
+
+// `SUI-FEATURE-382` AC3: every size of the phone frame is the same share of the page's shorter side,
+// so a square and a wide page get the same proportions; ring, gap and cues fit in the bleed, the ring
+// stays thinner than the gap (no band) and its inner corner clears the page's corner.
+test("phone frame keeps its proportions on every format", () => {
+  const shares = (format: { width: number; height: number }) => {
+    const side = Math.min(format.width, format.height);
+    const { bleed, gap, ring, radius, speaker, camera } = phoneFrame(format);
+    return [bleed, gap, ring, radius, speaker.length, speaker.thickness, camera].map(
+      (v) => v / side,
+    );
+  };
+  const square = shares({ width: 1080, height: 1080 });
+  for (const format of [
+    { width: 1920, height: 1080 },
+    { width: 800, height: 450 },
+  ]) {
+    shares(format).forEach((share, index) => expect(share).toBeCloseTo(square[index]!, 10));
+  }
+  for (const format of [
+    { width: 1080, height: 1080 },
+    { width: 1920, height: 1080 },
+    { width: 800, height: 450 },
+  ]) {
+    const { bleed, gap, ring, radius, speaker, camera } = phoneFrame(format);
+    expect(gap + ring).toBeLessThan(bleed);
+    expect(ring).toBeLessThan(gap);
+    expect(speaker.thickness).toBeLessThan(gap);
+    expect(camera).toBeLessThan(gap);
+    expect(speaker.length).toBeLessThan(Math.min(format.width, format.height));
+    // The inner corner's centre lies (radius − ring − gap) in from the page corner on each axis.
+    expect((radius - ring - gap) * Math.SQRT2).toBeLessThan(radius - ring);
+  }
+});
+
+// The host demo's phone frame as drawn: its overlay box, the page, the ring and the cues, their tones,
+// the canvas background, and whether a press on the ring or a cue reaches the frame.
+async function measurePhoneFrame(editor: Locator) {
+  await expect(editor.getByTestId("gallery-host-phone-ring")).toBeVisible();
+  return editor.getByTestId("slide-editor-overlay-phone-frame").evaluate((box) => {
+    // A plain copy of the box, so it survives the trip out of the page.
+    const rect = (node: Element) => node.getBoundingClientRect().toJSON() as DOMRectReadOnly;
+    const part = (name: string) => box.querySelector(`[data-testid=gallery-host-phone-${name}]`)!;
+    const style = getComputedStyle(part("ring"));
+    const pageBox = rect(box.parentElement!);
+    const [ring, speaker, camera] = [
+      rect(part("ring")),
+      rect(part("speaker")),
+      rect(part("camera")),
+    ];
+    const at = (x: number, y: number) => {
+      const hit = document.elementFromPoint(x, y);
+      return hit !== null && box.contains(hit);
+    };
+    return {
+      box: rect(box),
+      page: pageBox,
+      ring,
+      ringWidth: parseFloat(style.borderLeftWidth),
+      ringColor: style.borderLeftColor,
+      speaker,
+      speakerColor: getComputedStyle(part("speaker")).backgroundColor,
+      camera,
+      cameraColor: getComputedStyle(part("camera")).backgroundColor,
+      canvas: getComputedStyle(document.querySelector("[data-testid=slide-editor-canvas-area]")!)
+        .backgroundColor,
+      hits: [
+        at(ring.left + 1, pageBox.top + pageBox.height / 2),
+        at(speaker.left + speaker.width / 2, speaker.top + speaker.height / 2),
+        at(camera.left + camera.width / 2, camera.top + camera.height / 2),
+      ],
+    };
+  });
+}
+
+// The drawn frame keeps the shares of `phoneFrame` for the shown format: the bleed around the page, a
+// thin ring thinner than the gap, the gap to the page on every side, the ring inside the bleed.
+function expectPhoneFrameShares(
+  g: Awaited<ReturnType<typeof measurePhoneFrame>>,
+  format: { width: number; height: number },
+) {
+  const zoom = g.page.width / format.width;
+  const frame = phoneFrame(format);
+  expect(Math.abs(g.page.left - g.box.left - frame.bleed * zoom)).toBeLessThan(1);
+  expect(Math.abs(g.page.top - g.box.top - frame.bleed * zoom)).toBeLessThan(1);
+  // The browser draws a border on whole device pixels: within one of the share.
+  expect(Math.abs(g.ringWidth - frame.ring * zoom)).toBeLessThan(1);
+  expect(g.ringWidth).toBeLessThan(frame.gap * zoom);
+  for (const gap of [
+    g.page.left - (g.ring.left + g.ringWidth),
+    g.page.top - (g.ring.top + g.ringWidth),
+    g.ring.right - g.ringWidth - g.page.right,
+    g.ring.bottom - g.ringWidth - g.page.bottom,
+  ]) {
+    expect(Math.abs(gap - frame.gap * zoom)).toBeLessThan(1.5);
+    expect(gap).toBeGreaterThanOrEqual(8);
+  }
+  expect(g.ring.left).toBeGreaterThanOrEqual(g.box.left);
+  expect(g.ring.top).toBeGreaterThanOrEqual(g.box.top);
+  expect(g.ring.right).toBeLessThanOrEqual(g.box.right);
+  expect(g.ring.bottom).toBeLessThanOrEqual(g.box.bottom);
+}
+
+// `SUI-FEATURE-382` AC1/AC2/AC4: at fit zoom the host demo's phone frame is a thin ring with a visible
+// gap to the page, a speaker slot centred on the left short side and a camera dot centred on the
+// right, all in the bleed, the page uncovered; the ring tone is at least 3:1 on the canvas; a press in
+// the frame reaches nothing.
+for (const theme of THEMES) {
+  test(`phone frame ring, gap and cues (${theme})`, async ({ page }) => {
+    await page.goto(`/?page=slide-editor&host=1&lng=en&theme=${theme}`);
+    const editor = page.getByTestId("slide-editor");
+    await expect(
+      editor.locator("[data-slot=slide-view][data-slide-ready=true]").first(),
+    ).toBeVisible();
+    const g = await measurePhoneFrame(editor);
+    expectPhoneFrameShares(g, { width: 800, height: 450 });
+    // The cues in the gap, none over the page.
+    expect(g.speaker.right).toBeLessThanOrEqual(g.page.left);
+    expect(g.speaker.left).toBeGreaterThanOrEqual(g.ring.left + g.ringWidth);
+    expect(g.camera.left).toBeGreaterThanOrEqual(g.page.right);
+    expect(g.camera.right).toBeLessThanOrEqual(g.ring.right - g.ringWidth);
+    // Speaker left, camera right, both centred on their short side.
+    const middle = g.page.top + g.page.height / 2;
+    expect(g.speaker.top + g.speaker.height / 2).toBeCloseTo(middle, 0);
+    expect(g.camera.top + g.camera.height / 2).toBeCloseTo(middle, 0);
+    expect(g.speaker.height).toBeGreaterThan(g.speaker.width);
+    expect(g.camera.width).toBeCloseTo(g.camera.height, 1);
+    // The ring tone at least 3:1 against the canvas background, the cues in the same tone.
+    expect(await contrastOf(page, g.ringColor, g.canvas)).toBeGreaterThanOrEqual(3);
+    expect(g.speakerColor).toBe(g.ringColor);
+    expect(g.cameraColor).toBe(g.ringColor);
+    // A press in the frame reaches nothing.
+    expect(g.hits).toEqual([false, false, false]);
+    await parkPointer(page);
+    await expect(editor.getByTestId("slide-editor-canvas-area")).toHaveScreenshot(
+      `slide-editor-host-phone-frame-${theme}.png`,
+    );
+  });
+}
+
+// `SUI-FEATURE-382` AC3 as drawn: a copy in the 600 × 600 format gets the bleed, ring and gap of its
+// own shorter side, not the deck's.
+test("phone frame follows the shown page's format", async ({ page }) => {
+  await page.goto("/?page=slide-editor&host=1&formats=three&lng=en&theme=light");
+  const editor = page.getByTestId("slide-editor");
+  await expect(
+    editor.locator("[data-slot=slide-view][data-slide-ready=true]").first(),
+  ).toBeVisible();
+  await editor.getByTestId("slide-editor-transfer").click();
+  await page
+    .getByTestId("slide-editor-transfer-dialog")
+    .getByRole("radio", { name: /Square/ })
+    .click();
+  await page.getByTestId("slide-editor-transfer-confirm").click();
+  await page.getByTestId("slide-editor-app-open-copy").click();
+  await expect(
+    editor.locator("[data-slot=slide-view][data-slide-ready=true]").first(),
+  ).toBeVisible();
+  const g = await measurePhoneFrame(editor);
+  expect(g.page.width).toBeCloseTo(g.page.height, 0);
+  expectPhoneFrameShares(g, { width: 600, height: 600 });
 });
 
 // `SUI-FEATURE-380` AC1–AC4 in the gallery's host: the record's id as subtitle, "Save as block" from
