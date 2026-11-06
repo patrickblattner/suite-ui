@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased — #823: gallery dependency volumes per lockfile, installed under a lock (Codex CX1, PROC-REL-060) (patch)
+
+- **Fixed (#823, Codex v0.226.0 CX1):** since #820 two gallery runs can hold dev-box slots at once, but `scripts/gallery-image.sh` kept one dependency volume per architecture and ran `npm ci` into it on a lockfile change, so a run with another lockfile could replace the `node_modules` a concurrent run was using. The volume is now named by architecture and dependency key (lockfile without the package version, plus the image; new `scripts/gallery-deps.ts`, `suite-ui-gallery-deps-<arch>-<key16>`). The install runs under a `flock` in the volume and marks the volume ready only when it is complete, so a run with the same key waits and installs nothing. After each run the volumes of other keys (and the old per-architecture one) are removed; Docker refuses one still in use. The slot wrapping and the 34 min cap are unchanged. Tests: unit (`gallery-deps.test.ts`) — a release bump keeps the volume, another lockfile or image gives another one, the name carries prefix, architecture and key.
+
 ## 0.226.0 — #817: PropertyPanel without tabs draws no tab list, optional `emptyHint` (SUI-FEATURE-371) (minor)
 
 - **Added (#817, SUI-FEATURE-371 rev 2):** `PropertyPanel` prop `emptyHint?: string` (already translated by the app). With empty `tabs` the panel renders no tab list (no `role="tablist"`), keeps the path row and shows `emptyHint` as one `text-sm` `text-muted-foreground` line in the body; without `emptyHint` the body stays empty. With tabs `emptyHint` is not shown and the panel is unchanged. Tests: unit (`property-panel.test.tsx`) — no tab list, path and muted hint in the body; empty body without a hint; hint hidden with tabs. Gallery `?page=components&editor=no-tabs` (no tab list, path, hint; new baselines `property-panel-no-tabs-{light,dark}`; axe light/dark). Existing baselines are unchanged.

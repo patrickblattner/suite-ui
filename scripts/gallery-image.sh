@@ -11,8 +11,11 @@
 # amd64 emulation loaded the Mac until the hooks of every session timed out.
 #
 # Gentle on the host:
-# - The container's dependencies live in a Docker volume per architecture. It is reinstalled only
-#   when the lockfile or the image changes; otherwise the run installs nothing.
+# - The container's dependencies live in a Docker volume per architecture and dependency key (the
+#   lockfile and the image, `scripts/gallery-deps.ts`), so two runs in the slots at once never
+#   install into a volume the other one reads (#823). A volume is installed once, under a lock in
+#   the volume, and only then marked ready; a run with the same key waits on that lock and installs
+#   nothing. After the run the other keys' volumes are removed; Docker refuses one still in use.
 # - A heavy local step in one of the dev box's machine-wide slots (PROC-REL-060): `npm run
 #   gallery:image` takes one through `spec-sync slot run --step gallery --cap 35` (exit 75: the wait
 #   expired, a non-run; 124: killed at the cap); the merge gate's gallery phase runs this script
@@ -71,17 +74,11 @@ rsync -a \
   --exclude='test-results' --exclude='playwright-report' --exclude='.spec-sync' \
   "$ROOT/" "$STAGE/"
 
-# What the installed dependencies were made from: the lockfile and the image. The package's own
-# version is left out, so a release bump reinstalls nothing.
-DEPS_KEY="$(
-  node -e '
-    const lock = JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"));
-    delete lock.version;
-    if (lock.packages?.[""]) delete lock.packages[""].version;
-    process.stdout.write(JSON.stringify(lock) + process.argv[2]);
-  ' "$ROOT/package-lock.json" "$IMAGE" | shasum -a 256 | cut -d' ' -f1
-)"
-VOLUME="suite-ui-gallery-deps-$ARCH"
+# What the installed dependencies were made from (the lockfile and the image) and the volume
+# named by it.
+DEPS="$(node "$ROOT/scripts/gallery-deps.ts" "$ARCH" "$IMAGE")"
+DEPS_KEY="${DEPS% *}"
+VOLUME="${DEPS#* }"
 
 # The build runs on the container's own file system, not on the bind mount; the mount only carries
 # the copy in and the results out. `node_modules` is a link into the volume. The install skips
@@ -93,20 +90,27 @@ docker run --rm --name "$CONTAINER" --init -e TINI_KILL_PROCESS_GROUP=1 --platfo
   -e DEPS_KEY="$DEPS_KEY" \
   -v "$STAGE:/work" -v "$VOLUME:/deps" "$IMAGE" \
   bash -c 'rc=1; cp -a /work /build && cd /build &&
+    exec 9>/deps/.lock && flock 9 &&
     if [ "$(cat /deps/.key 2>/dev/null)" = "$DEPS_KEY" ]; then
       echo "gallery-image: dependencies up to date, nothing installed";
     else
-      echo "gallery-image: lockfile or image changed, installing dependencies";
+      echo "gallery-image: no dependencies for this lockfile and image yet, installing them";
       rm -f /deps/.key && cp package.json package-lock.json /deps/ &&
         (cd /deps && npm ci --ignore-scripts --no-audit --no-fund >/dev/null) &&
         echo "$DEPS_KEY" >/deps/.key;
     fi &&
+    flock -u 9 && exec 9>&- &&
     ln -s /deps/node_modules node_modules &&
     { npm run gallery -- "$@"; rc=$?; } ;
     cp -a gallery/__screenshots__/. /work/gallery/__screenshots__/ ;
     rm -rf /work/test-results /work/playwright-report ;
     cp -a test-results playwright-report /work/ 2>/dev/null ; exit $rc' gallery-image "$@" ||
   rc=$?
+
+# Volumes of other keys (and the old one per architecture) would pile up with every lockfile
+# change. Docker refuses to remove a volume a container still uses, so a concurrent run keeps its own.
+docker volume ls -q --filter "name=^suite-ui-gallery-deps-" | grep -vx "$VOLUME" |
+  while read -r stale; do docker volume rm "$stale" >/dev/null 2>&1 || true; done || true
 
 rsync -a "$STAGE/gallery/__screenshots__/" "$ROOT/gallery/__screenshots__/"
 rm -rf "$ROOT/test-results" "$ROOT/playwright-report"
