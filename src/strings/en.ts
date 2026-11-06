@@ -22,6 +22,7 @@ export const en = {
     retry: "Try again",
     apply: "Apply",
     next: "Next",
+    send: "Send",
   },
   status: {
     success: "Success",
@@ -288,6 +289,8 @@ export const en = {
     applyCancelHint:
       "Closes the panel without applying; asks first if there are changes not applied yet.",
     nextCancelHint: "Closes the panel; asks first if there are changes.",
+    sendHint: "Sends the message; this cannot be undone.",
+    sendCancelHint: "Closes without sending; asks first if there are changes.",
     busyHint: "An action is running; available again once it has finished.",
   },
   leaveGuard: {

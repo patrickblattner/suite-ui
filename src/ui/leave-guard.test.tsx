@@ -181,25 +181,37 @@ describe("EditPanel leave guard (GL-UI-007)", () => {
     await waitFor(() => expect(screen.queryByTestId("edit-panel")).toBeNull());
   });
 
-  // Acceptance 2
-  it("dirty Esc asks; Cancel keeps everything, Discard leaves unsaved", async () => {
-    const save = vi.fn(() => true);
-    render(<ListWithPanel save={save} />);
-    openRow();
-    edit();
-    escape(screen.getByLabelText("Name"));
-    const dialog = screen.getByTestId("leave-guard");
-    expect(dialog).toHaveTextContent("Save changes?");
+  // Acceptance 2; SUI-FEATURE-152 AC2/AC3: a dirty send panel asks "Discard changes?" from Esc and
+  // Cancel alike and never sends from it.
+  it.each([
+    ["save", "escape", "Save changes?"],
+    ["send", "escape", "Discard changes?"],
+    ["send", "edit-panel-cancel", "Discard changes?"],
+  ] as const)(
+    "%s: dirty %s asks %j; Cancel keeps everything, Discard leaves unsaved",
+    async (submitKind, opener, title) => {
+      const save = vi.fn(() => true);
+      render(<ListWithPanel save={save} submitKind={submitKind} />);
+      openRow();
+      edit();
+      const ask = () => {
+        if (opener === "escape") escape(screen.getByLabelText("Name"));
+        else fireEvent.click(screen.getByTestId(opener));
+      };
+      ask();
+      const dialog = screen.getByTestId("leave-guard");
+      expect(dialog).toHaveTextContent(title);
 
-    fireEvent.click(screen.getByTestId("leave-guard-cancel"));
-    await waitFor(() => expect(screen.queryByTestId("leave-guard")).toBeNull());
-    expect(screen.getByLabelText("Name")).toHaveValue("Changed");
+      fireEvent.click(screen.getByTestId("leave-guard-cancel"));
+      await waitFor(() => expect(screen.queryByTestId("leave-guard")).toBeNull());
+      expect(screen.getByLabelText("Name")).toHaveValue("Changed");
 
-    escape(screen.getByLabelText("Name"));
-    fireEvent.click(screen.getByTestId("leave-guard-discard"));
-    await waitFor(() => expect(screen.queryByTestId("edit-panel")).toBeNull());
-    expect(save).not.toHaveBeenCalled();
-  });
+      ask();
+      fireEvent.click(screen.getByTestId("leave-guard-discard"));
+      await waitFor(() => expect(screen.queryByTestId("edit-panel")).toBeNull());
+      expect(save).not.toHaveBeenCalled();
+    },
+  );
 
   it("dirty Esc → Save saves and leaves on success", async () => {
     const save = vi.fn(() => Promise.resolve(true));
@@ -297,21 +309,25 @@ describe("EditPanel leave guard (GL-UI-007)", () => {
     expect(save).toHaveBeenCalledTimes(1);
   });
 
-  // SUI-FEATURE-094 AC4: a next step saves nothing; the dialog never runs it.
-  it('submitKind="next" asks "Discard changes?" with Cancel and Discard, focused on Cancel', () => {
-    const save = vi.fn(() => true);
-    render(<ListWithPanel save={save} submitKind="next" />);
-    openRow();
-    edit();
-    escape();
-    const dialog = screen.getByTestId("leave-guard");
-    expect(within(dialog).getByRole("heading")).toHaveTextContent("Discard changes?");
-    expect(screen.queryByTestId("leave-guard-save")).toBeNull();
-    expect(screen.getByTestId("leave-guard-cancel")).toHaveFocus();
-    fireEvent.keyDown(dialog, { key: "Enter" });
-    expect(save).not.toHaveBeenCalled();
-    expect(screen.getByTestId("edit-panel")).toBeInTheDocument();
-  });
+  // SUI-FEATURE-094 AC4: a next step saves nothing; the dialog never runs it. SUI-FEATURE-152: nor
+  // does it ever send.
+  it.each(["next", "send"] as const)(
+    'submitKind="%s" asks "Discard changes?" with Cancel and Discard, focused on Cancel',
+    (submitKind) => {
+      const save = vi.fn(() => true);
+      render(<ListWithPanel save={save} submitKind={submitKind} />);
+      openRow();
+      edit();
+      escape();
+      const dialog = screen.getByTestId("leave-guard");
+      expect(within(dialog).getByRole("heading")).toHaveTextContent("Discard changes?");
+      expect(screen.queryByTestId("leave-guard-save")).toBeNull();
+      expect(screen.getByTestId("leave-guard-cancel")).toHaveFocus();
+      fireEvent.keyDown(dialog, { key: "Enter" });
+      expect(save).not.toHaveBeenCalled();
+      expect(screen.getByTestId("edit-panel")).toBeInTheDocument();
+    },
+  );
 
   it("in the dialog Esc is Cancel and Enter is Save", async () => {
     const save = vi.fn(() => true);
@@ -363,32 +379,39 @@ describe("EditPanel leave guard (GL-UI-007)", () => {
     await waitFor(() => expect(onNext).toHaveBeenCalledTimes(1));
   });
 
-  it("dirty: a navigation click is held for the same question", async () => {
-    function App() {
-      const { pathname } = useLocation();
-      return (
-        <>
-          <Link to="/other" data-testid="nav">
-            Other
-          </Link>
-          <span data-testid="path">{pathname}</span>
-          <ListWithPanel />
-        </>
+  // SUI-FEATURE-152 AC2/AC3: a send panel's route change asks without Save and never sends.
+  it.each(["save", "send"] as const)(
+    "%s: dirty: a navigation click is held for the same question",
+    async (submitKind) => {
+      const save = vi.fn(() => true);
+      function App() {
+        const { pathname } = useLocation();
+        return (
+          <>
+            <Link to="/other" data-testid="nav">
+              Other
+            </Link>
+            <span data-testid="path">{pathname}</span>
+            <ListWithPanel save={save} submitKind={submitKind} />
+          </>
+        );
+      }
+      render(
+        <MemoryRouter initialEntries={["/list"]}>
+          <App />
+        </MemoryRouter>,
       );
-    }
-    render(
-      <MemoryRouter initialEntries={["/list"]}>
-        <App />
-      </MemoryRouter>,
-    );
-    openRow();
-    edit();
-    fireEvent.click(screen.getByTestId("nav"));
-    expect(screen.getByTestId("leave-guard")).toBeInTheDocument();
-    expect(screen.getByTestId("path")).toHaveTextContent("/list");
-    fireEvent.click(screen.getByTestId("leave-guard-discard"));
-    await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent("/other"));
-  });
+      openRow();
+      edit();
+      fireEvent.click(screen.getByTestId("nav"));
+      expect(screen.getByTestId("leave-guard")).toBeInTheDocument();
+      expect(screen.queryByTestId("leave-guard-save") === null).toBe(submitKind === "send");
+      expect(screen.getByTestId("path")).toHaveTextContent("/list");
+      fireEvent.click(screen.getByTestId("leave-guard-discard"));
+      await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent("/other"));
+      expect(save).not.toHaveBeenCalled();
+    },
+  );
 
   it("clean: a navigation click passes without a prompt", () => {
     function App() {

@@ -5,6 +5,7 @@ import { Link, MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { SidebarProvider, useSidebar } from "../shell/sidebar-provider.js";
+import { Button } from "./button.js";
 import { EditPanel, type EditPanelProps } from "./edit-panel.js";
 import { Field } from "./field.js";
 import { Input } from "./input.js";
@@ -119,22 +120,29 @@ describe("EditPanel", () => {
     expect(icon).toHaveAttribute("aria-hidden", "true");
   });
 
-  // SUI-FEATURE-111 AC1: a step that only moves on claims no save.
-  it('submitKind="next": the text, then an arrow, no SaveIcon; variant and size as Save', () => {
-    const { onSubmit } = renderPanel({ submitKind: "next", submitLabel: "Continue to review" });
-    const submit = screen.getByRole("button", { name: "Continue to review" });
-    expect(submit).toHaveAttribute("data-testid", "edit-panel-submit");
-    expect(submit).toHaveAttribute("data-variant", "success");
-    expect(submit).toHaveAttribute("data-size", "default");
-    expect(submit.querySelector(".lucide-save")).toBeNull();
-    const icons = submit.querySelectorAll("svg");
-    expect(icons).toHaveLength(1);
-    expect(icons[0]).toHaveClass("lucide-arrow-right");
-    expect(icons[0]).toHaveAttribute("aria-hidden", "true");
-    expect(submit.lastElementChild).toBe(icons[0]);
-    fireEvent.click(submit);
-    expect(onSubmit).toHaveBeenCalledTimes(1);
-  });
+  // SUI-FEATURE-111 AC1: a step that only moves on claims no save; SUI-FEATURE-152 AC1: a send
+  // carries the send symbol after its text, and `submitLabel` replaces the text alone.
+  it.each([
+    ["next", "Continue to review", "lucide-arrow-right"],
+    ["send", "Send reply", "lucide-send"],
+  ] as const)(
+    'submitKind="%s": the text, then its icon, no SaveIcon; variant and size as Save',
+    (submitKind, label, iconClass) => {
+      const { onSubmit } = renderPanel({ submitKind, submitLabel: label });
+      const submit = screen.getByRole("button", { name: label });
+      expect(submit).toHaveAttribute("data-testid", "edit-panel-submit");
+      expect(submit).toHaveAttribute("data-variant", "success");
+      expect(submit).toHaveAttribute("data-size", "default");
+      expect(submit.querySelector(".lucide-save")).toBeNull();
+      const icons = submit.querySelectorAll("svg");
+      expect(icons).toHaveLength(1);
+      expect(icons[0]).toHaveClass(iconClass);
+      expect(icons[0]).toHaveAttribute("aria-hidden", "true");
+      expect(submit.lastElementChild).toBe(icons[0]);
+      fireEvent.click(submit);
+      expect(onSubmit).toHaveBeenCalledTimes(1);
+    },
+  );
 
   it('submitKind="next" locks with submitDisabled and works with busy like Save', () => {
     renderPanel({ submitKind: "next", submitDisabled: true, submitDisabledHint: "Pick a file." });
@@ -231,28 +239,65 @@ describe("EditPanel", () => {
     expect(submit.lastElementChild).toHaveClass("lucide-arrow-right");
   });
 
-  it('submitKind="apply" locks and works with busy like Save', () => {
-    const { onSubmit } = renderPanel({
-      submitKind: "apply",
-      submitDisabled: true,
-      submitDisabledHint: "Pick a term.",
-    });
-    expect(screen.getByTestId("edit-panel-submit")).toHaveAttribute("aria-disabled", "true");
-    fireEvent.submit(screen.getByLabelText("Name"));
-    expect(onSubmit).not.toHaveBeenCalled();
-    cleanup();
-    const { onSubmit: onBusySubmit } = renderPanel({ submitKind: "apply", busy: true });
-    const submit = screen.getByTestId("edit-panel-submit");
-    expect(submit).toHaveAttribute("aria-disabled", "true");
-    fireEvent.click(submit);
-    expect(onBusySubmit).not.toHaveBeenCalled();
-    expect(submit).toHaveAttribute("data-busy", "true");
-    cleanup();
-    renderPanel({ submitKind: "apply", submitHint: "Takes the term over." });
-    expect(screen.getByTestId("edit-panel-submit")).toHaveAccessibleDescription(
-      "Takes the term over.",
-    );
-  });
+  // SUI-FEATURE-152 AC1: the package word Send, then the send symbol; hints in de/en/es.
+  it.each([
+    [
+      "en",
+      "Send",
+      "Sends the message; this cannot be undone.",
+      "Closes without sending; asks first if there are changes.",
+    ],
+    [
+      "de",
+      "Senden",
+      "Sendet die Nachricht; das lässt sich nicht zurücknehmen.",
+      "Schließt, ohne zu senden; Änderungen werden vorher abgefragt.",
+    ],
+    [
+      "es",
+      "Enviar",
+      "Envía el mensaje; no se puede deshacer.",
+      "Cierra sin enviar; antes pregunta si hay cambios.",
+    ],
+  ])(
+    '%s: submitKind="send" is the package text, the send icon and its hints',
+    async (lng, label, hint, cancelHint) => {
+      await i18n.changeLanguage(lng);
+      renderPanel({ submitKind: "send", submitLabel: undefined });
+      const submit = screen.getByTestId("edit-panel-submit");
+      expect(submit).toHaveTextContent(new RegExp(`^${label}$`));
+      expect(submit.lastElementChild).toHaveClass("lucide-send");
+      expect(submit).toHaveAccessibleDescription(hint);
+      expect(screen.getByTestId("edit-panel-cancel")).toHaveAccessibleDescription(cancelHint);
+    },
+  );
+
+  // SUI-FEATURE-152 AC2 (ticket): a send is otherwise like save too — locks, hints, working state.
+  it.each(["apply", "send"] as const)(
+    'submitKind="%s" locks and works with busy like Save',
+    (submitKind) => {
+      const { onSubmit } = renderPanel({
+        submitKind,
+        submitDisabled: true,
+        submitDisabledHint: "Pick a term.",
+      });
+      expect(screen.getByTestId("edit-panel-submit")).toHaveAttribute("aria-disabled", "true");
+      fireEvent.submit(screen.getByLabelText("Name"));
+      expect(onSubmit).not.toHaveBeenCalled();
+      cleanup();
+      const { onSubmit: onBusySubmit } = renderPanel({ submitKind, busy: true });
+      const submit = screen.getByTestId("edit-panel-submit");
+      expect(submit).toHaveAttribute("aria-disabled", "true");
+      fireEvent.click(submit);
+      expect(onBusySubmit).not.toHaveBeenCalled();
+      expect(submit).toHaveAttribute("data-busy", "true");
+      cleanup();
+      renderPanel({ submitKind, submitHint: "Takes the term over." });
+      expect(screen.getByTestId("edit-panel-submit")).toHaveAccessibleDescription(
+        "Takes the term over.",
+      );
+    },
+  );
 
   // SUI-FEATURE-151 AC1: the add mode's primary action is the package word Add after the plus
   // symbol, green, with its own hint; Cancel keeps the save panel's hint.
@@ -307,8 +352,70 @@ describe("EditPanel", () => {
     expect(submit.firstElementChild).toHaveAttribute("data-testid", "button-loading");
   });
 
+  // SUI-FEATURE-152 rev 3 AC5: Enter in a single-line input of a send panel sends nothing (jsdom
+  // submits nothing implicitly, so the cancelled keydown stands for it; the gallery checks the
+  // browser); on the focused primary button Enter activates it and sends once. Other kinds keep
+  // their implicit submit.
+  it.each([
+    ["send", false],
+    ["save", true],
+    ["apply", true],
+  ] as const)(
+    "submitKind=%s: Enter in a single-line input submits implicitly: %s",
+    (submitKind, implicit) => {
+      const { onSubmit } = renderPanel({ submitKind });
+      expect(fireEvent.keyDown(screen.getByLabelText("Name"), { key: "Enter" })).toBe(implicit);
+      expect(onSubmit).not.toHaveBeenCalled();
+      const submit = screen.getByTestId("edit-panel-submit");
+      act(() => submit.focus());
+      expect(fireEvent.keyDown(submit, { key: "Enter" })).toBe(true);
+      fireEvent.click(submit);
+      expect(onSubmit).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  // A textarea keeps Enter as a new line, an input that Enter activates keeps its Enter, and the
+  // Enter of a composition (IME) stays the composition's.
+  it('submitKind="send": Enter stays in a textarea, a checkbox and a composition', () => {
+    const onSubmit = vi.fn();
+    render(
+      <EditPanel open onOpenChange={() => {}} title="Reply" submitKind="send" onSubmit={onSubmit}>
+        <textarea aria-label="Message" />
+        <input type="checkbox" aria-label="Copy to me" />
+        <input aria-label="Subject" />
+      </EditPanel>,
+    );
+    expect(fireEvent.keyDown(screen.getByLabelText("Message"), { key: "Enter" })).toBe(true);
+    expect(fireEvent.keyDown(screen.getByLabelText("Copy to me"), { key: "Enter" })).toBe(true);
+    const subject = screen.getByLabelText("Subject");
+    expect(fireEvent.keyDown(subject, { key: "Enter", isComposing: true })).toBe(true);
+    expect(fireEvent.keyDown(subject, { key: "Enter", keyCode: 229 })).toBe(true);
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  // SUI-FEATURE-152: no path other than the primary button sends — an untyped button in the body
+  // (a submit button by HTML default) and a submit without a submitter call nothing.
+  it('submitKind="send": an untyped Button in the body and a submit without submitter send nothing', () => {
+    const onSubmit = vi.fn();
+    render(
+      <EditPanel open onOpenChange={() => {}} title="Reply" submitKind="send" onSubmit={onSubmit}>
+        <Button variant="outline" size="sm">
+          Insert signature
+        </Button>
+      </EditPanel>,
+    );
+    const insert = screen.getByRole("button", { name: "Insert signature" });
+    // No `type` attribute: a submit button by HTML default.
+    expect((insert as HTMLButtonElement).type).toBe("submit");
+    fireEvent.click(insert);
+    fireEvent.submit(insert.closest("form")!);
+    expect(onSubmit).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId("edit-panel-submit"));
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+  });
+
   // SUI-FEATURE-094 AC3: React bubbles the panel's submit through the portal; it stops at the panel.
-  it.each([undefined, "save", "create", "next", "apply"] as const)(
+  it.each([undefined, "save", "create", "next", "apply", "send"] as const)(
     "submitKind %s: an outer form never submits along, the panel's onSubmit runs once",
     (submitKind) => {
       const spy = vi.fn((event: FormEvent) => event.preventDefault());
@@ -328,8 +435,9 @@ describe("EditPanel", () => {
       );
       fireEvent.click(screen.getByTestId("edit-panel-submit"));
       expect(onSubmit).toHaveBeenCalledTimes(1);
+      // A submit without a submitter: a send runs only from its own button (`SUI-FEATURE-152`).
       fireEvent.submit(screen.getByLabelText("Term"));
-      expect(onSubmit).toHaveBeenCalledTimes(2);
+      expect(onSubmit).toHaveBeenCalledTimes(submitKind === "send" ? 1 : 2);
       expect(spy).not.toHaveBeenCalled();
     },
   );
@@ -640,7 +748,13 @@ describe("EditPanel", () => {
       const t = i18n.getFixedT(lng, "suite");
       const question = { de: "abgefragt", en: "asks first", es: "pregunta" }[lng] ?? "";
       expect(t("editPanel.backHint")).not.toContain(question);
-      for (const key of ["cancelHint", "nextCancelHint", "applyCancelHint", "closeHint"]) {
+      for (const key of [
+        "cancelHint",
+        "nextCancelHint",
+        "applyCancelHint",
+        "sendCancelHint",
+        "closeHint",
+      ]) {
         expect(t(`editPanel.${key}`)).toContain(question);
       }
     },

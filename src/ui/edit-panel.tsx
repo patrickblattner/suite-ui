@@ -4,6 +4,7 @@ import {
   ChevronRightIcon,
   PlusIcon,
   SaveIcon,
+  SendIcon,
 } from "lucide-react";
 import { Dialog as SheetPrimitive } from "radix-ui";
 import * as React from "react";
@@ -95,8 +96,10 @@ type EditPanelProps = {
   // `create` is the add mode's save, the package word Add after the plus symbol (`SUI-FEATURE-151`);
   // `next` only moves on to the next step, saves nothing, and so carries an arrow after its text;
   // `apply` takes the entries over into an outer form that saves them, so it carries no icon
-  // (`SUI-FEATURE-094`, `GL-UI-011` §Icon-Kanon).
-  submitKind?: "save" | "create" | "next" | "apply";
+  // (`SUI-FEATURE-094`, `GL-UI-011` §Icon-Kanon); `send` sends something outward that cannot be
+  // taken back, the package word Send before the send symbol, and never runs from the leave dialog
+  // (`SUI-FEATURE-152`).
+  submitKind?: "save" | "create" | "next" | "apply" | "send";
   // With `onBack` the footer carries Back left-aligned (`SUI-FEATURE-035`): one step back inside the
   // panel, the inputs kept, never asking about unsaved changes (`SUI-FEATURE-091` rev 6). `onBack`
   // therefore never closes the panel: one that set `open` to false would let a changed panel go
@@ -128,6 +131,20 @@ type PanelMode =
       // so the app wraps each of its actions in one.
       actions?: React.ReactNode;
     };
+
+// Input types whose Enter activates them or submits nothing anyway: a send panel leaves their Enter
+// alone (`SUI-FEATURE-152` rev 3).
+const ENTER_ACTIVATES = new Set([
+  "button",
+  "submit",
+  "reset",
+  "image",
+  "file",
+  "color",
+  "checkbox",
+  "radio",
+  "range",
+]);
 
 // The edit panel (`GL-UI-027` §Bearbeitungsflächen, `SUI-FEATURE-030`): from the right over the whole
 // content area, its left edge at the current sidebar width, so the navigation stays visible and
@@ -174,6 +191,7 @@ function EditPanel({
     create: t("editPanel.cancelHint"),
     apply: t("editPanel.applyCancelHint"),
     next: t("editPanel.nextCancelHint"),
+    send: t("editPanel.sendCancelHint"),
   }[submitKind];
   const returnFocus = React.useRef<HTMLElement | null>(null);
   const submit = React.useRef<HTMLButtonElement>(null);
@@ -221,10 +239,11 @@ function EditPanel({
     open,
     draft,
     fieldDrafts,
-    // Without `onSubmit` the panel has no save target, and a next step saves nothing and never runs
-    // from the dialog (`SUI-FEATURE-094`): the dialog asks "Discard changes?".
+    // Without `onSubmit` the panel has no save target, a next step saves nothing and never runs
+    // from the dialog (`SUI-FEATURE-094`), and a send runs only from its own button
+    // (`SUI-FEATURE-152`): the dialog asks "Discard changes?".
     onSave:
-      view || onSubmit === undefined || submitKind === "next"
+      view || onSubmit === undefined || submitKind === "next" || submitKind === "send"
         ? undefined
         : () => attempt(submit.current?.form),
     applies: submitKind === "apply",
@@ -319,6 +338,7 @@ function EditPanel({
             {submitKind === "create" ? <PlusIcon aria-hidden="true" /> : null}
             {submitLabel ?? t(`actions.${submitKind}`)}
             {submitKind === "next" ? <ArrowRightIcon aria-hidden="true" /> : null}
+            {submitKind === "send" ? <SendIcon aria-hidden="true" /> : null}
           </Button>
         </Hint>
       )}
@@ -440,12 +460,35 @@ function EditPanel({
                 ? {}
                 : {
                     noValidate: true,
+                    // A send goes out only from its own button (`SUI-FEATURE-152` rev 3): Enter in a
+                    // single-line text input submits nothing; a textarea keeps Enter as a new line,
+                    // and an input that Enter activates (checkbox, file, button …) keeps it too.
+                    ...(submitKind === "send"
+                      ? {
+                          onKeyDown: (event: React.KeyboardEvent) => {
+                            if (
+                              event.key === "Enter" &&
+                              event.target instanceof HTMLInputElement &&
+                              !ENTER_ACTIVATES.has(event.target.type) &&
+                              !isCompositionKey(event)
+                            )
+                              event.preventDefault();
+                          },
+                        }
+                      : {}),
                     onSubmit: (event: React.SyntheticEvent) => {
                       event.preventDefault();
                       // React bubbles a submit through the portal: an outer `<form>` the panel stands
                       // in must never submit along (`SUI-FEATURE-094`).
                       event.stopPropagation();
                       if (busy) return;
+                      // No path other than the primary button itself sends (`SUI-FEATURE-152`): an
+                      // untyped button in the body or a `requestSubmit()` without a submitter does not.
+                      if (
+                        submitKind === "send" &&
+                        (event.nativeEvent as SubmitEvent).submitter !== submit.current
+                      )
+                        return;
                       const form = event.currentTarget as HTMLElement;
                       run(() => attempt(form));
                     },

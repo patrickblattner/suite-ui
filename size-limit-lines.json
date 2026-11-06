@@ -179,9 +179,9 @@
     "./help/help-markdown": { "recommended": 3418, "maximum": 3589 },
     "./help/index": { "recommended": 45785, "maximum": 48075 },
     "./strings": { "recommended": 115698, "maximum": 131228 },
-    "./strings/en": { "recommended": 35236, "maximum": 40001 },
-    "./strings/de": { "recommended": 39741, "maximum": 45057 },
-    "./strings/es": { "recommended": 39283, "maximum": 44661 },
+    "./strings/en": { "recommended": 35236, "maximum": 42048 },
+    "./strings/de": { "recommended": 39741, "maximum": 47352 },
+    "./strings/es": { "recommended": 39283, "maximum": 46819 },
     "./parity": { "recommended": 115228, "maximum": 130735 },
     "./testing": { "recommended": 118309, "maximum": 133970 }
   }

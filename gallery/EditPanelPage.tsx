@@ -108,18 +108,21 @@ const LABELS = {
     saveCloseHint: "Saves the entries and closes the panel.",
     publish: "Publish",
     nameFirst: "Fill in the name first",
+    messageFirst: "Write a message first",
     noSlash: "Remove the slash: a name can't contain “/”.",
   },
   de: {
     saveCloseHint: "Speichert die Eingaben und schließt das Panel.",
     publish: "Veröffentlichen",
     nameFirst: "Zuerst den Namen ausfüllen",
+    messageFirst: "Zuerst eine Nachricht schreiben",
     noSlash: "Schrägstrich entfernen: Ein Name darf kein „/“ enthalten.",
   },
   es: {
     saveCloseHint: "Guarda los datos y cierra el panel.",
     publish: "Publicar",
     nameFirst: "Primero rellena el nombre",
+    messageFirst: "Primero escribe un mensaje",
     noSlash: "Quita la barra: un nombre no puede contener «/».",
   },
 };
@@ -208,6 +211,67 @@ function ApplyPanelDemo() {
       </EditPanel>
       {dialog}
     </form>
+  );
+}
+
+// `submitKind="send"` (`SUI-FEATURE-152`): the reply goes out only from its own Send button; a dirty
+// leave asks "Discard changes?" and never sends.
+const SUBJECT = "Re: Your request";
+
+function SendPanelDemo() {
+  const { i18n } = useTranslation("suite");
+  const labels = LABELS[i18n.language as keyof typeof LABELS] ?? LABELS.en;
+  const [open, setOpen] = useState(false);
+  const [subject, setSubject] = useState(SUBJECT);
+  const [reply, setReply] = useState("");
+  const [sent, setSent] = useState(0);
+  return (
+    <>
+      <Button
+        variant="outline"
+        size="sm"
+        data-testid="send-panel-trigger"
+        onClick={() => {
+          setSubject(SUBJECT);
+          setReply("");
+          setOpen(true);
+        }}
+      >
+        Reply by email
+      </Button>
+      <span data-testid="send-panel-count">sent {sent}</span>
+      <EditPanel
+        open={open}
+        onOpenChange={setOpen}
+        title="Reply"
+        mode="add"
+        dirty={subject !== SUBJECT || reply !== ""}
+        submitKind="send"
+        submitDisabled={reply.trim() === ""}
+        submitDisabledHint={labels.messageFirst}
+        onSubmit={() => {
+          setSent((count) => count + 1);
+          setOpen(false);
+          return true;
+        }}
+        testIdPrefix="send-panel"
+      >
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="send-subject">Subject</Label>
+          <Input
+            id="send-subject"
+            value={subject}
+            onChange={(event) => setSubject(event.target.value)}
+          />
+          <Label htmlFor="send-reply">Message</Label>
+          <Textarea
+            id="send-reply"
+            value={reply}
+            onChange={(event) => setReply(event.target.value)}
+          />
+        </div>
+      </EditPanel>
+    </>
   );
 }
 
@@ -446,6 +510,7 @@ function Demo() {
         </Button>
         <ContactPanelDemo />
         <ApplyPanelDemo />
+        <SendPanelDemo />
         <span data-testid="edit-panel-check-counts">
           submits {submits} · backs {backs}
         </span>

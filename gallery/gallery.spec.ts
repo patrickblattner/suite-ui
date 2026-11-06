@@ -13510,6 +13510,80 @@ for (const [lng, label, hint, cancelHint] of [
   });
 }
 
+// `SUI-FEATURE-152` AC1–3: Send with the send icon after the text; a changed send panel asks only
+// "Discard changes?" and never sends from it.
+for (const [lng, label, hint, cancelHint, title] of [
+  [
+    "en",
+    "Send",
+    "Sends the message; this cannot be undone.",
+    "Closes without sending; asks first if there are changes.",
+    "Discard changes?",
+  ],
+  [
+    "de",
+    "Senden",
+    "Sendet die Nachricht; das lässt sich nicht zurücknehmen.",
+    "Schließt, ohne zu senden; Änderungen werden vorher abgefragt.",
+    "Änderungen verwerfen?",
+  ],
+  [
+    "es",
+    "Enviar",
+    "Envía el mensaje; no se puede deshacer.",
+    "Cierra sin enviar; antes pregunta si hay cambios.",
+    "¿Descartar los cambios?",
+  ],
+] as const) {
+  test(`edit panel: send carries the send icon and never sends from the leave dialog (${lng})`, async ({
+    page,
+  }) => {
+    await page.goto(`/?page=edit-panel&lng=${lng}`);
+    await page.getByTestId("send-panel-trigger").click();
+    const send = page.getByTestId("send-panel-submit");
+    await expect(send).toHaveText(label);
+    // An empty reply has nothing to send: Send is locked until a message is written.
+    await expect(send).toHaveAttribute("aria-disabled", "true");
+    await expect(send.locator("svg.lucide-send")).toHaveAttribute("aria-hidden", "true");
+    await expect(page.getByTestId("send-panel-cancel")).toHaveAccessibleDescription(cancelHint);
+    // A changed subject alone is a change too (GL-UI-007).
+    await page.locator("#send-subject").fill("Re: Changed");
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("leave-guard").getByRole("heading")).toHaveText(title);
+    await page.getByTestId("leave-guard-discard").click();
+    await expect(page.getByTestId("send-panel")).toBeHidden();
+    await page.getByTestId("send-panel-trigger").click();
+    await expect(page.locator("#send-subject")).toHaveValue("Re: Your request");
+    await page.locator("#send-reply").fill("Thanks!");
+    await expect(send).not.toHaveAttribute("aria-disabled");
+    await expect(send).toHaveAccessibleDescription(hint);
+    await page.keyboard.press("Escape");
+    const dialog = page.getByTestId("leave-guard");
+    await expect(dialog.getByRole("heading")).toHaveText(title);
+    await expect(dialog.getByRole("button")).toHaveCount(2);
+    await expect(page.getByTestId("leave-guard-cancel")).toBeFocused();
+    await page.getByTestId("leave-guard-cancel").click();
+    await expect(page.locator("#send-reply")).toHaveValue("Thanks!");
+    await page.getByTestId("send-panel-cancel").click();
+    await page.getByTestId("leave-guard-discard").click();
+    await expect(page.getByTestId("send-panel")).toBeHidden();
+    await expect(page.getByTestId("send-panel-count")).toHaveText("sent 0");
+    await page.getByTestId("send-panel-trigger").click();
+    await page.locator("#send-reply").fill("Thanks!");
+    // SUI-FEATURE-152 rev 3 AC5: Enter in a single-line field sends nothing; a textarea keeps Enter
+    // as a new line; Enter on the focused Send sends once.
+    await page.locator("#send-subject").press("Enter");
+    await expect(page.getByTestId("send-panel")).toBeVisible();
+    await expect(page.getByTestId("send-panel-count")).toHaveText("sent 0");
+    await page.locator("#send-reply").press("Enter");
+    await expect(page.locator("#send-reply")).toHaveValue("Thanks!\n");
+    await send.focus();
+    await page.keyboard.press("Enter");
+    await expect(page.getByTestId("send-panel")).toBeHidden();
+    await expect(page.getByTestId("send-panel-count")).toHaveText("sent 1");
+  });
+}
+
 // `SUI-FEATURE-094` AC4: leaving a changed apply panel asks to apply, never to save; Enter applies.
 for (const [lng, title, cancel, discard, apply] of [
   ["en", "Apply changes?", "Cancel", "Discard", "Apply"],

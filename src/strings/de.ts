@@ -19,6 +19,7 @@ export const de: SuiteStrings = {
     retry: "Erneut versuchen",
     apply: "Übernehmen",
     next: "Weiter",
+    send: "Senden",
   },
   status: {
     success: "Erfolg",
@@ -272,6 +273,8 @@ export const de: SuiteStrings = {
     applyCancelHint:
       "Schließt das Panel, ohne zu übernehmen; nicht übernommene Änderungen werden vorher abgefragt.",
     nextCancelHint: "Schließt das Panel; Änderungen werden vorher abgefragt.",
+    sendHint: "Sendet die Nachricht; das lässt sich nicht zurücknehmen.",
+    sendCancelHint: "Schließt, ohne zu senden; Änderungen werden vorher abgefragt.",
     busyHint: "Eine Aktion läuft; wieder verfügbar, sobald sie abgeschlossen ist.",
   },
   leaveGuard: {

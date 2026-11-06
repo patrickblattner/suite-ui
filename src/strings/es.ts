@@ -19,6 +19,7 @@ export const es: SuiteStrings = {
     retry: "Reintentar",
     apply: "Aplicar",
     next: "Siguiente",
+    send: "Enviar",
   },
   status: {
     success: "Éxito",
@@ -268,6 +269,8 @@ export const es: SuiteStrings = {
     applyHint: "Aplica los datos al formulario; solo se guardan al guardar la página.",
     applyCancelHint: "Cierra el panel sin aplicar; antes pregunta si hay cambios sin aplicar.",
     nextCancelHint: "Cierra el panel; antes pregunta si hay cambios.",
+    sendHint: "Envía el mensaje; no se puede deshacer.",
+    sendCancelHint: "Cierra sin enviar; antes pregunta si hay cambios.",
     busyHint: "Hay una acción en curso; vuelve a estar disponible cuando haya terminado.",
   },
   leaveGuard: {
