@@ -9,6 +9,7 @@ export default defineConfig({
     "src/**/*.{ts,tsx}",
     "!src/**/*.test.{ts,tsx}",
     "!src/test-setup.ts",
+    "!src/test-teardown.ts",
     "!src/**/test-utils.tsx",
   ],
   format: ["esm"],
