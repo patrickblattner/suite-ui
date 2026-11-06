@@ -9629,42 +9629,41 @@ async function openRowBubble(page: Page, hovered: Locator, neighbour: Locator) {
   return { bubble, text: (await bubble.textContent()) ?? "", target, tip };
 }
 
-// Moves the pointer to (x, y) and rests there: how long after its last move the open bubble closed.
-async function restUntilClosed(page: Page, x: number, y: number) {
-  await page.evaluate(() => {
-    const record = window as unknown as { lastMove: number };
-    document.addEventListener("pointermove", () => (record.lastMove = performance.now()), true);
-  });
+// Moves the pointer from the open bubble's element to (x, y) and rests there on the page clock (#829,
+// the pattern of #627/#794): a wall-clock rest measured the loaded box, not the 300 ms close. With
+// `onTheWay` the point lies on the way to the bubble, so only the rest closes it: still open 250 ms
+// after the last move, closed at 350 (`GL-UI-016` §Schließen, 300 ± 50). Otherwise the bubble closes
+// at once or after the rest, by 350 ms. The clock resumes after, so the next hint's delay runs out.
+async function restUntilClosed(page: Page, x: number, y: number, onTheWay: boolean) {
+  const bubble = page.locator("[data-slot=tooltip-content]");
+  // Paused only now, with the bubble open: a pause before would freeze its open delay. The spec's
+  // fixed time keeps the page's `Date.now()` at T0, so 1 ms ahead of it is never in the past (#809).
+  await page.clock.pauseAt((await page.evaluate(() => Date.now())) + 1);
   await page.mouse.move(x, y, { steps: 4 });
-  return page.evaluate(
-    () =>
-      new Promise<number>((resolve) => {
-        const check = () => {
-          if (document.querySelector("[data-slot=tooltip-content]") === null) {
-            resolve(performance.now() - (window as unknown as { lastMove: number }).lastMove);
-          } else requestAnimationFrame(check);
-        };
-        check();
-      }),
-  );
+  if (onTheWay) {
+    await page.clock.runFor(250);
+    await expect(bubble).toHaveCount(1);
+    await page.clock.runFor(100);
+  } else await page.clock.runFor(350);
+  await expect(bubble).toHaveCount(0);
+  await page.clock.resume();
 }
 
 // GL-UI-016 rev 7 §Schließen (#259): the pointer moves onto the neighbour and rests there. The bubble
 // closes 300 ms (±50) after the last move, or at once where the neighbour lies off the way to the
 // bubble; the neighbour's own hint follows after its delay, and a click reaches the neighbour.
-async function restOnNeighbourThenClick(page: Page, hovered: Locator, neighbour: Locator) {
+async function restOnNeighbourThenClick(
+  page: Page,
+  hovered: Locator,
+  neighbour: Locator,
+  onTheWay = false,
+) {
   const { bubble, text, target } = await openRowBubble(page, hovered, neighbour);
-  const rest = await restUntilClosed(
-    page,
-    target.x + target.width / 2,
-    target.y + target.height / 2,
-  );
-  expect(rest).toBeLessThanOrEqual(350);
+  await restUntilClosed(page, target.x + target.width / 2, target.y + target.height / 2, onTheWay);
   await expect(bubble).toBeVisible({ timeout: 3000 });
   await expect(bubble).not.toHaveText(text);
   await page.mouse.down();
   await page.mouse.up();
-  return rest;
 }
 
 // A direct, moving way from the element onto its bubble keeps it open, neighbours crossed or not.
@@ -9730,13 +9729,13 @@ test("tooltip in a row: EditPanel pager, rest on Next closes Previous's bubble; 
   await page.getByTestId("media-panel-trigger").click();
   const panel = page.getByTestId("media-panel");
   await expect(panel.getByTestId("media-panel-position")).toHaveText("1/3");
-  const rest = await restOnNeighbourThenClick(
+  // Next lies on the way to the bubble right of the pager: the rest, not the way out, closes it.
+  await restOnNeighbourThenClick(
     page,
     panel.getByTestId("media-panel-previous"),
     panel.getByTestId("media-panel-next"),
+    true,
   );
-  // Next lies on the way to the bubble right of the pager: the rest, not the way out, closes it.
-  expect(rest).toBeGreaterThanOrEqual(250);
   await expect(panel.getByTestId("media-panel-position")).toHaveText("2/3");
 });
 
@@ -17598,9 +17597,7 @@ for (const lng of ["de", "en", "es"]) {
     // The trash button's left edge, clear of the bubble and its arrow.
     const trash = await box(panel.getByTestId("slide-editor-chart-remove-category-1"));
     const point = { x: trash.x + 2, y: trash.y + trash.height / 2 };
-    const rest = await restUntilClosed(page, point.x, point.y);
-    expect(rest).toBeGreaterThanOrEqual(250);
-    expect(rest).toBeLessThanOrEqual(350);
+    await restUntilClosed(page, point.x, point.y, true);
     expect(
       await page.evaluate(
         ({ x, y }) => document.elementFromPoint(x, y)?.closest("button")?.dataset.testid,
@@ -19494,8 +19491,10 @@ test("slide editor: a page from the app's layout, its placeholder filled by a do
 
 // #361 (`GL-UI-017`): every field of the SlideEditor's panel carries its hint on the label, read with
 // the field; every text button of toolbar, panel, drawers and dialogs carries its hint; the page
-// pictures carry their name as a tooltip.
-test("slide editor: every field and text button carries its hint", async ({ page }) => {
+// pictures carry their name as a tooltip. Four tests, one per part of the editor, each hint delay run
+// on the page clock (#829): as one test, waiting five hint delays in real time beside two editor
+// loads, it took 17 s, under load past the 30 s budget.
+function hintChecks(page: Page) {
   // A field: its label hint, the start of the control's description (a note under the field follows).
   // A field (#437, `GL-UI-017` §Label und Feld sind zwei Träger): the label carries its hint, the
   // control its own value hint, which is its description, never the label's.
@@ -19520,7 +19519,21 @@ test("slide editor: every field and text button carries its hint", async ({ page
     await page.getByTestId(testId).click();
     await page.getByRole("option", { name: option }).click();
   };
+  // Hovers the target and runs its hint delay on the page clock (#829, as `restUntilClosed`), not in
+  // real time; the clock resumes before the bubble is read, so its placement settles as it would.
+  const hover = async (target: Locator) => {
+    await page.clock.pauseAt((await page.evaluate(() => Date.now())) + 1);
+    await target.hover();
+    await page.clock.runFor(TOOLTIP_HINT_DELAY);
+    await page.clock.resume();
+  };
+  return { field, described, choose, hover };
+}
 
+test("slide editor: every field and text button carries its hint — toolbar and document", async ({
+  page,
+}) => {
+  const { field, described, choose, hover } = hintChecks(page);
   // Toolbar and its dialogs; the page's transition and layout with nothing selected.
   const { editor } = await openEditor(page);
   await described("slide-editor-preview");
@@ -19560,14 +19573,17 @@ test("slide editor: every field and text button carries its hint", async ({ page
   );
   const picture = editor.getByTestId("slide-editor-page-show").first();
   await expect(picture).toHaveAccessibleName("Show page 1");
-  await picture.hover();
+  await hover(picture);
   await expect(page.getByRole("tooltip")).toHaveText("Show page 1");
   await editor.getByTestId("slide-editor-page-new").click();
   await page.getByTestId("slide-editor-page-layout-gallery-title").click();
   await described("slide-editor-placeholder-fill");
+});
 
+test("slide editor: every field and text button carries its hint — layers", async ({ page }) => {
+  const { field, described, choose, hover } = hintChecks(page);
   // Layers drawer: a layer row selects its element; the element's layout and animation fields.
-  await editor.getByTestId("slide-editor-previous-page").click();
+  const { editor } = await openEditor(page);
   await editor.getByTestId("drawer-layers").click();
   await described("slide-editor-layer-select");
   await editor.getByTestId("slide-editor-layer-select").first().click();
@@ -19575,7 +19591,7 @@ test("slide editor: every field and text button carries its hint", async ({ page
   for (const id of ["x", "y", "width", "height", "rotation"]) await field(`slide-editor-${id}`);
   // Hovering the field itself opens its value hint.
   await page.mouse.move(0, 0);
-  await page.getByTestId("slide-editor-x").hover();
+  await hover(page.getByTestId("slide-editor-x"));
   await expect(page.getByRole("tooltip")).toHaveText(
     "Pixels; 0 puts the element at the left edge of the page.",
   );
@@ -19585,7 +19601,7 @@ test("slide editor: every field and text button carries its hint", async ({ page
     ["height", "width"],
   ] as const) {
     await page.mouse.move(0, 0);
-    await page.getByTestId(`slide-editor-${id}`).hover();
+    await hover(page.getByTestId(`slide-editor-${id}`));
     const bubble = page.locator("[data-slot=tooltip-content]");
     await expect(bubble).toHaveCount(1, { timeout: 5000 });
     const over = await box(bubble);
@@ -19604,8 +19620,12 @@ test("slide editor: every field and text button carries its hint", async ({ page
   for (const key of ["direction", "duration", "delay", "order"]) {
     await field(`slide-editor-entrance-${key}`);
   }
+});
 
+test("slide editor: every field and text button carries its hint — library", async ({ page }) => {
+  const { field, described, hover } = hintChecks(page);
   // Text, table and chart from the library: their content fields.
+  const { editor } = await openEditor(page);
   const library = editor.getByTestId("slide-editor-library");
   const insert = async (entry: string) => {
     if (!(await library.isVisible())) await editor.getByTestId("drawer-add").click();
@@ -19649,14 +19669,17 @@ test("slide editor: every field and text button carries its hint", async ({ page
     "The name of this series, shown in the chart's legend.",
   );
   await page.mouse.move(0, 0);
-  await series.hover();
+  await hover(series);
   const bubble = page.locator("[data-slot=tooltip-content]");
   await expect(bubble).toHaveCount(1, { timeout: 5000 });
   await expect(bubble.locator("span.block").first()).toHaveText(longName);
   await expect(bubble.locator("span.block").nth(1)).toHaveText(
     "The name of this series, shown in the chart's legend.",
   );
+});
 
+test("slide editor: every field and text button carries its hint — crop", async ({ page }) => {
+  const { field, described } = hintChecks(page);
   // Crop mode: zoom, offsets, Cancel and Apply.
   const { canvas, centre } = await pictureEditor(page);
   await page.mouse.dblclick(centre.x, centre.y);
