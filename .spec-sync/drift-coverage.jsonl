@@ -874,3 +874,7 @@
 {"ts":"2026-11-06T10:14:34.191Z","key":"SUI-FEATURE-152","from":null,"to":2,"disposition":"ticket","ref":"825"}
 {"ts":"2026-11-06T10:14:34.607Z","key":"SUI-FEATURE-254","from":null,"to":2,"disposition":"ticket","ref":"826"}
 {"ts":"2026-11-06T10:14:35.014Z","key":"SUI-FEATURE-382","from":2,"to":3,"disposition":"ticket","ref":"827"}
+{"ts":"2026-11-06T11:27:16.935Z","key":"SUI-FEATURE-254","from":2,"to":3,"disposition":"ticket","ref":"826"}
+{"ts":"2026-11-06T12:40:45.961Z","key":"SUI-FEATURE-152","from":2,"to":3,"disposition":"ticket","ref":"825"}
+{"ts":"2026-11-06T12:40:46.407Z","key":"PROC-REL-060","from":2,"to":4,"disposition":"ticket","ref":"828"}
+{"ts":"2026-11-06T12:40:46.813Z","key":"GL-CODE-002","from":13,"to":14,"disposition":"editorial","ref":"size-maximum raise authority moved owner→Overmind; process only, no code impact"}
