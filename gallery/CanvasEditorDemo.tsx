@@ -95,7 +95,11 @@ export function CanvasEditorRow() {
           open={open}
           onOpen={setOpen}
           documentLabel={DOCUMENT_LABEL}
-          styleSave={{ onSave: () => setStyleDirty(false), dirty: styleDirty }}
+          styleSave={{
+            onSave: () => setStyleDirty(false),
+            onReset: () => setStyleDirty(false),
+            dirty: styleDirty,
+          }}
         />
         <div
           className={

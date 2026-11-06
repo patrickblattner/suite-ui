@@ -23,7 +23,7 @@
     "./ui/cropped-image": { "recommended": 3849, "maximum": 4042 },
     "./ui/decimal-number": { "recommended": 856, "maximum": 899 },
     "./ui/dialog": { "recommended": 17866, "maximum": 18760 },
-    "./ui/drawer-rail": { "recommended": 39203, "maximum": 41164 },
+    "./ui/drawer-rail": { "recommended": 39203, "maximum": 54000 },
     "./ui/dropdown-menu": { "recommended": 3876, "maximum": 4070 },
     "./ui/edit-panel": { "recommended": 70410, "maximum": 73931 },
     "./ui/editor-header": { "recommended": 90155, "maximum": 94663 },

@@ -11782,6 +11782,27 @@ test("canvas editor: panel 340 px, drawer narrows the canvas", async ({ page }) 
   expect((await box(canvas)).width).toBe(withDrawer.width + 300);
 });
 
+// #816 (`SUI-FEATURE-370` AC 1, 2, 4): the style drawer's footer has Reset left of Save; Reset asks
+// first, and confirmed it drops the draft, which takes the mark off the Style button.
+test("canvas editor: the style drawer resets its draft after asking", async ({ page }) => {
+  await page.goto("/?page=components&lng=en");
+  const editor = page.getByTestId("canvas-editor");
+  const reset = editor.getByTestId("drawer-style-reset");
+  const save = editor.getByTestId("drawer-style-save");
+  await expect(reset).toHaveText("Reset");
+  expect((await box(reset)).x).toBeLessThan((await box(save)).x);
+  await expect(editor.getByTestId("drawer-style-draft")).toBeVisible();
+  await reset.click();
+  await page.getByTestId("drawer-style-reset-confirm-cancel").click();
+  await expect(editor.getByTestId("drawer-style-draft")).toBeVisible();
+  await reset.click();
+  await page.getByTestId("drawer-style-reset-confirm-confirm").click();
+  await expect(editor.getByTestId("drawer-style-draft")).toHaveCount(0);
+  await expect(reset).toHaveAttribute("aria-disabled", "true");
+  await expect(save).toHaveAttribute("aria-disabled", "true");
+  await expect(editor.getByTestId("drawer-style")).toHaveAccessibleName("Style");
+});
+
 // #790 (`SUI-FEATURE-136` AC 1, 2): the demo's `documentLabel` names the Document entry and its drawer;
 // with nothing selected the same word is the path's only element. Axe scans the page light and dark.
 test("canvas editor: the document drawer takes the app's documentLabel", async ({ page }) => {
@@ -11789,7 +11810,8 @@ test("canvas editor: the document drawer takes the app's documentLabel", async (
   const editor = page.getByTestId("canvas-editor");
   const entry = editor.getByTestId("drawer-document");
   await expect(entry).toHaveAccessibleName("Newsletter");
-  await expect(editor.getByTestId("drawer-style")).toHaveAccessibleName("Style");
+  // The demo opens with a changed style: its name adds the draft (`SUI-FEATURE-370`).
+  await expect(editor.getByTestId("drawer-style")).toHaveAccessibleName("Style, Draft · unsaved");
   await entry.click();
   await expect(editor.getByTestId("drawer")).toHaveAccessibleName("Newsletter");
   await editor.getByTestId("property-path-link").first().click();

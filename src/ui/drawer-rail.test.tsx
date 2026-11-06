@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import i18n from "i18next";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -210,5 +210,156 @@ describe("DrawerRail (SUI-FEATURE-071)", () => {
       />,
     );
     expect(screen.queryByTestId("drawer-style-footer")).toBeNull();
+  });
+
+  // SUI-FEATURE-370 AC 1–3: with `onReset`, Reset stands left of Save, both locked while clean; it
+  // asks first like the EditorHeader's, confirmed it calls `onReset` once, cancelled not at all.
+  it("the style reset sits left of save, asks first and calls onReset once on confirm", async () => {
+    const onReset = vi.fn();
+    const { rerender } = render(
+      <DrawerRail
+        items={ITEMS}
+        open="style"
+        onOpen={() => {}}
+        styleSave={{ onSave: () => {}, onReset, dirty: false }}
+      />,
+    );
+    const reset = screen.getByTestId("drawer-style-reset");
+    const save = screen.getByTestId("drawer-style-save");
+    expect(reset).toHaveTextContent("Reset");
+    expect(reset).toHaveAttribute("data-variant", "outline");
+    expect(reset.compareDocumentPosition(save) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(reset).toHaveAttribute("aria-disabled", "true");
+    expect(save).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(reset);
+    expect(screen.queryByTestId("drawer-style-reset-confirm")).toBeNull();
+
+    rerender(
+      <DrawerRail
+        items={ITEMS}
+        open="style"
+        onOpen={() => {}}
+        styleSave={{ onSave: () => {}, onReset, dirty: true }}
+      />,
+    );
+    expect(screen.getByTestId("drawer-style-reset")).not.toHaveAttribute("aria-disabled");
+    fireEvent.click(screen.getByTestId("drawer-style-reset"));
+    expect(await screen.findByTestId("drawer-style-reset-confirm")).toHaveTextContent(
+      "Discard the draft and return to the saved state? This can't be undone.",
+    );
+    fireEvent.click(screen.getByTestId("drawer-style-reset-confirm-cancel"));
+    await waitFor(() => expect(screen.queryByTestId("drawer-style-reset-confirm")).toBeNull());
+    expect(onReset).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId("drawer-style-reset"));
+    fireEvent.click(await screen.findByTestId("drawer-style-reset-confirm-confirm"));
+    expect(onReset).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <DrawerRail
+        items={ITEMS}
+        open="style"
+        onOpen={() => {}}
+        styleSave={{ onSave: () => {}, onReset, dirty: true, resetting: true }}
+      />,
+    );
+    expect(screen.getByTestId("drawer-style-reset")).toHaveAttribute("data-busy", "true");
+    fireEvent.click(screen.getByTestId("drawer-style-reset"));
+    await act(async () => {});
+    expect(screen.queryByTestId("drawer-style-reset-confirm")).toBeNull();
+  });
+
+  // SUI-FEATURE-370, as in the EditorHeader: Reset is locked while a save runs, with the saving reason;
+  // Save is locked while a reset runs.
+  it("reset is locked while saving and save while resetting", () => {
+    const onSave = vi.fn();
+    const { rerender } = render(
+      <DrawerRail
+        items={ITEMS}
+        open="style"
+        onOpen={() => {}}
+        styleSave={{ onSave, onReset: () => {}, dirty: true, saving: true }}
+      />,
+    );
+    const reset = screen.getByTestId("drawer-style-reset");
+    expect(reset).toHaveAttribute("aria-disabled", "true");
+    expect(reset).toHaveAccessibleDescription(
+      "Discards the draft — locked while it is being saved.",
+    );
+    fireEvent.click(reset);
+    expect(screen.queryByTestId("drawer-style-reset-confirm")).toBeNull();
+    rerender(
+      <DrawerRail
+        items={ITEMS}
+        open="style"
+        onOpen={() => {}}
+        styleSave={{ onSave, onReset: () => {}, dirty: true, resetting: true }}
+      />,
+    );
+    const save = screen.getByTestId("drawer-style-save");
+    expect(save).toHaveAttribute("aria-disabled", "true");
+    expect(save).toHaveAccessibleDescription("Locked until the running action has finished.");
+    fireEvent.click(save);
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  // GL-UI-050: a confirmed Reset locks Reset and Save, so the focus goes into the drawer; cancel and
+  // Esc return it to Reset.
+  it("after a confirmed reset the focus is in the drawer; cancel and Esc return it to reset", async () => {
+    const items: DrawerRailProps["items"] = [
+      { id: "style", content: <input aria-label="Primary colour" data-testid="style-field" /> },
+    ];
+    function Host() {
+      const [dirty, setDirty] = useState(true);
+      return (
+        <DrawerRail
+          items={items}
+          open="style"
+          onOpen={() => {}}
+          styleSave={{ onSave: () => {}, onReset: () => setDirty(false), dirty }}
+        />
+      );
+    }
+    render(<Host />);
+    const reset = screen.getByTestId("drawer-style-reset");
+    reset.focus();
+    fireEvent.click(reset);
+    fireEvent.click(await screen.findByTestId("drawer-style-reset-confirm-cancel"));
+    await waitFor(() => expect(screen.queryByTestId("drawer-style-reset-confirm")).toBeNull());
+    await waitFor(() => expect(reset).toHaveFocus());
+    fireEvent.click(reset);
+    fireEvent.keyDown(await screen.findByTestId("drawer-style-reset-confirm"), { key: "Escape" });
+    await waitFor(() => expect(screen.queryByTestId("drawer-style-reset-confirm")).toBeNull());
+    await waitFor(() => expect(reset).toHaveFocus());
+    fireEvent.click(reset);
+    fireEvent.click(await screen.findByTestId("drawer-style-reset-confirm-confirm"));
+    await waitFor(() => expect(screen.queryByTestId("drawer-style-reset-confirm")).toBeNull());
+    await waitFor(() => expect(screen.getByTestId("style-field")).toHaveFocus());
+    expect(reset).toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("without onReset the style footer has no reset", () => {
+    render(<Rail initial="style" styleSave={{ onSave: () => {}, dirty: true }} />);
+    expect(screen.queryByTestId("drawer-style-reset")).toBeNull();
+    expect(screen.queryByTestId("drawer-style-actions")).toBeNull();
+  });
+
+  // SUI-FEATURE-370 AC 4: a dirty style marks the Style button with the drawer closed, and its name
+  // adds the EditorHeader's draft text; clean, no mark.
+  it.each([
+    ["de", "Stil"],
+    ["en", "Style"],
+  ])("%s: a dirty style draft marks the closed Style button", async (lng, name) => {
+    await i18n.changeLanguage(lng);
+    const draft = i18n.t("editor.draft", { ns: "suite" });
+    const { rerender } = render(
+      <DrawerRail items={ITEMS} onOpen={() => {}} styleSave={{ onSave: () => {}, dirty: true }} />,
+    );
+    expect(screen.getByTestId("drawer-style-draft")).toBeInTheDocument();
+    expect(screen.getByTestId("drawer-style")).toHaveAccessibleName(`${name}, ${draft}`);
+    rerender(
+      <DrawerRail items={ITEMS} onOpen={() => {}} styleSave={{ onSave: () => {}, dirty: false }} />,
+    );
+    expect(screen.queryByTestId("drawer-style-draft")).toBeNull();
+    expect(screen.getByTestId("drawer-style")).toHaveAccessibleName(name);
   });
 });

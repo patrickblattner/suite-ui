@@ -1,4 +1,11 @@
-import { FileTextIcon, LayersIcon, PaletteIcon, PlusIcon, SaveIcon } from "lucide-react";
+import {
+  FileTextIcon,
+  LayersIcon,
+  PaletteIcon,
+  PlusIcon,
+  RotateCcwIcon,
+  SaveIcon,
+} from "lucide-react";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 
@@ -6,6 +13,8 @@ import { cn } from "../lib/cn.js";
 import { useEscapeLayer } from "../lib/escape-layers.js";
 import { PRESSED_FILL_CLASS } from "../lib/pressed-fill.js";
 import { Button } from "./button.js";
+import { ConfirmDeleteDialog } from "./confirm-delete-dialog.js";
+import { fallbackTarget } from "./focus-return.js";
 import { Hint } from "./hint.js";
 import { IconButtonTooltip } from "./tooltip.js";
 
@@ -26,8 +35,16 @@ type DrawerRailProps = {
   // Opens a drawer, or closes the open one with `undefined` (a second click, `Esc`).
   onOpen: (id: DrawerId | undefined) => void;
   // The style drawer's own save: it applies to everything that uses the brand kit. The app supplies
-  // the save and its dirty state; without it the drawer has no footer.
-  styleSave?: { onSave: () => void; dirty: boolean; saving?: boolean };
+  // the save and its dirty state; without it the drawer has no footer. An app whose style drawer
+  // keeps its own draft also passes `onReset` (`SUI-FEATURE-370`, `GL-UI-034`): Reset then stands left
+  // of Save, asks first like the `EditorHeader`'s, and works while `resetting`.
+  styleSave?: {
+    onSave: () => void;
+    dirty: boolean;
+    saving?: boolean;
+    onReset?: () => void;
+    resetting?: boolean;
+  };
   // The app's word for its document (a page, a slide deck), from its own i18n in the active language
   // (`SUI-FEATURE-136`, `SUI-DESIGN-011`): the Document entry's tooltip, accessible name and drawer
   // title. Without it, `suite:canvas.drawer.document`. With nothing selected the app passes the same
@@ -66,7 +83,41 @@ function DrawerRail({ items, open, onOpen, styleSave, documentLabel }: DrawerRai
   const current = ordered.find((item) => item.id === open);
   // The style Save locks itself while nothing differs, with `aria-disabled` and a trigger lock, so it
   // keeps the focus after saving (`GL-UI-050`, `SUI-FEATURE-120`).
-  const styleClean = styleSave !== undefined && !styleSave.dirty && styleSave.saving !== true;
+  // As in the `EditorHeader`: Save is locked while a reset runs, Reset while a save runs (`SUI-FEATURE-370`).
+  const styleResetting = styleSave?.resetting === true;
+  const styleSaving = styleSave?.saving === true;
+  const styleClean =
+    styleSave !== undefined && (!styleSave.dirty || styleResetting) && !styleSaving;
+  const resetClean =
+    styleSave !== undefined && (!styleSave.dirty || styleSaving) && !styleResetting;
+  // A confirmed Reset locks Reset and Save, so the focus goes to the drawer's first field (`GL-UI-050`).
+  const resetConfirmed = React.useRef(false);
+  const [confirming, setConfirming] = React.useState(false);
+  // An unsaved style draft marks the Style button, with the drawer closed too, and adds the
+  // `EditorHeader`'s draft text to its name (`SUI-FEATURE-370`).
+  const styleDraft = styleSave?.dirty === true;
+  const railLabel = (drawer: DrawerId) =>
+    drawer === "style" && styleDraft ? `${label(drawer)}, ${t("editor.draft")}` : label(drawer);
+  const saveButton =
+    styleSave === undefined ? null : (
+      <Hint
+        text={t("canvas.styleSaveHint")}
+        disabledText={t(styleResetting ? "editor.pendingHint" : "canvas.styleSaveCleanHint")}
+      >
+        <Button
+          type="button"
+          variant="success"
+          size="default"
+          {...(styleClean ? { "aria-disabled": true } : {})}
+          {...(styleSave.saving !== undefined ? { busy: styleSave.saving } : {})}
+          onClick={styleClean ? undefined : styleSave.onSave}
+          data-testid="drawer-style-save"
+        >
+          <SaveIcon aria-hidden="true" />
+          {t("canvas.styleSave")}
+        </Button>
+      </Hint>
+    );
   useEscapeLayer(
     current !== undefined,
     () => {
@@ -87,7 +138,7 @@ function DrawerRail({ items, open, onOpen, styleSave, documentLabel }: DrawerRai
         data-tooltip-row=""
       >
         {ordered.map(({ id: drawer, icon: Icon, badge }) => (
-          <IconButtonTooltip key={drawer} label={label(drawer)}>
+          <IconButtonTooltip key={drawer} label={railLabel(drawer)}>
             <Button
               type="button"
               variant="ghost"
@@ -109,6 +160,13 @@ function DrawerRail({ items, open, onOpen, styleSave, documentLabel }: DrawerRai
                   {badge}
                 </span>
               )}
+              {drawer === "style" && styleDraft ? (
+                <span
+                  aria-hidden="true"
+                  className="absolute -top-0.5 -right-0.5 size-2 rounded-full border border-background bg-warn"
+                  data-testid="drawer-style-draft"
+                />
+              ) : null}
             </Button>
           </IconButtonTooltip>
         ))}
@@ -124,29 +182,71 @@ function DrawerRail({ items, open, onOpen, styleSave, documentLabel }: DrawerRai
           <h2 id={`${id}-title`} className="border-b px-4 py-3 text-base font-semibold">
             {label(current.id)}
           </h2>
-          <div className="min-h-0 flex-1 scroll-py-2 overflow-y-auto p-4">{current.content}</div>
+          <div className="min-h-0 flex-1 scroll-py-2 overflow-y-auto p-4" data-slot="drawer-body">
+            {current.content}
+          </div>
           {current.id === "style" && styleSave !== undefined ? (
             <div className="flex flex-col gap-2 border-t p-4" data-testid="drawer-style-footer">
-              <Hint text={t("canvas.styleSaveHint")} disabledText={t("canvas.styleSaveCleanHint")}>
-                <Button
-                  type="button"
-                  variant="success"
-                  size="default"
-                  {...(styleClean ? { "aria-disabled": true } : {})}
-                  {...(styleSave.saving !== undefined ? { busy: styleSave.saving } : {})}
-                  onClick={styleClean ? undefined : styleSave.onSave}
-                  data-testid="drawer-style-save"
-                >
-                  <SaveIcon aria-hidden="true" />
-                  {t("canvas.styleSave")}
-                </Button>
-              </Hint>
+              {styleSave.onReset === undefined ? (
+                saveButton
+              ) : (
+                <div className="flex flex-wrap gap-2" data-testid="drawer-style-actions">
+                  <Hint
+                    text={t("editor.resetHint")}
+                    disabledText={t(
+                      styleSaving ? "editor.resetSavingHint" : "editor.resetCleanHint",
+                    )}
+                  >
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="default"
+                      {...(resetClean ? { "aria-disabled": true } : {})}
+                      {...(styleSave.resetting !== undefined ? { busy: styleSave.resetting } : {})}
+                      onClick={
+                        resetClean
+                          ? undefined
+                          : () => {
+                              resetConfirmed.current = false;
+                              setConfirming(true);
+                            }
+                      }
+                      data-testid="drawer-style-reset"
+                    >
+                      <RotateCcwIcon aria-hidden="true" />
+                      {t("actions.reset")}
+                    </Button>
+                  </Hint>
+                  {saveButton}
+                </div>
+              )}
               <p className="text-xs text-muted-foreground" data-testid="drawer-style-scope">
                 {t("canvas.styleScope")}
               </p>
             </div>
           ) : null}
         </section>
+      )}
+      {styleSave?.onReset === undefined ? null : (
+        <ConfirmDeleteDialog
+          open={confirming}
+          onOpenChange={setConfirming}
+          returnFocus={() =>
+            resetConfirmed.current
+              ? fallbackTarget(node?.querySelector("[data-slot=drawer-body]") ?? null, null)
+              : null
+          }
+          onConfirm={() => {
+            resetConfirmed.current = true;
+            setConfirming(false);
+            styleSave.onReset?.();
+          }}
+          title={t("actions.reset")}
+          description={t("editor.resetConfirm")}
+          confirmLabel={t("actions.reset")}
+          confirmHint={t("settings.resetHint")}
+          data-testid="drawer-style-reset-confirm"
+        />
       )}
     </div>
   );
