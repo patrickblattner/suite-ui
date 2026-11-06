@@ -53,6 +53,7 @@ import { InlineStatus } from "../src/ui/inline-status.js";
 import { Input } from "../src/ui/input.js";
 import { Label } from "../src/ui/label.js";
 import { helpIdFor, LabelWithHelp } from "../src/ui/label-with-help.js";
+import { Lockable } from "../src/ui/lockable.js";
 import {
   type OperationHandle,
   type OperationStart,
@@ -140,8 +141,12 @@ function Row({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
+// `?lockable=on` (`SUI-FEATURE-254`): the locked tile demo in the Button section.
+const LOCKABLE = new URLSearchParams(window.location.search).get("lockable") === "on";
+
 function Buttons() {
   const { t } = useTranslation("suite");
+  const [tileClicks, setTileClicks] = useState(0);
   return (
     <Section id="button" title="Button">
       {VARIANTS.map((variant) => (
@@ -192,6 +197,26 @@ function Buttons() {
           {t("actions.create")}
         </Button>
       </Row>
+      {/* `?lockable=on` (SUI-FEATURE-254): a tile-sized surface locked like an outline button, with
+          its reason, in a row of its own below the variant rows; the locked outline button it
+          matches is in the outline row. The default page keeps the captures unchanged. */}
+      {LOCKABLE ? (
+        <Row label="lockable tile">
+          <Hint text="Opens the site status" disabledText="Possible once the site is live">
+            <Lockable locked>
+              <button
+                type="button"
+                data-testid="lockable-tile"
+                className="flex h-24 w-48 cursor-pointer flex-col items-start justify-between rounded-md border bg-background p-4 text-start text-sm font-medium shadow-xs transition-[color,background-color,border-color,box-shadow] outline-none hover:border-ring hover:bg-accent hover:text-accent-foreground focus-visible:border-ring focus-visible:focus-ring dark:border-input dark:bg-input/30 dark:hover:border-ring dark:hover:bg-input/50"
+                onClick={() => setTileClicks((count) => count + 1)}
+              >
+                <span>Site status</span>
+                <span data-testid="lockable-tile-clicks">{tileClicks}</span>
+              </button>
+            </Lockable>
+          </Hint>
+        </Row>
+      ) : null}
       <Row label="row actions">
         <Button variant="warn" size="icon-xs" aria-label="Edit">
           <PencilIcon />

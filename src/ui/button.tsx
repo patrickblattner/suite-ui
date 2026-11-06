@@ -5,6 +5,7 @@ import type * as React from "react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { cn } from "../lib/cn.js";
+import { LOCKED_FORCED, LOCKED_LOOK } from "./locked-look-internal.js";
 import { proseLinkClass } from "./prose-link.js";
 
 // The transition list is enumerated and leaves `opacity` out on purpose: an animated opacity shows the
@@ -95,30 +96,8 @@ const LOCKED_HOVER: Record<ButtonVariant, string> = {
   link: "aria-disabled:hover:no-underline",
 };
 
-// The look of a button locked with `aria-disabled` and no run, as the disabled button's element opacity
-// composited it, but in colour: element opacity would dim the focus ring of the still focusable button
-// below 3:1 (WCAG 1.4.11, #184). The fill half-tone, so it shows half the surface under it; the label
-// mixed half with `--surface`, the colour of the surface the button sits on (`SUI-FEATURE-251`); no
-// hover tint. A look the call site passes in `className` wins.
-const LOCKED_LOOK: Record<ButtonVariant, string> = {
-  default:
-    "aria-disabled:cursor-not-allowed aria-disabled:bg-primary/50 aria-disabled:hover:bg-primary/50 aria-disabled:text-[color-mix(in_srgb,var(--primary-foreground)_50%,var(--surface))]",
-  destructive:
-    "aria-disabled:cursor-not-allowed aria-disabled:bg-destructive/50 aria-disabled:hover:bg-destructive/50 aria-disabled:text-[color-mix(in_srgb,var(--destructive-foreground)_50%,var(--surface))]",
-  success:
-    "aria-disabled:cursor-not-allowed aria-disabled:bg-success/50 aria-disabled:hover:bg-success/50 aria-disabled:text-[color-mix(in_srgb,var(--success-foreground)_50%,var(--surface))]",
-  warn: "aria-disabled:cursor-not-allowed aria-disabled:bg-warn/50 aria-disabled:hover:bg-warn/50 aria-disabled:text-[color-mix(in_srgb,var(--warn-foreground)_50%,var(--surface))]",
-  outline:
-    "aria-disabled:cursor-not-allowed aria-disabled:text-[color-mix(in_srgb,var(--foreground)_50%,var(--surface))] aria-disabled:hover:text-[color-mix(in_srgb,var(--foreground)_50%,var(--surface))] aria-disabled:hover:border-border aria-disabled:hover:bg-background dark:aria-disabled:hover:border-input dark:aria-disabled:hover:bg-input/30",
-  secondary:
-    "aria-disabled:cursor-not-allowed aria-disabled:bg-secondary/50 aria-disabled:hover:bg-secondary/50 aria-disabled:text-[color-mix(in_srgb,var(--secondary-foreground)_50%,var(--surface))]",
-  ghost:
-    "aria-disabled:cursor-not-allowed aria-disabled:text-[color-mix(in_srgb,var(--foreground)_50%,var(--surface))] aria-disabled:hover:bg-transparent aria-disabled:hover:text-[color-mix(in_srgb,var(--foreground)_50%,var(--surface))] dark:aria-disabled:hover:bg-transparent dark:aria-disabled:hover:text-[color-mix(in_srgb,var(--foreground)_50%,var(--surface))]",
-  link: "aria-disabled:cursor-not-allowed aria-disabled:text-[color-mix(in_srgb,var(--primary)_50%,var(--surface))] aria-disabled:hover:no-underline",
-};
-
 // One look for "not available" (`SUI-FEATURE-250` rev 4): a `disabled` button wears the same half-tone
-// as `LOCKED_LOOK`, never element opacity, so locked and disabled look the same. It takes the pointer, so
+// as `lockedLook`, never element opacity, so locked and disabled look the same. It takes the pointer, so
 // the base class's `cursor-not-allowed` shows, as on the locked button and the disabled select; the
 // hover pair keeps its rest look under it (`GL-UI-013`).
 const DISABLED_LOOK: Record<ButtonVariant, string> = {
@@ -138,10 +117,8 @@ const DISABLED_LOOK: Record<ButtonVariant, string> = {
   link: "disabled:text-[color-mix(in_srgb,var(--primary)_50%,var(--surface))] disabled:hover:no-underline",
 };
 
-// Under forced colours the system palette replaces the half-tone above: the locked button takes
-// `GrayText` for its label and border, as the browser draws a `disabled` one (#387).
-const LOCKED_FORCED =
-  "forced-colors:aria-disabled:border-[GrayText] forced-colors:aria-disabled:text-[GrayText]";
+// Under forced colours the system palette replaces the half-tone above: the disabled button takes
+// `GrayText` for its label and border, as the browser draws it (#387).
 const DISABLED_FORCED =
   "forced-colors:disabled:border-[GrayText] forced-colors:disabled:text-[GrayText]";
 
@@ -159,7 +136,7 @@ const DISABLED_FORCED =
  *
  * An app's own `aria-disabled="true"` locks the button the same way without the working state
  * (`SUI-FEATURE-120`): no activation, a press keeps the focus where it is, and the look is the
- * disabled one in colour (dimmed, `cursor-not-allowed`, `LOCKED_LOOK`), while the button stays
+ * disabled one in colour (dimmed, `cursor-not-allowed`, `lockedLook`), while the button stays
  * focusable. A hint that names the button opens as on a usable one. Together with `disabled` the
  * disabled look alone applies, never both.
  */

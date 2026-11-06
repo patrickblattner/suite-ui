@@ -2834,6 +2834,57 @@ for (const theme of ["light", "dark"] as const) {
   });
 }
 
+// `SUI-FEATURE-254` AC 1–2: a tile-sized surface in `Lockable locked` inside `Hint disabledText` is
+// `aria-disabled`, focusable and described by the reason; it wears the locked outline button's tone
+// (label, fill, border), no opacity, a focus ring of at least 3:1; no click, key or press triggers it.
+for (const theme of ["light", "dark"] as const) {
+  test(`lockable: a locked tile looks like a locked outline button in ${theme}`, async ({
+    page,
+  }) => {
+    await page.goto(`/?page=components&lng=en&theme=${theme}&lockable=on`);
+    const tile = page.getByTestId("lockable-tile");
+    const button = page.getByTestId("button-locked-outline");
+    await expect(tile).toHaveAttribute("aria-disabled", "true");
+    await expect(tile).toHaveAccessibleDescription("Possible once the site is live");
+    const look = (locator: Locator) =>
+      locator.evaluate((node) => {
+        let opacity = 1;
+        for (let el: Element | null = node; el; el = el.parentElement)
+          opacity *= Number(getComputedStyle(el).opacity);
+        const style = getComputedStyle(node);
+        return {
+          opacity,
+          color: style.color,
+          backgroundColor: style.backgroundColor,
+          borderColor: style.borderTopColor,
+        };
+      });
+    await parkPointer(page);
+    const [locked, reference] = [await look(tile), await look(button)];
+    expect(locked.opacity).toBe(1);
+    expect(locked).toEqual(reference);
+    await tile.hover();
+    expect(await look(tile)).toEqual(locked);
+    // Click, Enter, Space and a press trigger nothing; the press keeps the focus where it is.
+    const clicks = page.getByTestId("lockable-tile-clicks");
+    // `force`: Playwright counts an `aria-disabled` element as not enabled and would wait.
+    await tile.click({ force: true });
+    await expect(tile).not.toBeFocused();
+    await tile.focus();
+    await page.keyboard.press("Enter");
+    await page.keyboard.press("Space");
+    await expect(clicks).toHaveText("0");
+    // The focus ring: keyboard focus, settled, undimmed, at least 3:1 on the page.
+    await page.keyboard.press("Shift+Tab");
+    await page.keyboard.press("Tab");
+    await expect(tile).toBeFocused();
+    const ring = await utilityColor(page, "bg-ring", "backgroundColor");
+    await expect.poll(() => boxShadowOf(tile)).toContain(`${ring} 0px 0px 0px 3px`);
+    const ground = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+    expect(await contrastOf(page, ring, ground)).toBeGreaterThanOrEqual(3);
+  });
+}
+
 // `SUI-FEATURE-251` AC 1–2: a locked button mixes fill and label half with the surface it sits on,
 // not with the page background: on the page, a card, a popover and the slide player's bar, in light
 // and dark. The components page's locked button of each variant is placed on the surface; the

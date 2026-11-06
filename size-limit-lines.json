@@ -48,6 +48,8 @@
     "./ui/label-with-help": { "recommended": 17546, "maximum": 18424 },
     "./ui/label": { "recommended": 486, "maximum": 511 },
     "./ui/leave-guard": { "recommended": 37126, "maximum": 38983 },
+    "./ui/lockable": { "recommended": 2662, "maximum": 2795 },
+    "./ui/locked-look-internal": { "recommended": 1954, "maximum": 2052 },
     "./ui/media-detail-shell": { "recommended": 83952, "maximum": 88150 },
     "./ui/media-tile": { "recommended": 49597, "maximum": 52077 },
     "./ui/operation-status": { "recommended": 45263, "maximum": 47527 },

@@ -137,6 +137,8 @@ type HintChildProps = {
   "aria-keyshortcuts"?: string;
   disabled?: boolean;
   busy?: boolean;
+  // The lock of a `Lockable`.
+  locked?: boolean;
 };
 
 type HintProps = {
@@ -172,7 +174,10 @@ type HintProps = {
 // description. A control locked with `aria-disabled` (a Save that locked itself, `SUI-FEATURE-120`)
 // keeps the focus and owns the description itself; only its text is `disabledText`. A `disabled`
 // `Button` is locked that way instead (`SUI-FEATURE-250`), so the span is never focusable for it. The
-// span stands either way, so toggling the lock never remounts the control.
+// span stands either way, so toggling the lock never remounts the control. A `Lockable` with `locked`
+// counts as locked the same way (`SUI-FEATURE-254`); the check reads the prop, not the type, so any
+// direct child with `locked={true}` counts as locked (no identity check: it would not fit the size
+// lines of the entries that bundle `Hint`).
 //
 // Extra props (handlers, ref, class) pass through to the control, so a wrapping `OverflowTooltip` keeps
 // working.
@@ -236,8 +241,9 @@ function Hint({
 
   const disabled = children.props.disabled === true;
   // A control locked with `aria-disabled` keeps the focus and pointer events, so it owns its
-  // description itself; only its text is the locked one.
-  const ariaLocked = [true, "true"].includes(children.props["aria-disabled"] ?? false);
+  // description itself; only its text is the locked one. A `Lockable` with `locked` is locked so
+  // (`SUI-FEATURE-254`).
+  const ariaLocked = `${children.props["aria-disabled"] ?? children.props.locked}` === "true";
   // A run is no lock with a reason: no `disabledText` while the control is `busy` (`SUI-FEATURE-103`).
   const locked =
     (disabled || ariaLocked) && disabledText !== undefined && children.props.busy !== true;
