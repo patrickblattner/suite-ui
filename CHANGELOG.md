@@ -1,18 +1,18 @@
 # Changelog
 
-## Unreleased — #835: `npm audit` clean again — minimatch 11 for typescript-eslint (SUI-FEATURE-009 rev 2) (patch)
+## 0.228.1 — #835: `npm audit` clean again — minimatch 11 for typescript-eslint (SUI-FEATURE-009 rev 2) (patch)
 
 - **Security (#835, SUI-FEATURE-009 rev 2 AC 1):** an `overrides` entry lifts `minimatch` under `@typescript-eslint/typescript-estree` from 10.2.6 to `^11.0.1` (now 11.0.5), fixing GHSA-g3hv-75wg-m249 (DoS via globparts amplification, dev scope only); `npm audit` reports 0 vulnerabilities. No typescript-eslint release (latest 8.72.1) depends on minimatch 11 yet, so the override replaces an upgrade; typescript-eslint stays at 8.71.1, no lint rule changed.
 
-## Unreleased — #834: toolkit v0.41.0 (review verdict `accepted collected`, PROC-DEV-007 rev 2) (patch)
+## 0.228.1 — #834: toolkit v0.41.0 (review verdict `accepted collected`, PROC-DEV-007 rev 2) (patch)
 
 - **Changed (#834, PROC-DEV-007 rev 2):** `spec-sync-toolkit` bumped to v0.41.0, which adds the review verdict `accepted collected <c>`.
 
-## Unreleased — register #1980: light pre-push via `spec-sync prepush`, toolkit v0.40.0 (PROC-DEV-005 rev 7) (patch)
+## 0.228.1 — register #1980: light pre-push via `spec-sync prepush`, toolkit v0.40.0 (PROC-DEV-005 rev 7) (patch)
 
 - **Changed (register #1980, PROC-DEV-005 rev 7):** the pre-push hook runs the light `spec-sync prepush` (fed the pushed refs on stdin) instead of `spec-sync gate --profile merge --preflight`; `spec-sync-toolkit` bumped to v0.40.0.
 
-## Unreleased — #832: a locked `Lockable` cancels before the child's own capture handlers (SUI-FEATURE-254) (patch)
+## 0.228.1 — #832: a locked `Lockable` cancels before the child's own capture handlers (SUI-FEATURE-254) (patch)
 
 - **Fixed (#832, SUI-FEATURE-254 AC 2):** with `locked`, the lock's guard now sits on the child itself and runs before the child's own `onClickCapture`, `onMouseDownCapture`, `onSubmitCapture` and `onKeyDownCapture`; a blocked click, press, submit, `Enter` or `Space` no longer reaches them (Slot ran the child's handler first, so e.g. `<button onClickCapture={act}>` still acted). Events the lock lets through (`Enter`/`Space` typed into a field inside the surface, other keys) still reach them; unlocked behaviour is unchanged.
 - **Tests (#832):** unit (`lockable.test.tsx`) — the child's own capture handlers see no blocked click, press, submit, `Enter` or `Space`; `Enter` in a field and other keys still reach them; unlocked they run.
