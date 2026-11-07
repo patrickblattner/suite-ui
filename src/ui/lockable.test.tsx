@@ -155,6 +155,62 @@ describe("Lockable", () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
+  // #832: Slot runs the child's own handler before its own, so the guard sits on the child.
+  it("locked: the child's own capture handlers never see a blocked click, press, submit or key", () => {
+    const capture = vi.fn();
+    render(
+      <Lockable locked>
+        <form
+          aria-label="Order"
+          onClickCapture={capture}
+          onMouseDownCapture={capture}
+          onSubmitCapture={capture}
+          onKeyDownCapture={capture}
+        >
+          <button type="button">Send</button>
+        </form>
+      </Lockable>,
+    );
+    const form = screen.getByRole("form", { name: "Order" });
+    const button = screen.getByRole("button", { name: "Send" });
+    fireEvent.click(button);
+    fireEvent.mouseDown(button);
+    fireEvent.submit(form);
+    fireEvent.keyDown(button, { key: "Enter" });
+    fireEvent.keyDown(button, { key: " " });
+    expect(capture).not.toHaveBeenCalled();
+  });
+
+  it("locked: Enter in a field and other keys still reach the child's own capture handler", () => {
+    const capture = vi.fn();
+    render(
+      <Lockable locked>
+        <div role="group" aria-label="Tile" onKeyDownCapture={capture}>
+          <input aria-label="Name" />
+        </div>
+      </Lockable>,
+    );
+    fireEvent.keyDown(screen.getByRole("textbox", { name: "Name" }), { key: "Enter" });
+    expect(capture).toHaveBeenCalledTimes(1);
+    fireEvent.keyDown(screen.getByRole("group", { name: "Tile" }), { key: "ArrowDown" });
+    expect(capture).toHaveBeenCalledTimes(2);
+  });
+
+  it("not locked: the child's own capture handlers run", () => {
+    const capture = vi.fn();
+    render(
+      <Lockable>
+        <button type="button" onClickCapture={capture} onKeyDownCapture={capture}>
+          Status
+        </button>
+      </Lockable>,
+    );
+    const tile = screen.getByRole("button", { name: "Status" });
+    fireEvent.click(tile);
+    fireEvent.keyDown(tile, { key: "Enter" });
+    expect(capture).toHaveBeenCalledTimes(2);
+  });
+
   it("not locked: no aria-disabled, and the child works", () => {
     const onClick = vi.fn();
     render(<Tile locked={false} onClick={onClick} />);

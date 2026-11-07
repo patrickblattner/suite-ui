@@ -33,6 +33,23 @@ function block(event: React.SyntheticEvent) {
 // A key typed into a field inside the surface is text, not an activation.
 const EDITABLE = "input, textarea, select, [contenteditable]:not([contenteditable='false'])";
 
+const CAPTURES = [
+  "onClickCapture",
+  "onMouseDownCapture",
+  "onSubmitCapture",
+  "onKeyDownCapture",
+] as const;
+
+type CaptureHandler = (event: React.SyntheticEvent) => void;
+
+// Whether the lock cancels this event: every click, press and submit; of the keys only `Enter` and
+// `Space` outside a field.
+function blocks(name: (typeof CAPTURES)[number], event: React.SyntheticEvent): boolean {
+  if (name !== "onKeyDownCapture") return true;
+  const { key, target } = event as React.KeyboardEvent;
+  return (key === "Enter" || key === " ") && (target as Element).closest(EDITABLE) === null;
+}
+
 /**
  * Locks one clickable surface that is not a `Button` the way `Button` locks itself
  * (`SUI-FEATURE-120`, `SUI-FEATURE-254`): with `locked` the child gets `aria-disabled="true"` (over
@@ -61,30 +78,24 @@ function Lockable({
   children,
   ...rest
 }: LockableProps) {
+  const props: Record<string, unknown> = rest;
+  let child = children;
+  if (locked) {
+    // The guard goes on the child and calls the child's own capture handler only for an event it
+    // lets through: Slot runs the child's handler before its own, so a guard on the Slot would come
+    // too late (#832). On the child, its own `aria-disabled` cannot undo the lock either.
+    const guarded: Record<string, unknown> = { "aria-disabled": true };
+    for (const name of CAPTURES) {
+      const own = (children.props as Record<string, CaptureHandler | undefined>)[name];
+      delete props[name];
+      guarded[name] = (event: React.SyntheticEvent) =>
+        blocks(name, event) ? block(event) : own?.(event);
+    }
+    child = React.cloneElement(children, guarded);
+  }
   return (
-    <Slot.Root
-      {...rest}
-      className={cn(lockedLook(variant), className)}
-      {...(locked
-        ? {
-            "aria-disabled": true,
-            onClickCapture: block,
-            onMouseDownCapture: block,
-            onSubmitCapture: block,
-            onKeyDownCapture: (event: React.KeyboardEvent) => {
-              const editable = (event.target as Element).closest(EDITABLE) !== null;
-              if ((event.key === "Enter" || event.key === " ") && !editable) block(event);
-            },
-          }
-        : {})}
-    >
-      {/* On the child itself, so its own `aria-disabled` cannot undo the lock (Slot lets the child's
-          props win). */}
-      {locked
-        ? React.cloneElement(children as React.ReactElement<{ "aria-disabled"?: unknown }>, {
-            "aria-disabled": true,
-          })
-        : children}
+    <Slot.Root {...props} className={cn(lockedLook(variant), className)}>
+      {child}
     </Slot.Root>
   );
 }

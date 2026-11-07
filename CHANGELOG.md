@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — #832: a locked `Lockable` cancels before the child's own capture handlers (SUI-FEATURE-254) (patch)
+
+- **Fixed (#832, SUI-FEATURE-254 AC 2):** with `locked`, the lock's guard now sits on the child itself and runs before the child's own `onClickCapture`, `onMouseDownCapture`, `onSubmitCapture` and `onKeyDownCapture`; a blocked click, press, submit, `Enter` or `Space` no longer reaches them (Slot ran the child's handler first, so e.g. `<button onClickCapture={act}>` still acted). Events the lock lets through (`Enter`/`Space` typed into a field inside the surface, other keys) still reach them; unlocked behaviour is unchanged.
+- **Tests (#832):** unit (`lockable.test.tsx`) — the child's own capture handlers see no blocked click, press, submit, `Enter` or `Space`; `Enter` in a field and other keys still reach them; unlocked they run.
+
 ## 0.228.0 — #827: phone frame portrait cues, geometry and overlay as package exports (SUI-FEATURE-382 rev 3) (minor)
 
 - **Added (#827, SUI-FEATURE-382 rev 3 AC6) — for apps:** new export `@suite/ui/slides/phone-frame` with `phoneFrame({ width, height })` — the frame geometry for a page size (`bleed`, `gap`, `ring`, `radius`, and the `speaker` and `camera` cues with their centre `x`/`y` in format px from the overlay box's top-left corner, `width`/`height`, plus `length`/`thickness` and `size`) — and `phoneFrameOverlay({ format, label, hint })`, a ready labelled `SlideOverlay` (id `phone-frame`, bleed from `format`, drawing the frame of the page shown in the `ring` tone; parts `slide-phone-frame`, `-ring`, `-speaker`, `-camera`). The cockpit template studio takes it when it moves to the package editor. New size-limit line `./slides/phone-frame` (1246 B); no existing maximum changes.
