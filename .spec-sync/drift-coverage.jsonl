@@ -922,3 +922,5 @@
 {"ts":"2026-11-07T17:22:33.312Z","key":"PROC-REL-080","from":null,"to":3,"disposition":"ticket","ref":"839"}
 {"ts":"2026-11-07T17:22:33.723Z","key":"GL-CODE-021","from":null,"to":3,"disposition":"editorial","ref":"raise rule for worker/PR process; suite-ui has no code enforcing raise approvals; skill updated"}
 {"ts":"2026-11-07T17:22:34.155Z","key":"PROC-SPEC-003","from":2,"to":3,"disposition":"editorial","ref":"rev 3: empty body diff (metadata only)"}
+{"ts":"2026-11-07T17:29:44.097Z","key":"PROC-REL-080","from":3,"to":4,"disposition":"ticket","ref":"839"}
+{"ts":"2026-11-07T17:29:44.790Z","key":"PROC-FLOW-005","from":5,"to":6,"disposition":"editorial","ref":"rev 6: weekly flow doc adds growth-metrics/analysis steps (doc only; suite-ui part built in #839)"}
