@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased — #834: toolkit v0.41.0 (review verdict `accepted collected`, PROC-DEV-007 rev 2) (patch)
+
+- **Changed (#834, PROC-DEV-007 rev 2):** `spec-sync-toolkit` bumped to v0.41.0, which adds the review verdict `accepted collected <c>`.
+
 ## Unreleased — register #1980: light pre-push via `spec-sync prepush`, toolkit v0.40.0 (PROC-DEV-005 rev 7) (patch)
 
 - **Changed (register #1980, PROC-DEV-005 rev 7):** the pre-push hook runs the light `spec-sync prepush` (fed the pushed refs on stdin) instead of `spec-sync gate --profile merge --preflight`; `spec-sync-toolkit` bumped to v0.40.0.
