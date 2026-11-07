@@ -146,6 +146,7 @@
     "./slides/index": { "recommended": 470125, "maximum": 493632 },
     "./slides/number-field": { "recommended": 42793, "maximum": 44933 },
     "./slides/paragraph-count": { "recommended": 151, "maximum": 159 },
+    "./slides/phone-frame": { "recommended": 1187, "maximum": 1246 },
     "./slides/pptx-map-internal": { "recommended": 107379, "maximum": 112748 },
     "./slides/pptx-read-internal": { "recommended": 102530, "maximum": 107657 },
     "./slides/pptx-style-internal": { "recommended": 98042, "maximum": 102945 },

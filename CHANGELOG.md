@@ -1,8 +1,15 @@
 # Changelog
 
+## Unreleased — #827: phone frame portrait cues, geometry and overlay as package exports (SUI-FEATURE-382 rev 3) (minor)
+
+- **Added (#827, SUI-FEATURE-382 rev 3 AC6) — for apps:** new export `@suite/ui/slides/phone-frame` with `phoneFrame({ width, height })` — the frame geometry for a page size (`bleed`, `gap`, `ring`, `radius`, and the `speaker` and `camera` cues with their centre `x`/`y` in format px from the overlay box's top-left corner, `width`/`height`, plus `length`/`thickness` and `size`) — and `phoneFrameOverlay({ format, label, hint })`, a ready labelled `SlideOverlay` (id `phone-frame`, bleed from `format`, drawing the frame of the page shown in the `ring` tone; parts `slide-phone-frame`, `-ring`, `-speaker`, `-camera`). The cockpit template studio takes it when it moves to the package editor. New size-limit line `./slides/phone-frame` (1246 B); no existing maximum changes.
+- **Changed (#827, AC5):** on a portrait page (taller than wide) the speaker slot sits centred on the top short side and the camera dot centred on the bottom one; landscape and square pages keep speaker left, camera right. Sizes and tone unchanged.
+- **Changed (#827):** the gallery host demo uses `phoneFrameOverlay`; `gallery/phone-frame.ts` is removed. Its test ids are now the package's (`slide-phone-frame-*` instead of `gallery-host-phone-*`).
+- **Tests (#827):** unit (`phone-frame.test.tsx`) — landscape and portrait cue positions and orientation, cues in the gap off the page, the overlay's id, label, hint, bleed and drawn cue boxes. Gallery — new "phone frame on a portrait page: speaker top, camera bottom" (450 × 800 copy: cues centred top/bottom, in the gap, shares kept, a press reaches nothing); the proportions, ring/gap/cues (light/dark, 3:1 tone test kept) and format tests take the package export.
+
 ## Unreleased — #830: lint, typecheck and hygiene are blocking gate phases (patch)
 
-- **Changed (#830):** in `spec-sync.config.json` the gate phases `lint`, `typecheck` and `hygiene` carry `"blocking": true` (as `build` already did); a red one skips the phases after it. Other phases unchanged.
+- **Changed (#830):** in `spec-sync.config.json` the gate phases `lint`, `typecheck` and `hygiene` carry `"blocking": true` (as `build` and `unit` already do); a red one skips the phases after it. Other phases unchanged.
 
 ## Unreleased — #831: the gate's unit phase is blocking (patch)
 

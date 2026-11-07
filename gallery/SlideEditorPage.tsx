@@ -9,6 +9,7 @@ import {
 } from "../src/slides/slide-editor.js";
 import type { SlideExtensions } from "../src/slides/slide-view.js";
 import type { PickedMedia } from "../src/slides/slide-editor-library.js";
+import { phoneFrameOverlay } from "../src/slides/phone-frame.js";
 import { SlidePlayer } from "../src/slides/slide-player.js";
 import { Button } from "../src/ui/button.js";
 import { Hint } from "../src/ui/hint.js";
@@ -25,7 +26,6 @@ import {
 } from "../src/ui/dialog.js";
 import { Toaster, useEditorShellToastOffset } from "../src/ui/toaster.js";
 import type { SlideDocument, SlideFormat, SlideLayoutInput } from "../src/slides/schema.js";
-import { phoneFrame } from "./phone-frame.js";
 import { SLIDE_BRAND, SLIDE_EDITOR_DOC } from "./slide-showcase.js";
 import { GALLERY_SLIDE_PROPS, imageFilter } from "./SlidesPage.js";
 
@@ -357,9 +357,10 @@ const GALLERY_EDITOR_EXTENSIONS: SlideExtensions = {
 // `SUI-FEATURE-134` (`?host=1`): the host's slots — an upload's status in the header, the record's
 // name in the page panel (a rename is a host step in the editor's undo, Reset restores it), and two
 // labelled overlays with their toggles and hints in the view band; the phone frame draws in a bleed
-// around the page (rev 7) as a thin ring with a speaker and a camera (`SUI-FEATURE-382`), sized from
-// the shown page's format. `SUI-FEATURE-380`: the record's id as the header's subtitle and
-// "Save as block", whose block the app line below keeps for the tests.
+// around the page (rev 7) as a thin ring with a speaker and a camera, the package's
+// `phoneFrameOverlay` (`SUI-FEATURE-382`), sized from the shown page's format. `SUI-FEATURE-380`:
+// the record's id as the header's subtitle and "Save as block", whose block the app line below keeps
+// for the tests.
 const HOST = PARAMS.get("host") === "1";
 function hostExtensions(format: SlideFormat): SlideExtensions {
   return {
@@ -382,44 +383,15 @@ function hostExtensions(format: SlideFormat): SlideExtensions {
           />
         ),
       },
-      {
-        id: "phone-frame",
+      phoneFrameOverlay({
+        format,
         label: "Phone frame",
         hint: "Shows the page in a phone frame",
-        bleed: phoneFrame(format).bleed,
-        render: ({ format: shown, zoom }) => <PhoneFrame format={shown} zoom={zoom} />,
-      },
+      }),
     ],
   };
 }
 
-// The ring, the speaker and the camera in the `ring` mid grey, the quietest token at least 3:1 on the
-// canvas in both themes; all in the bleed, so the page inside stays uncovered.
-function PhoneFrame({ format, zoom }: { format: SlideFormat; zoom: number }) {
-  const { bleed, gap, ring, radius, speaker, camera } = phoneFrame(format);
-  const margin = (bleed - gap - ring) * zoom;
-  // The cues' centre line, half the gap off the page edge.
-  const cue = (bleed - gap / 2) * zoom;
-  return (
-    <div className="absolute inset-0" data-testid="gallery-host-phone-frame">
-      <div
-        className="absolute border-solid border-ring"
-        style={{ inset: margin, borderWidth: ring * zoom, borderRadius: radius * zoom }}
-        data-testid="gallery-host-phone-ring"
-      />
-      <div
-        className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-ring"
-        style={{ left: cue, width: speaker.thickness * zoom, height: speaker.length * zoom }}
-        data-testid="gallery-host-phone-speaker"
-      />
-      <div
-        className="absolute top-1/2 translate-x-1/2 -translate-y-1/2 rounded-full bg-ring"
-        style={{ right: cue, width: camera * zoom, height: camera * zoom }}
-        data-testid="gallery-host-phone-camera"
-      />
-    </div>
-  );
-}
 const HOST_NAME = "Workshop deck";
 
 // The record's name as the host keeps it: a change, once the field is left, is a host step. Under

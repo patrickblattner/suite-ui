@@ -11,7 +11,7 @@ import {
   settingsFooterViolations,
   userMenuOrderViolations,
 } from "../src/testing/index.js";
-import { phoneFrame } from "./phone-frame.js";
+import { phoneFrame } from "../src/slides/phone-frame.js";
 import { shellTexts } from "./shell-labels.js";
 import { de } from "../src/strings/de.js";
 import { en } from "../src/strings/en.js";
@@ -20267,7 +20267,7 @@ test("slide editor host slots in the gallery", async ({ page }) => {
   expect(geometry.hit).toBe(false);
   await safe.click();
   await expect(editor.getByTestId("gallery-host-safe-zones")).toHaveCount(0);
-  await expect(editor.getByTestId("gallery-host-phone-frame")).toBeVisible();
+  await expect(editor.getByTestId("slide-phone-frame")).toBeVisible();
   const name = editor.getByTestId("gallery-host-name");
   await name.fill("Renamed deck");
   await name.blur();
@@ -20297,7 +20297,7 @@ test("phone frame keeps its proportions on every format", () => {
   const shares = (format: { width: number; height: number }) => {
     const side = Math.min(format.width, format.height);
     const { bleed, gap, ring, radius, speaker, camera } = phoneFrame(format);
-    return [bleed, gap, ring, radius, speaker.length, speaker.thickness, camera].map(
+    return [bleed, gap, ring, radius, speaker.length, speaker.thickness, camera.size].map(
       (v) => v / side,
     );
   };
@@ -20317,7 +20317,7 @@ test("phone frame keeps its proportions on every format", () => {
     expect(gap + ring).toBeLessThan(bleed);
     expect(ring).toBeLessThan(gap);
     expect(speaker.thickness).toBeLessThan(gap);
-    expect(camera).toBeLessThan(gap);
+    expect(camera.size).toBeLessThan(gap);
     expect(speaker.length).toBeLessThan(Math.min(format.width, format.height));
     // The inner corner's centre lies (radius − ring − gap) in from the page corner on each axis.
     expect((radius - ring - gap) * Math.SQRT2).toBeLessThan(radius - ring);
@@ -20327,11 +20327,11 @@ test("phone frame keeps its proportions on every format", () => {
 // The host demo's phone frame as drawn: its overlay box, the page, the ring and the cues, their tones,
 // the canvas background, and whether a press on the ring or a cue reaches the frame.
 async function measurePhoneFrame(editor: Locator) {
-  await expect(editor.getByTestId("gallery-host-phone-ring")).toBeVisible();
+  await expect(editor.getByTestId("slide-phone-frame-ring")).toBeVisible();
   return editor.getByTestId("slide-editor-overlay-phone-frame").evaluate((box) => {
     // A plain copy of the box, so it survives the trip out of the page.
     const rect = (node: Element) => node.getBoundingClientRect().toJSON() as DOMRectReadOnly;
-    const part = (name: string) => box.querySelector(`[data-testid=gallery-host-phone-${name}]`)!;
+    const part = (name: string) => box.querySelector(`[data-testid=slide-phone-frame-${name}]`)!;
     const style = getComputedStyle(part("ring"));
     const pageBox = rect(box.parentElement!);
     const [ring, speaker, camera] = [
@@ -20450,6 +20450,38 @@ test("phone frame follows the shown page's format", async ({ page }) => {
   const g = await measurePhoneFrame(editor);
   expect(g.page.width).toBeCloseTo(g.page.height, 0);
   expectPhoneFrameShares(g, { width: 600, height: 600 });
+});
+
+// `SUI-FEATURE-382` rev 3 AC5: on a portrait page (450 × 800) the speaker slot sits centred on the
+// top short side and the camera dot centred on the bottom one, both in the gap, none over the page.
+test("phone frame on a portrait page: speaker top, camera bottom", async ({ page }) => {
+  await page.goto("/?page=slide-editor&host=1&lng=en&theme=light");
+  const editor = page.getByTestId("slide-editor");
+  await expect(
+    editor.locator("[data-slot=slide-view][data-slide-ready=true]").first(),
+  ).toBeVisible();
+  await editor.getByTestId("slide-editor-transfer").click();
+  await page
+    .getByTestId("slide-editor-transfer-dialog")
+    .getByRole("radio", { name: /Portrait/ })
+    .click();
+  await page.getByTestId("slide-editor-transfer-confirm").click();
+  await page.getByTestId("slide-editor-app-open-copy").click();
+  await expect(
+    editor.locator("[data-slot=slide-view][data-slide-ready=true]").first(),
+  ).toBeVisible();
+  const g = await measurePhoneFrame(editor);
+  expect(g.page.height).toBeGreaterThan(g.page.width);
+  expectPhoneFrameShares(g, { width: 450, height: 800 });
+  const centre = g.page.left + g.page.width / 2;
+  expect(g.speaker.left + g.speaker.width / 2).toBeCloseTo(centre, 0);
+  expect(g.camera.left + g.camera.width / 2).toBeCloseTo(centre, 0);
+  expect(g.speaker.width).toBeGreaterThan(g.speaker.height);
+  expect(g.speaker.bottom).toBeLessThanOrEqual(g.page.top);
+  expect(g.speaker.top).toBeGreaterThanOrEqual(g.ring.top + g.ringWidth);
+  expect(g.camera.top).toBeGreaterThanOrEqual(g.page.bottom);
+  expect(g.camera.bottom).toBeLessThanOrEqual(g.ring.bottom - g.ringWidth);
+  expect(g.hits).toEqual([false, false, false]);
 });
 
 // `SUI-FEATURE-380` AC1–AC4 in the gallery's host: the record's id as subtitle, "Save as block" from
