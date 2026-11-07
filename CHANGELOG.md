@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased — register #1980: light pre-push via `spec-sync prepush`, toolkit v0.40.0 (PROC-DEV-005 rev 7) (patch)
+
+- **Changed (register #1980, PROC-DEV-005 rev 7):** the pre-push hook runs the light `spec-sync prepush` (fed the pushed refs on stdin) instead of `spec-sync gate --profile merge --preflight`; `spec-sync-toolkit` bumped to v0.40.0.
+
 ## Unreleased — #832: a locked `Lockable` cancels before the child's own capture handlers (SUI-FEATURE-254) (patch)
 
 - **Fixed (#832, SUI-FEATURE-254 AC 2):** with `locked`, the lock's guard now sits on the child itself and runs before the child's own `onClickCapture`, `onMouseDownCapture`, `onSubmitCapture` and `onKeyDownCapture`; a blocked click, press, submit, `Enter` or `Space` no longer reaches them (Slot ran the child's handler first, so e.g. `<button onClickCapture={act}>` still acted). Events the lock lets through (`Enter`/`Space` typed into a field inside the surface, other keys) still reach them; unlocked behaviour is unchanged.

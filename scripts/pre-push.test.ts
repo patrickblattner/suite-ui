@@ -35,7 +35,7 @@ const pkg = JSON.parse(
 const ZERO = "0".repeat(40);
 const A = "a".repeat(40);
 const B = "b".repeat(40);
-const PREFLIGHT = "spec-sync gate --profile merge --preflight";
+const PREFLIGHT = "spec-sync prepush";
 const REPIN = "spec-sync repin --check";
 
 describe("pre-push decisions", () => {
@@ -192,7 +192,8 @@ describe("pre-push hook on a real push", () => {
         `pwd >> "${dir}/npx-cwd.log"`,
         'case "$*" in',
         "  *repin*) exit ${FAKE_REPIN_EXIT:-2};;",
-        '  *) if [ -n "$FAKE_GATE_JSON" ]; then',
+        `  *) cat >> "${dir}/npx-stdin.log"`,
+        '     if [ -n "$FAKE_GATE_JSON" ]; then',
         '       echo "$FAKE_GATE_JSON"',
         '     elif [ "${FAKE_GATE_EXIT:-0}" != 0 ]; then',
         "       mkdir -p logs/x && echo gate-log > logs/x/gate.log",
@@ -359,6 +360,7 @@ describe("pre-push hook on a real push", () => {
     expect(run.out).toContain("spec server unreachable");
     expect(npxCalls()).toEqual([PREFLIGHT, REPIN]);
     expect(log("npx-cwd.log")).toEqual([realpathSync(work), realpathSync(work)]);
+    expect(log("npx-stdin.log")[0]).toMatch(/^refs\/heads\/feat\/x [0-9a-f]{40} /);
   });
 
   it("refuses a red preflight with its phases and the next step, before the pin check", () => {

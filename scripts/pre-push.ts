@@ -4,7 +4,7 @@
 //
 //   1. Secret guard, always, on every pushed ref: gitleaks (the version hygiene pins) over the
 //      commits the ref pushes. No marker skips it; a range git cannot list refuses the push.
-//   2. `spec-sync gate --profile merge --preflight`, then `spec-sync repin --check`, on each pushed
+//   2. `spec-sync prepush` (the light preflight, fed the pushed refs), then `spec-sync repin --check`, on each pushed
 //      tip's own tree (exit 2 of the pin check: the spec server is unreachable, it passes).
 //   3. 2 is skipped when the push only deletes refs (no tree), or when refs/heads/main is not pushed
 //      and every pushed tip's subject starts with `wip:` — the loss-protection push of a red state.
@@ -261,11 +261,12 @@ function keptLogs(logDir: string, cwd: string): string {
 }
 
 // Returns the refusal lines, or nothing when the tip may go.
-function checks(sha: string, cwd: string): string[] | undefined {
-  const preflight = spawnSync("npx", ["spec-sync", "gate", "--profile", "merge", "--preflight"], {
+function checks(sha: string, cwd: string, stdin: string): string[] | undefined {
+  const preflight = spawnSync("npx", ["spec-sync", "prepush"], {
     cwd,
     encoding: "utf8",
-    stdio: ["ignore", "pipe", "inherit"],
+    input: stdin,
+    stdio: ["pipe", "pipe", "inherit"],
   });
   if (preflight.status !== 0) {
     let result: {
@@ -314,14 +315,15 @@ function main(): void {
   // A tip checked in a worktree of its own must not be read through the pushing checkout's git env.
   for (const name of ["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE"]) delete process.env[name];
   const remote = process.argv[2] ?? "origin";
-  const refs = parseRefs(readFileSync(0, "utf8"));
+  const stdin = readFileSync(0, "utf8");
+  const refs = parseRefs(stdin);
   const leaked = guard(refs, remote);
   if (leaked !== undefined) refuse(...leaked);
   const plan = checkPlan(refs, subjectIsWip);
   if (plan.line !== undefined) console.log(plan.line);
   if (!plan.run) return;
   for (const sha of new Set(tipsOf(refs).map((ref) => ref.localSha))) {
-    const refused = withTree(sha, (cwd) => checks(sha, cwd));
+    const refused = withTree(sha, (cwd) => checks(sha, cwd, stdin));
     if (refused !== undefined) refuse(...refused);
   }
 }
