@@ -13,11 +13,13 @@
       },
       {
         "name": "lint",
-        "cmd": "npm run lint"
+        "cmd": "npm run lint",
+        "blocking": true
       },
       {
         "name": "typecheck",
-        "cmd": "npm run typecheck"
+        "cmd": "npm run typecheck",
+        "blocking": true
       },
       {
         "name": "build",
@@ -28,6 +30,7 @@
       {
         "name": "hygiene",
         "cmd": "npm run hygiene",
+        "blocking": true,
         "imageOnly": "size-limit measures dist/, which only the build phase produces (SUI-FEATURE-128)"
       },
       {

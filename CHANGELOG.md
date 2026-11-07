@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased — #830: lint, typecheck and hygiene are blocking gate phases (patch)
+
+- **Changed (#830):** in `spec-sync.config.json` the gate phases `lint`, `typecheck` and `hygiene` carry `"blocking": true` (as `build` already did); a red one skips the phases after it. Other phases unchanged.
+
 ## Unreleased — #831: the gate's unit phase is blocking (patch)
 
 - **Changed (#831):** `spec-sync.config.json` marks the `unit` phase `"blocking": true`, so a red unit run skips the gallery phase instead of spending a gallery run on a known red. Gate config only.
