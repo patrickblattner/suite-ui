@@ -901,3 +901,7 @@
 {"ts":"2026-11-07T15:45:48.511Z","key":"PROC-DEV-007","from":3,"to":4,"disposition":"editorial","ref":"rev 4: ride-along default + sweep backpressure (worker process; skill updated, no toolkit release, no suite-ui code impact)"}
 {"ts":"2026-11-07T15:45:54.618Z","key":"PROC-FLOW-003","from":6,"to":8,"disposition":"editorial","ref":"rev 8: flow doc mirrors PROC-DEV-007 rev 3 dedup/known rows (process doc, no code impact)"}
 {"ts":"2026-11-07T15:46:02.250Z","key":"PROC-FLOW-008","from":2,"to":3,"disposition":"editorial","ref":"rev 3: flow doc mirrors PROC-DEV-007 rev 3 dedup/known (process doc, no code impact)"}
+{"ts":"2026-11-07T16:09:40.031Z","key":"PROC-DEV-007","from":4,"to":5,"disposition":"editorial","ref":"rev 5: finding_add needs_decision/same_as/distinct handling (worker process, no suite-ui code impact)"}
+{"ts":"2026-11-07T16:09:48.408Z","key":"PROC-FLOW-001","from":8,"to":9,"disposition":"editorial","ref":"rev 9: flow doc notes collector dedup/escalation thresholds (doc only)"}
+{"ts":"2026-11-07T16:09:54.627Z","key":"PROC-FLOW-003","from":8,"to":9,"disposition":"editorial","ref":"rev 9: covers list bump only"}
+{"ts":"2026-11-07T16:10:02.039Z","key":"PROC-FLOW-008","from":3,"to":4,"disposition":"editorial","ref":"rev 4: flow doc mirrors PROC-DEV-007 rev 4 (semantic dedup, escalation, ride-along default); doc only"}
