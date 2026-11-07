@@ -883,3 +883,4 @@
 {"ts":"2026-11-06T21:50:05.446Z","key":"PROC-REL-040","from":7,"to":8,"disposition":"editorial","ref":"rev8: runner-machine lock (cold-run cap class, runner-label wording); suite-ui has no CI runners or workflows (SUI-FEATURE-076) — no code impact"}
 {"ts":"2026-11-07T09:58:54.185Z","key":"PROC-CC-012","from":12,"to":13,"disposition":"editorial","ref":"Overmind monitor (stalled-worker reports, re-arm dedup) — Overmind/harness process, no suite-ui code impact"}
 {"ts":"2026-11-07T09:58:54.608Z","key":"PROC-DEV-032","from":11,"to":12,"disposition":"editorial","ref":"harness stall-alarm check-state semantics (latest run, draft PR) — worker-harness behaviour, no suite-ui code impact"}
+{"ts":"2026-11-07T10:32:30.247Z","key":"PROC-REL-050","from":3,"to":4,"disposition":"editorial","ref":"ops process for community/cockpit stage refresh (stage.sh); suite-ui has no stage stack, no code impact"}
