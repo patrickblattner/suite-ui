@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased — #831: the gate's unit phase is blocking (patch)
+
+- **Changed (#831):** `spec-sync.config.json` marks the `unit` phase `"blocking": true`, so a red unit run skips the gallery phase instead of spending a gallery run on a known red. Gate config only.
+
 ## Unreleased — #828: spec-sync-toolkit v0.39.0 (PROC-REL-060 rev 3–4) (patch)
 
 - **Changed (#828):** devDependency `spec-sync-toolkit` raised from `v0.37.0` to `v0.39.0` — load ceiling on dev-box slots, waiters served first come first served (PROC-REL-060 rev 3–4); no API change for callers.

@@ -37,6 +37,7 @@
       {
         "name": "unit",
         "cmd": "npm test",
+        "blocking": true,
         "imageOnly": "the suite includes *.dist.test.ts that read dist/, which only the build phase produces"
       },
       {
