@@ -888,3 +888,11 @@
 {"ts":"2026-11-07T11:40:19.343Z","key":"PROC-DEV-043","from":5,"to":6,"disposition":"editorial","ref":"worker delegation process (build agent reads its own specs); no code impact"}
 {"ts":"2026-11-07T11:40:19.758Z","key":"PROC-REL-003","from":9,"to":10,"disposition":"editorial","ref":"runner/harness day-window rule; suite-ui has no CI workflows, no code impact"}
 {"ts":"2026-11-07T14:01:22.244Z","key":"PROC-DEV-007","from":null,"to":2,"disposition":"ticket","ref":"834"}
+{"ts":"2026-11-07T14:34:49.734Z","key":"PROC-FLOW-001","from":7,"to":8,"disposition":"editorial","ref":"process-flow documentation of PROC-DEV-007 (finding collector); worker behaviour, toolkit pin already via #834; no suite-ui code impact"}
+{"ts":"2026-11-07T14:34:50.236Z","key":"PROC-FLOW-003","from":5,"to":6,"disposition":"editorial","ref":"process-flow documentation of PROC-DEV-007 (finding collector); worker behaviour, toolkit pin already via #834; no suite-ui code impact"}
+{"ts":"2026-11-07T14:34:50.788Z","key":"PROC-FLOW-004","from":5,"to":6,"disposition":"editorial","ref":"process-flow documentation of PROC-DEV-007 (finding collector); worker behaviour, toolkit pin already via #834; no suite-ui code impact"}
+{"ts":"2026-11-07T14:34:51.285Z","key":"PROC-FLOW-005","from":4,"to":5,"disposition":"editorial","ref":"process-flow documentation of PROC-DEV-007 (finding collector); worker behaviour, toolkit pin already via #834; no suite-ui code impact"}
+{"ts":"2026-11-07T14:34:51.800Z","key":"PROC-FLOW-006","from":4,"to":5,"disposition":"editorial","ref":"process-flow documentation of PROC-DEV-007 (finding collector); worker behaviour, toolkit pin already via #834; no suite-ui code impact"}
+{"ts":"2026-11-07T14:34:52.319Z","key":"PROC-FLOW-008","from":null,"to":2,"disposition":"editorial","ref":"process-flow documentation of PROC-DEV-007 (finding collector); worker behaviour, toolkit pin already via #834; no suite-ui code impact"}
+{"ts":"2026-11-07T14:34:52.897Z","key":"PROC-RUN-001","from":14,"to":15,"disposition":"editorial","ref":"ops runbook: spec-server holds finding collector; no suite-ui code impact"}
+{"ts":"2026-11-07T14:34:53.469Z","key":"PROC-RUN-010","from":8,"to":9,"disposition":"editorial","ref":"ops runbook: spec-server holds finding collector; no suite-ui code impact"}
