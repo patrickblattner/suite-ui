@@ -469,3 +469,344 @@ describe("gate:record", () => {
     expect(run.err).not.toContain("npm ci");
   });
 });
+
+const commitAll = (message: string) => {
+  git("add", ".");
+  git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", message);
+};
+
+// A package and its lockfile at `version`, with `left-pad` locked at `pad` when given.
+const EXPORTS = { ".": { types: "./index.d.ts", import: "./index.js" } };
+const writePackage = (version: string, pad?: string) => {
+  const pkg = { name: "fixture", version, exports: EXPORTS };
+  writeFileSync(join(repo, "package.json"), JSON.stringify(pkg));
+  const lock = {
+    name: "fixture",
+    version,
+    lockfileVersion: 3,
+    requires: true,
+    packages: {
+      "": pkg,
+      ...(pad === undefined ? {} : { "node_modules/left-pad": { version: pad } }),
+    },
+  };
+  writeFileSync(join(repo, "package-lock.json"), JSON.stringify(lock));
+};
+
+// SUI-FEATURE-241 AC1/AC2: a release commit on top of a recorded tree takes the parent tree's record
+// when it changes only the version fields and CHANGELOG.md.
+describe("release:tag release commit", () => {
+  // The recorded parent at 9.9.8, then a release commit to 9.9.9 with `change` applied, pushed.
+  const release = (
+    change: () => void = () => {},
+    parentRecord: object | null = { profile: "merge", exit: 0 },
+    seed: () => void = () => {},
+  ) => {
+    writePackage("9.9.8", "1.0.0");
+    writeFileSync(join(repo, "CHANGELOG.md"), "# Changelog\n");
+    seed();
+    commitAll("parent");
+    if (parentRecord !== null) writeRecord(parentRecord);
+    writePackage("9.9.9", "1.0.0");
+    writeFileSync(join(repo, "CHANGELOG.md"), "# Changelog\n\n## 9.9.9\n");
+    change();
+    commitAll("chore: release v9.9.9");
+    git("update-ref", "refs/remotes/origin/main", "HEAD");
+  };
+
+  it("tags with the parent tree's green record (AC1)", () => {
+    release();
+    const run = tag("--dry-run");
+    expect(run.status).toBe(0);
+    expect(run.out).toContain("differs from its parent only in the release fields");
+    expect(run.out).toContain("v9.9.9 on");
+    expect(
+      existsSync(
+        join(repo, ".spec-sync", "gate-records", `${git("rev-parse", "HEAD^{tree}")}.json`),
+      ),
+    ).toBe(false);
+  });
+
+  it("refuses the same change plus a code line (AC2)", () => {
+    release(() => writeFileSync(join(repo, "code.ts"), "export const x = 1;\n"));
+    const run = tag("--dry-run");
+    expect(run.status).toBe(1);
+    expect(run.out).toContain("no green gate record");
+    expect(run.out).toContain("differs from its parent in code.ts");
+  });
+
+  it("refuses another package.json field changed", () => {
+    // Only package.json: the lockfile's root entry stays as released.
+    release(() =>
+      writeFileSync(
+        join(repo, "package.json"),
+        JSON.stringify({ name: "fixture", version: "9.9.9", description: "x" }),
+      ),
+    );
+    const run = tag("--dry-run");
+    expect(run.status).toBe(1);
+    expect(run.out).toContain("differs from its parent in package.json");
+  });
+
+  it("refuses a non-root lockfile field changed", () => {
+    release(() => writePackage("9.9.9", "1.0.1"));
+    const run = tag("--dry-run");
+    expect(run.status).toBe(1);
+    expect(run.out).toContain("differs from its parent in package-lock.json");
+  });
+
+  it("refuses a reordered `exports` in package.json", () => {
+    release(() =>
+      writeFileSync(
+        join(repo, "package.json"),
+        JSON.stringify({
+          name: "fixture",
+          version: "9.9.9",
+          exports: { ".": { import: "./index.js", types: "./index.d.ts" } },
+        }),
+      ),
+    );
+    const run = tag("--dry-run");
+    expect(run.status).toBe(1);
+    expect(run.out).toContain("differs from its parent in package.json");
+  });
+
+  it('refuses a changed `packages[""].dependencies` in the lockfile', () => {
+    release(() => {
+      const path = join(repo, "package-lock.json");
+      const lock = JSON.parse(readFileSync(path, "utf8")) as {
+        packages: Record<string, Record<string, unknown>>;
+      };
+      lock.packages[""] = { ...lock.packages[""], dependencies: { "left-pad": "^1.0.0" } };
+      writeFileSync(path, JSON.stringify(lock));
+    });
+    const run = tag("--dry-run");
+    expect(run.status).toBe(1);
+    expect(run.out).toContain("differs from its parent in package-lock.json");
+  });
+
+  it("refuses a release commit that deletes CHANGELOG.md", () => {
+    release(() => rmSync(join(repo, "CHANGELOG.md")));
+    const run = tag("--dry-run");
+    expect(run.status).toBe(1);
+    expect(run.out).toContain("differs from its parent in CHANGELOG.md");
+  });
+
+  it("refuses a rename into a release file", () => {
+    release(
+      () => {
+        rmSync(join(repo, "CHANGELOG.md"));
+        git("mv", "NOTES.md", "CHANGELOG.md");
+      },
+      undefined,
+      () => writeFileSync(join(repo, "NOTES.md"), "# Changelog\n\n## 9.9.9\n\nNotes.\n"),
+    );
+    const run = tag("--dry-run");
+    expect(run.status).toBe(1);
+    expect(run.out).toContain("differs from its parent in NOTES.md");
+  });
+
+  it("says so when HEAD's tree equals its parent's", () => {
+    writePackage("9.9.9", "1.0.0");
+    commitAll("parent");
+    git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "same");
+    git("update-ref", "refs/remotes/origin/main", "HEAD");
+    const run = tag("--dry-run");
+    expect(run.status).toBe(1);
+    expect(run.out).toContain("HEAD's tree equals its parent's, which has no record");
+  });
+
+  it("refuses when the parent tree has no record", () => {
+    release(undefined, null);
+    const run = tag("--dry-run");
+    expect(run.status).toBe(1);
+    expect(run.out).toContain("its parent's tree has no record either");
+  });
+
+  it("refuses a parent record that is not green", () => {
+    release(undefined, { profile: "merge", exit: 1 });
+    const run = tag("--dry-run");
+    expect(run.status).toBe(1);
+    expect(run.out).toContain("is not green");
+  });
+
+  it("refuses on a dirty working tree", () => {
+    release();
+    writeFileSync(join(repo, "stray.txt"), "x");
+    const run = tag("--dry-run");
+    expect(run.status).toBe(1);
+    expect(run.out).toContain("uncommitted changes");
+  });
+
+  it("refuses off main", () => {
+    release();
+    git("checkout", "-q", "-b", "ticket/1");
+    const run = tag("--dry-run");
+    expect(run.status).toBe(1);
+    expect(run.out).toContain("HEAD is not on main");
+  });
+});
+
+// SUI-FEATURE-241 AC3: `gate:record` on a tree that differs from the last full green record only in
+// `*.md` and `docs/` runs the merge phases without the gallery and marks the record docs-only. A fake
+// `npx` outside the repo records its arguments and prints the given gate JSON.
+describe("gate:record docs-only", () => {
+  const MERGE = ["format", "lint", "typecheck", "build", "hygiene", "knip", "unit", "gallery"];
+  let bin: string;
+  let baseTree: string;
+
+  beforeEach(() => {
+    bin = fresh("suite-ui-release-bin-");
+    writeFileSync(
+      join(repo, "spec-sync.config.json"),
+      JSON.stringify({ gate: { profiles: { merge: MERGE } } }),
+    );
+    writePackage("9.9.9");
+    writeFileSync(join(repo, "README.md"), "# Fixture\n");
+    writeFileSync(join(repo, "code.ts"), "export const x = 1;\n");
+    commitAll("base");
+    baseTree = git("rev-parse", "HEAD^{tree}");
+  });
+
+  afterEach(() => {
+    rmSync(bin, { recursive: true, force: true });
+  });
+
+  const gateJson = (phases: string[], skipped: string[] = []) =>
+    JSON.stringify({
+      logDir: ".spec-sync/logs/x",
+      phases: phases.map((name) => ({ name, skipped: skipped.includes(name), exit: 0 })),
+    });
+
+  const record = (out: string) => {
+    writeFileSync(join(bin, "out"), out);
+    writeFileSync(
+      join(bin, "npx"),
+      `#!/bin/sh\necho "$@" > "${join(bin, "args")}"\ncat "${join(bin, "out")}"\n`,
+    );
+    chmodSync(join(bin, "npx"), 0o755);
+    const run = spawnSync(process.execPath, ["scripts/release.ts", "record", "--issue", "1"], {
+      cwd: repo,
+      encoding: "utf8",
+      env: { ...process.env, PATH: `${bin}:${process.env.PATH}` },
+      timeout: SPAWN_TIMEOUT,
+    });
+    const file = join(
+      repo,
+      ".spec-sync",
+      "gate-records",
+      `${git("rev-parse", "HEAD^{tree}")}.json`,
+    );
+    return {
+      status: run.status,
+      err: run.stderr,
+      args: readFileSync(join(bin, "args"), "utf8").trim(),
+      record: existsSync(file)
+        ? (JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown>)
+        : undefined,
+    };
+  };
+
+  it("runs without the gallery and marks the record docs-only (AC3)", () => {
+    writeRecord({ profile: "merge", exit: 0 });
+    writeFileSync(join(repo, "README.md"), "# Fixture\n\nMore.\n");
+    mkdirSync(join(repo, "docs"));
+    writeFileSync(join(repo, "docs", "guide.txt"), "x\n");
+    commitAll("docs");
+    const run = record(gateJson(MERGE.slice(0, -1)));
+    expect(run.status).toBe(0);
+    expect(run.args).toBe("--no-install spec-sync gate --profile local --issue 1");
+    expect(run.record).toMatchObject({
+      profile: "merge",
+      scope: "docs-only",
+      base: baseTree,
+      phases: MERGE.slice(0, -1),
+      exit: 0,
+    });
+    expect(run.err).toContain("docs-only merge gate");
+  });
+
+  it("runs the full merge gate when a code line changed", () => {
+    writeRecord({ profile: "merge", exit: 0 });
+    writeFileSync(join(repo, "README.md"), "# Fixture\n\nMore.\n");
+    writeFileSync(join(repo, "code.ts"), "export const x = 2;\n");
+    commitAll("code");
+    const run = record(gateJson(MERGE));
+    expect(run.status).toBe(0);
+    expect(run.args).toBe("--no-install spec-sync gate --profile merge --issue 1");
+    expect(run.record).toMatchObject({ profile: "merge", phases: MERGE });
+    expect(run.record).not.toHaveProperty("scope");
+  });
+
+  it("never takes a docs-only record as the base", () => {
+    writeRecord({ profile: "merge", exit: 0, scope: "docs-only" });
+    writeFileSync(join(repo, "README.md"), "# Fixture\n\nMore.\n");
+    commitAll("docs");
+    const run = record(gateJson(MERGE));
+    expect(run.args).toBe("--no-install spec-sync gate --profile merge --issue 1");
+    expect(run.record).not.toHaveProperty("scope");
+  });
+
+  it("records nothing when a docs-only run missed a phase", () => {
+    writeRecord({ profile: "merge", exit: 0 });
+    writeFileSync(join(repo, "README.md"), "# Fixture\n\nMore.\n");
+    commitAll("docs");
+    const run = record(gateJson(MERGE.filter((p) => p !== "unit" && p !== "gallery")));
+    expect(run.status).toBe(1);
+    expect(run.err).toContain("not the merge profile without gallery — no record");
+    expect(run.record).toBeUndefined();
+  });
+
+  it("records nothing when the full gate skipped the gallery", () => {
+    writeFileSync(join(repo, "code.ts"), "export const x = 2;\n");
+    commitAll("code");
+    const run = record(gateJson(MERGE, ["gallery"]));
+    expect(run.status).toBe(1);
+    expect(run.err).toContain("not the merge profile — no record");
+    expect(run.record).toBeUndefined();
+  });
+
+  // Tailwind scans `src/` and `gallery/` for class names, Markdown included.
+  it("runs the full merge gate for a Markdown file in the Tailwind scan", () => {
+    writeRecord({ profile: "merge", exit: 0 });
+    mkdirSync(join(repo, "src"));
+    writeFileSync(join(repo, "src", "notes.md"), "`bg-primary`\n");
+    commitAll("src docs");
+    const run = record(gateJson(MERGE));
+    expect(run.args).toBe("--no-install spec-sync gate --profile merge --issue 1");
+    expect(run.record).not.toHaveProperty("scope");
+  });
+
+  it("keeps a full record of the same tree instead of writing a docs-only one", () => {
+    writeRecord({ profile: "merge", exit: 0 });
+    writeFileSync(join(repo, "README.md"), "# Fixture\n\nMore.\n");
+    commitAll("docs");
+    writeRecord({ profile: "merge", exit: 0 });
+    const run = record(gateJson(MERGE));
+    expect(run.status).toBe(0);
+    expect(run.args).toBe("--no-install spec-sync gate --profile merge --issue 1");
+    expect(run.record).toMatchObject({ profile: "merge", phases: MERGE });
+    expect(run.record).not.toHaveProperty("scope");
+  });
+});
+
+// SUI-FEATURE-241: a docs-only record skips the gallery, so nothing the gallery builds may read a
+// `*.md` or `docs/` file — not even as `?raw` or through `import.meta.glob`.
+describe("gallery inputs", () => {
+  it("no src/ or gallery/ file imports a .md or docs/ file", () => {
+    const root = fileURLToPath(new URL("..", import.meta.url));
+    const files = gitIn(root, "ls-files", "src", "gallery")
+      .split("\n")
+      .filter((f) => /\.(c|m)?(t|j)sx?$|\.css$/.test(f));
+    const spec =
+      /(?:\bfrom\s*|\bimport\s*\(?\s*|\bglob\s*\(\s*\[?\s*|@import\s+(?:url\()?)["']([^"']+)["']/g;
+    const hits = files.flatMap((f) =>
+      [...readFileSync(join(root, f), "utf8").matchAll(spec)]
+        .map((m) => m[1] ?? "")
+        .filter((s) => /\.md(\?|$)/.test(s) || /(^|\/)docs\//.test(s))
+        .map((s) => `${f}: ${s}`),
+    );
+    expect(files.length).toBeGreaterThan(100);
+    expect(hits).toEqual([]);
+  });
+});

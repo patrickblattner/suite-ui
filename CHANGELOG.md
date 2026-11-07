@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased — #837: toolkit v0.42.0 (register #1992) (patch)
+
+- **Changed (#837, PROC-DEV-005 rev 8):** `spec-sync-toolkit` bumped to v0.42.0, which adds the pre-push refusal onto ready PRs; suite-ui has no PRs, so this is a pin raise for consistency.
+
+## Unreleased — #836: gate record reused by the release commit, docs-only record without gallery (SUI-FEATURE-241 rev 2) (patch)
+
+- **Changed (#836, SUI-FEATURE-241 AC 1/2):** `release:tag` takes the green record of the parent's tree when HEAD differs from it only in `version` of `package.json`, the root version fields of `package-lock.json` (`version`, `packages[""].version`) and `CHANGELOG.md`, each only modified (not added, deleted or renamed into) and compared key order included; any other difference (a code line, another manifest or lockfile field, a reordered `exports`) still needs its own record, and a HEAD whose tree equals its parent's is refused with its own message.
+- **Changed (#836, SUI-FEATURE-241 AC 3):** `gate:record` on a tree that differs from the tree of the last full green record in first-parent history only in `*.md` and `docs/` runs the merge profile's phases without `gallery` and writes the record with `scope: "docs-only"` and its `base` tree; a docs-only record is never a base itself, a full green record of the same tree is kept, and the record still needs exactly the expected phases. A `*.md` under `src/` or `gallery/` is not docs-only: the gallery's Tailwind scans both for class names.
+- **Tests (#836):** `scripts/release.test.ts` — release commit tagged from the parent's record; refused with a code line, another `package.json` field, a non-root lockfile field, no or a red parent record, a dirty tree and off `main`; docs-only run without gallery and its marker; full gate on a code change; docs-only record not taken as base; no record when a phase is missing; reordered `exports`, a changed `packages[""].dependencies`, a deleted CHANGELOG, a rename into a release file and an unchanged tree refused; a Markdown file in the Tailwind scan gets the full gate; a full record is not overwritten; no `src/` or `gallery/` file imports a `.md` or `docs/` file.
+
 ## 0.228.1 — #835: `npm audit` clean again — minimatch 11 for typescript-eslint (SUI-FEATURE-009 rev 2) (patch)
 
 - **Security (#835, SUI-FEATURE-009 rev 2 AC 1):** an `overrides` entry lifts `minimatch` under `@typescript-eslint/typescript-estree` from 10.2.6 to `^11.0.1` (now 11.0.5), fixing GHSA-g3hv-75wg-m249 (DoS via globparts amplification, dev scope only); `npm audit` reports 0 vulnerabilities. No typescript-eslint release (latest 8.72.1) depends on minimatch 11 yet, so the override replaces an upgrade; typescript-eslint stays at 8.71.1, no lint rule changed.

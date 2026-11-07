@@ -17,6 +17,12 @@
 // The record is keyed by the tree, not the commit, so a squash commit with the gated content finds
 // it without a second run. `tag` is the only way to tag; it refuses
 // without a green record for HEAD's tree, on a dirty working tree and off `main`.
+//
+// SUI-FEATURE-241: `tag` also takes the green record of the parent's tree when HEAD differs from it
+// only in `version` of package.json, the root version fields of package-lock.json and CHANGELOG.md
+// (a release commit); any other difference needs its own record. `record` on a tree that differs from
+// the tree of the last full green record (first-parent history) only in `*.md` and `docs/` runs the
+// merge profile's phases without `gallery` and marks the record `scope: "docs-only"` with that `base`.
 
 import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -37,6 +43,102 @@ function recordPath(tree: string): string {
   const common = git("rev-parse", "--path-format=absolute", "--git-common-dir");
   const root = basename(common) === ".git" ? dirname(common) : git("rev-parse", "--show-toplevel");
   return join(root, ".spec-sync", "gate-records", `${tree}.json`);
+}
+
+type GateRecord = { profile?: string; exit?: number; scope?: string };
+
+const DOCS_ONLY = "docs-only";
+
+function readRecord(tree: string): GateRecord | undefined {
+  const path = recordPath(tree);
+  return existsSync(path) ? (JSON.parse(readFileSync(path, "utf8")) as GateRecord) : undefined;
+}
+
+const isGreen = (record: GateRecord | undefined): boolean =>
+  record?.profile === "merge" && record.exit === 0;
+
+const changedFiles = (from: string, to: string): string[] =>
+  git("diff", "--no-renames", "--name-only", from, to)
+    .split("\n")
+    .filter((f) => f !== "");
+
+// SUI-FEATURE-241: the tree of the last full green record in HEAD's first-parent history, when HEAD's
+// tree differs from it only in `*.md` and `docs/`. A docs-only record is never a base: the walk goes
+// on to the full record behind it, so the comparison is always against a tree the gallery saw.
+const DOCS_BASE_DEPTH = 50;
+// The gallery's Tailwind scans its Vite root `gallery/` and the `@source "."` of src/styles.css, i.e.
+// `src/`, for class names, Markdown included: a `*.md` there can change the gallery's CSS and is not
+// docs-only. No file in either imports a `.md` or `docs/` file (scripts/release.test.ts holds that).
+const TAILWIND_SCANNED = ["gallery/", "src/"];
+const isDocs = (file: string): boolean =>
+  file.startsWith("docs/") ||
+  (file.endsWith(".md") && !TAILWIND_SCANNED.some((dir) => file.startsWith(dir)));
+
+function docsOnlyBase(tree: string): string | undefined {
+  const trees = git(
+    "log",
+    "--first-parent",
+    `--max-count=${DOCS_BASE_DEPTH}`,
+    "--format=%T",
+    "HEAD",
+  )
+    .split("\n")
+    .filter((t) => t !== "" && t !== tree);
+  const base = trees.find((t) => {
+    const record = readRecord(t);
+    return isGreen(record) && record?.scope === undefined;
+  });
+  if (base === undefined) return undefined;
+  const files = changedFiles(base, tree);
+  return files.length > 0 && files.every(isDocs) ? base : undefined;
+}
+
+// SUI-FEATURE-241: a release commit may differ from its parent only here, and in the two JSON files
+// only in these fields.
+const RELEASE_FILES = ["package.json", "package-lock.json", "CHANGELOG.md"];
+
+function withoutVersion(file: string, text: string): unknown {
+  const json = JSON.parse(text) as { version?: string; packages?: Record<string, object> };
+  delete json.version;
+  const root = json.packages?.[""] as { version?: string } | undefined;
+  if (file === "package-lock.json" && root !== undefined) delete root.version;
+  return json;
+}
+
+function versionOnly(file: string, parent: string): boolean {
+  if (file === "CHANGELOG.md") return true;
+  const show = (rev: string) => spawnSync("git", ["show", `${rev}:${file}`], { encoding: "utf8" });
+  const [before, after] = [show(parent), show("HEAD")];
+  if (before.status !== 0 || after.status !== 0) return false;
+  try {
+    // Order-sensitive: a reordered `exports` condition (`types` before `import`) changes resolution.
+    return (
+      JSON.stringify(withoutVersion(file, before.stdout)) ===
+      JSON.stringify(withoutVersion(file, after.stdout))
+    );
+  } catch {
+    return false;
+  }
+}
+
+// The parent's tree when HEAD is a release commit on top of it, else why not.
+function releaseParent(): { tree: string } | { why: string } {
+  const parent = spawnSync("git", ["rev-parse", "-q", "--verify", "HEAD^"], { encoding: "utf8" });
+  if (parent.status !== 0) return { why: "HEAD has no parent" };
+  const commit = parent.stdout.trim();
+  // Each line `<status>\t<path>`; a release file is only ever modified, never added or deleted.
+  const changes = git("diff", "--no-renames", "--name-status", commit, "HEAD")
+    .split("\n")
+    .filter((l) => l !== "")
+    .map((l) => l.split("\t") as [string, string]);
+  if (changes.length === 0) return { why: "HEAD's tree equals its parent's, which has no record" };
+  const other = changes.find(
+    ([status, f]) => status !== "M" || !RELEASE_FILES.includes(f) || !versionOnly(f, commit),
+  );
+  if (other !== undefined) {
+    return { why: `HEAD differs from its parent in ${other[1]} beyond the release fields` };
+  }
+  return { tree: git("rev-parse", `${commit}^{tree}`) };
 }
 
 // Every `packages` entry of package-lock.json against its installed package.json, offline. An optional
@@ -106,10 +208,23 @@ function record(gateArgs: string[]): void {
   if (!isClean()) fail("the working tree has uncommitted changes — no record");
   const tree = git("rev-parse", "HEAD^{tree}");
   const commit = git("rev-parse", "HEAD");
+  // SUI-FEATURE-241: a docs-only tree needs every merge phase but the gallery — exactly the local
+  // profile, which the phase check below holds against the merge profile minus `gallery`.
+  // A tree that already has a full green record keeps it: a rerun is a full gate, never docs-only.
+  const own = readRecord(tree);
+  const base = isGreen(own) && own?.scope === undefined ? undefined : docsOnlyBase(tree);
+  const required = mergePhases().filter((p) => base === undefined || p !== "gallery");
 
   const gate = spawnSync(
     "npx",
-    ["--no-install", "spec-sync", "gate", "--profile", "merge", ...gateArgs],
+    [
+      "--no-install",
+      "spec-sync",
+      "gate",
+      "--profile",
+      base === undefined ? "merge" : "local",
+      ...gateArgs,
+    ],
     {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "inherit"],
@@ -127,17 +242,20 @@ function record(gateArgs: string[]): void {
     phases?: { name: string; skipped: boolean; exit: number }[];
   };
   const ran = phases.filter((p) => !p.skipped && p.exit === 0).map((p) => p.name);
-  if (ran.join(",") !== mergePhases().join(",")) {
-    fail(`the gate ran ${ran.join(",") || "no phase"}, not the merge profile — no record`);
+  if (ran.join(",") !== required.join(",")) {
+    const want = base === undefined ? "the merge profile" : "the merge profile without gallery";
+    fail(`the gate ran ${ran.join(",") || "no phase"}, not ${want} — no record`);
   }
   const path = recordPath(tree);
   mkdirSync(dirname(path), { recursive: true });
   const at = new Date().toISOString();
+  const scope = base === undefined ? {} : { scope: DOCS_ONLY, base };
   writeFileSync(
     path,
-    `${JSON.stringify({ tree, commit, profile: "merge", phases: ran, exit, logDir, at }, null, 2)}\n`,
+    `${JSON.stringify({ tree, commit, profile: "merge", ...scope, phases: ran, exit, logDir, at }, null, 2)}\n`,
   );
-  console.error(`release record: green merge gate recorded for tree ${tree} (${commit})`);
+  const what = base === undefined ? "merge gate" : `docs-only merge gate (base tree ${base})`;
+  console.error(`release record: green ${what} recorded for tree ${tree} (${commit})`);
 }
 
 function tag(args: string[]): void {
@@ -162,12 +280,24 @@ function tag(args: string[]): void {
     encoding: "utf8",
   });
   const previous = describe.status === 0 ? describe.stdout.trim() : "";
-  const path = recordPath(git("rev-parse", "HEAD^{tree}"));
+  let path = recordPath(git("rev-parse", "HEAD^{tree}"));
   if (!existsSync(path)) {
-    fail(`no green gate record for ${commit} (run npm run gate:record) — ${name} not created`);
+    // SUI-FEATURE-241: a release commit takes its parent tree's record.
+    const parent = releaseParent();
+    const parentPath = "tree" in parent ? recordPath(parent.tree) : "";
+    if (parentPath === "" || !existsSync(parentPath)) {
+      const why = "why" in parent ? `; ${parent.why}` : "; its parent's tree has no record either";
+      fail(
+        `no green gate record for ${commit} (run npm run gate:record${why}) — ${name} not created`,
+      );
+    }
+    path = parentPath;
+    console.error(
+      `release tag: ${commit} differs from its parent only in the release fields — parent tree's record`,
+    );
   }
-  const gate = JSON.parse(readFileSync(path, "utf8")) as { profile?: string; exit?: number };
-  if (gate.profile !== "merge" || gate.exit !== 0) {
+  const gate = JSON.parse(readFileSync(path, "utf8")) as GateRecord;
+  if (!isGreen(gate)) {
     fail(`the gate record ${path} is not green — ${name} not created`);
   }
 
