@@ -896,3 +896,4 @@
 {"ts":"2026-11-07T14:34:52.319Z","key":"PROC-FLOW-008","from":null,"to":2,"disposition":"editorial","ref":"process-flow documentation of PROC-DEV-007 (finding collector); worker behaviour, toolkit pin already via #834; no suite-ui code impact"}
 {"ts":"2026-11-07T14:34:52.897Z","key":"PROC-RUN-001","from":14,"to":15,"disposition":"editorial","ref":"ops runbook: spec-server holds finding collector; no suite-ui code impact"}
 {"ts":"2026-11-07T14:34:53.469Z","key":"PROC-RUN-010","from":8,"to":9,"disposition":"editorial","ref":"ops runbook: spec-server holds finding collector; no suite-ui code impact"}
+{"ts":"2026-11-07T15:36:20.949Z","key":"PROC-DEV-007","from":2,"to":3,"disposition":"editorial","ref":"rev 3: worker/lens dedup rules for finding collector (process only; skill updated, no toolkit release yet, no code impact)"}
