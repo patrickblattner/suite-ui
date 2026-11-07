@@ -918,3 +918,7 @@
 {"ts":"2026-11-07T17:15:46.243Z","key":"PROC-FLOW-003","from":10,"to":12,"disposition":"editorial","ref":"rev 12: per-PR flow doc (diff classes, ready-PR push); suite-ui has no PRs"}
 {"ts":"2026-11-07T17:15:46.891Z","key":"PROC-FLOW-004","from":6,"to":7,"disposition":"editorial","ref":"rev 7: night flow doc adds npm audit for exposed repos; suite-ui internal"}
 {"ts":"2026-11-07T17:15:47.399Z","key":"PROC-REL-041","from":null,"to":2,"disposition":"editorial","ref":"new: runner cache tier key; suite-ui has no runners/CI (SUI-FEATURE-076)"}
+{"ts":"2026-11-07T17:22:33.312Z","key":"SUI-FEATURE-139","from":null,"to":2,"disposition":"ticket","ref":"839"}
+{"ts":"2026-11-07T17:22:33.312Z","key":"PROC-REL-080","from":null,"to":3,"disposition":"ticket","ref":"839"}
+{"ts":"2026-11-07T17:22:33.723Z","key":"GL-CODE-021","from":null,"to":3,"disposition":"editorial","ref":"raise rule for worker/PR process; suite-ui has no code enforcing raise approvals; skill updated"}
+{"ts":"2026-11-07T17:22:34.155Z","key":"PROC-SPEC-003","from":2,"to":3,"disposition":"editorial","ref":"rev 3: empty body diff (metadata only)"}
