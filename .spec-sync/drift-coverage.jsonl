@@ -905,3 +905,7 @@
 {"ts":"2026-11-07T16:09:48.408Z","key":"PROC-FLOW-001","from":8,"to":9,"disposition":"editorial","ref":"rev 9: flow doc notes collector dedup/escalation thresholds (doc only)"}
 {"ts":"2026-11-07T16:09:54.627Z","key":"PROC-FLOW-003","from":8,"to":9,"disposition":"editorial","ref":"rev 9: covers list bump only"}
 {"ts":"2026-11-07T16:10:02.039Z","key":"PROC-FLOW-008","from":3,"to":4,"disposition":"editorial","ref":"rev 4: flow doc mirrors PROC-DEV-007 rev 4 (semantic dedup, escalation, ride-along default); doc only"}
+{"ts":"2026-11-07T16:45:03.048Z","key":"PROC-FLOW-001","from":9,"to":10,"disposition":"editorial","ref":"rev 10: flow doc adds needs_decision threshold (doc only)"}
+{"ts":"2026-11-07T16:45:08.714Z","key":"PROC-FLOW-003","from":9,"to":10,"disposition":"editorial","ref":"rev 10: flow doc mirrors PROC-DEV-007 rev 5 same_as (doc only)"}
+{"ts":"2026-11-07T16:45:18.258Z","key":"PROC-FLOW-008","from":4,"to":5,"disposition":"editorial","ref":"rev 5: flow doc adds needs-decision step per PROC-DEV-007 rev 5 (doc only)"}
+{"ts":"2026-11-07T16:45:25.492Z","key":"PROC-REL-070","from":null,"to":2,"disposition":"editorial","ref":"new: tooling-diff class for iris/pr-gate; suite-ui runs local mode without .github/workflows, no iris check, no PRs — no surface here"}
