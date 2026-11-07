@@ -909,3 +909,12 @@
 {"ts":"2026-11-07T16:45:08.714Z","key":"PROC-FLOW-003","from":9,"to":10,"disposition":"editorial","ref":"rev 10: flow doc mirrors PROC-DEV-007 rev 5 same_as (doc only)"}
 {"ts":"2026-11-07T16:45:18.258Z","key":"PROC-FLOW-008","from":4,"to":5,"disposition":"editorial","ref":"rev 5: flow doc adds needs-decision step per PROC-DEV-007 rev 5 (doc only)"}
 {"ts":"2026-11-07T16:45:25.492Z","key":"PROC-REL-070","from":null,"to":2,"disposition":"editorial","ref":"new: tooling-diff class for iris/pr-gate; suite-ui runs local mode without .github/workflows, no iris check, no PRs — no surface here"}
+{"ts":"2026-11-07T17:15:16.374Z","key":"SUI-FEATURE-241","from":null,"to":2,"disposition":"ticket","ref":"836"}
+{"ts":"2026-11-07T17:15:18.471Z","key":"PROC-DEV-005","from":7,"to":9,"disposition":"editorial","ref":"rev 8: pre-push refusal onto ready PRs; suite-ui runs local mode without PRs; toolkit carrier via #837"}
+{"ts":"2026-11-07T17:15:19.575Z","key":"PROC-REL-006","from":4,"to":5,"disposition":"editorial","ref":"rev 5: nightly npm audit --omit=dev for exposed repos; suite-ui is internal"}
+{"ts":"2026-11-07T17:15:19.944Z","key":"PROC-REL-070","from":2,"to":4,"disposition":"editorial","ref":"rev 3: diff classes for pr-gate/iris; suite-ui has no .github/workflows and no PRs"}
+{"ts":"2026-11-07T17:15:45.003Z","key":"PROC-FLOW-006","from":5,"to":6,"disposition":"ticket","ref":"836"}
+{"ts":"2026-11-07T17:15:45.612Z","key":"PROC-FLOW-001","from":10,"to":11,"disposition":"editorial","ref":"rev 11: flow doc notes runner cache key (doc only)"}
+{"ts":"2026-11-07T17:15:46.243Z","key":"PROC-FLOW-003","from":10,"to":12,"disposition":"editorial","ref":"rev 12: per-PR flow doc (diff classes, ready-PR push); suite-ui has no PRs"}
+{"ts":"2026-11-07T17:15:46.891Z","key":"PROC-FLOW-004","from":6,"to":7,"disposition":"editorial","ref":"rev 7: night flow doc adds npm audit for exposed repos; suite-ui internal"}
+{"ts":"2026-11-07T17:15:47.399Z","key":"PROC-REL-041","from":null,"to":2,"disposition":"editorial","ref":"new: runner cache tier key; suite-ui has no runners/CI (SUI-FEATURE-076)"}
