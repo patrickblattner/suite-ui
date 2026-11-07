@@ -23,6 +23,10 @@
     // Run as a binary by scripts/hygiene.ts (gate phase `hygiene`), not imported anywhere and
     // without a knip plugin that would see its config (dependency-cruiser and size-limit have one).
     "jscpd",
+    // Run as binaries by scripts/growth-metrics.ts (`npm run growth:metrics`), the same way.
+    "fta-cli",
+    "source-map-explorer",
+    "type-coverage",
   ],
   // A system tool, not an npm package: hygiene.ts pins its version and scripts/pre-push.ts (#794)
   // checks the same pin before its secret guard runs.
