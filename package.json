@@ -158,6 +158,11 @@
     "vite": "^7.3.7",
     "vitest": "^5.0.4"
   },
+  "overrides": {
+    "@typescript-eslint/typescript-estree": {
+      "minimatch": "^11.0.1"
+    }
+  },
   "simple-git-hooks": {
     "pre-push": "[ -f scripts/pre-push.ts ] || { echo 'push refused: this branch predates the pre-push hook (scripts/pre-push.ts missing) — merge or rebase main into it and push again' >&2; exit 1; }; node scripts/pre-push.ts \"$@\""
   }

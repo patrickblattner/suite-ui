@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased — #835: `npm audit` clean again — minimatch 11 for typescript-eslint (SUI-FEATURE-009 rev 2) (patch)
+
+- **Security (#835, SUI-FEATURE-009 rev 2 AC 1):** an `overrides` entry lifts `minimatch` under `@typescript-eslint/typescript-estree` from 10.2.6 to `^11.0.1` (now 11.0.5), fixing GHSA-g3hv-75wg-m249 (DoS via globparts amplification, dev scope only); `npm audit` reports 0 vulnerabilities. No typescript-eslint release (latest 8.72.1) depends on minimatch 11 yet, so the override replaces an upgrade; typescript-eslint stays at 8.71.1, no lint rule changed.
+
 ## Unreleased — #834: toolkit v0.41.0 (review verdict `accepted collected`, PROC-DEV-007 rev 2) (patch)
 
 - **Changed (#834, PROC-DEV-007 rev 2):** `spec-sync-toolkit` bumped to v0.41.0, which adds the review verdict `accepted collected <c>`.
