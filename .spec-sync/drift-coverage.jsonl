@@ -879,3 +879,5 @@
 {"ts":"2026-11-06T12:40:46.407Z","key":"PROC-REL-060","from":2,"to":4,"disposition":"ticket","ref":"828"}
 {"ts":"2026-11-06T12:40:46.813Z","key":"GL-CODE-002","from":13,"to":14,"disposition":"editorial","ref":"size-maximum raise authority moved owner→Overmind; process only, no code impact"}
 {"ts":"2026-11-06T16:27:46.227Z","key":"PROC-DEV-006","from":null,"to":2,"disposition":"editorial","ref":"process ordering rule (pipeline rebuild first); applied to queue order #829→#828→#831→#830, no code impact"}
+{"ts":"2026-11-06T21:49:53.910Z","key":"PROC-REL-012","from":22,"to":23,"disposition":"editorial","ref":"rev23: runner label wording (nightly on any free machine) + preflight hygiene list made exemplary; suite-ui runs local mode without CI runners, preflight phase set comes from the toolkit — no code impact"}
+{"ts":"2026-11-06T21:50:05.446Z","key":"PROC-REL-040","from":7,"to":8,"disposition":"editorial","ref":"rev8: runner-machine lock (cold-run cap class, runner-label wording); suite-ui has no CI runners or workflows (SUI-FEATURE-076) — no code impact"}
