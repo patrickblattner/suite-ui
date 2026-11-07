@@ -897,3 +897,7 @@
 {"ts":"2026-11-07T14:34:52.897Z","key":"PROC-RUN-001","from":14,"to":15,"disposition":"editorial","ref":"ops runbook: spec-server holds finding collector; no suite-ui code impact"}
 {"ts":"2026-11-07T14:34:53.469Z","key":"PROC-RUN-010","from":8,"to":9,"disposition":"editorial","ref":"ops runbook: spec-server holds finding collector; no suite-ui code impact"}
 {"ts":"2026-11-07T15:36:20.949Z","key":"PROC-DEV-007","from":2,"to":3,"disposition":"editorial","ref":"rev 3: worker/lens dedup rules for finding collector (process only; skill updated, no toolkit release yet, no code impact)"}
+{"ts":"2026-11-07T15:45:42.690Z","key":"PROC-DEV-006","from":2,"to":3,"disposition":"editorial","ref":"rev 3: pipeline+deployment tickets always P1 first (queue/process rule; no open tickets, no suite-ui code impact)"}
+{"ts":"2026-11-07T15:45:48.511Z","key":"PROC-DEV-007","from":3,"to":4,"disposition":"editorial","ref":"rev 4: ride-along default + sweep backpressure (worker process; skill updated, no toolkit release, no suite-ui code impact)"}
+{"ts":"2026-11-07T15:45:54.618Z","key":"PROC-FLOW-003","from":6,"to":8,"disposition":"editorial","ref":"rev 8: flow doc mirrors PROC-DEV-007 rev 3 dedup/known rows (process doc, no code impact)"}
+{"ts":"2026-11-07T15:46:02.250Z","key":"PROC-FLOW-008","from":2,"to":3,"disposition":"editorial","ref":"rev 3: flow doc mirrors PROC-DEV-007 rev 3 dedup/known (process doc, no code impact)"}
