@@ -884,3 +884,6 @@
 {"ts":"2026-11-07T09:58:54.185Z","key":"PROC-CC-012","from":12,"to":13,"disposition":"editorial","ref":"Overmind monitor (stalled-worker reports, re-arm dedup) — Overmind/harness process, no suite-ui code impact"}
 {"ts":"2026-11-07T09:58:54.608Z","key":"PROC-DEV-032","from":11,"to":12,"disposition":"editorial","ref":"harness stall-alarm check-state semantics (latest run, draft PR) — worker-harness behaviour, no suite-ui code impact"}
 {"ts":"2026-11-07T10:32:30.247Z","key":"PROC-REL-050","from":3,"to":4,"disposition":"editorial","ref":"ops process for community/cockpit stage refresh (stage.sh); suite-ui has no stage stack, no code impact"}
+{"ts":"2026-11-07T11:40:18.936Z","key":"PROC-DEV-005","from":6,"to":7,"disposition":"ticket","ref":"833"}
+{"ts":"2026-11-07T11:40:19.343Z","key":"PROC-DEV-043","from":5,"to":6,"disposition":"editorial","ref":"worker delegation process (build agent reads its own specs); no code impact"}
+{"ts":"2026-11-07T11:40:19.758Z","key":"PROC-REL-003","from":9,"to":10,"disposition":"editorial","ref":"runner/harness day-window rule; suite-ui has no CI workflows, no code impact"}
