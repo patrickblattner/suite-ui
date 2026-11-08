@@ -44,7 +44,8 @@ type EditorHeaderCommonProps = {
   titleText?: string;
   // One line under the title, e.g. the record's status and identifier (`SUI-FEATURE-105`).
   subtitle?: React.ReactNode;
-  // Back to the list; pass it through the leave guard (`useEditorLeaveGuard`).
+  // Back to the list. With `kind="draft"` pass it through the leave guard (`useEditorLeaveGuard`); a
+  // record head leaves the guard to each section, which owns its save (`SUI-FEATURE-390`).
   onBack: () => void;
   // The record's lifecycle (`SUI-FEATURE-069`): Preview, ⋯ and the next step, before the editor group.
   lifecycle?: EditorLifecycle;

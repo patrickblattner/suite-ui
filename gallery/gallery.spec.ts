@@ -5002,6 +5002,8 @@ for (const lng of LANGUAGES) {
 // window — `pageerror` and the console do not see it.
 for (const [target, bar] of [
   ["editor-bar", "[data-slot=editor-header]"],
+  // `SUI-FEATURE-390`: the draft head and the record head on one page.
+  ["record-bar", "[data-slot=editor-header]"],
   ["preview", "[data-shrink]"],
 ] as const) {
   test(`fold steps: a width sweep raises no window error on ${target}`, async ({ page }) => {
@@ -5055,6 +5057,8 @@ async function recordPaintedFrames(bar: Locator) {
 // observers leave none of their notifications undelivered.
 for (const [target, bar] of [
   ["editor-bar", "[data-slot=editor-header]"],
+  // `SUI-FEATURE-390`: the record head.
+  ["record-bar", "[data-testid=editor-record-record] [data-slot=editor-header]"],
   ["preview", "[data-shrink]"],
 ] as const) {
   test(`fold steps: a container resize without a window resize paints no in-between frame on ${target}`, async ({
@@ -5091,7 +5095,7 @@ for (const [target, bar] of [
       seen.add(settled.folds);
       expect(painted, `${width} px`).toEqual(settled);
       // The editor header never wraps; the preview toolbar wraps only at its last step.
-      if (target === "editor-bar" || settled.folds < 3) expect(settled.height).toBe(unwrapped);
+      if (target !== "preview" || settled.folds < 3) expect(settled.height).toBe(unwrapped);
     }
     // The resizes crossed fold boundaries.
     expect(seen.size).toBeGreaterThan(1);
