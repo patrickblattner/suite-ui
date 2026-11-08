@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — #843: `EditorHeader` `kind="record"`, the record head without the save cluster (SUI-FEATURE-390 rev 2) (minor)
+
+- **Added (#843, SUI-FEATURE-390 rev 2):** `EditorHeader` takes `kind?: "draft" | "record"`, default `"draft"` (unchanged). `kind="record"` renders no Undo, Redo, state, Reset, Save and no reset confirm, registers no Ctrl/Cmd+Z/Y shortcut and holds no navigation; Back, title, subtitle, tools, status, lifecycle and `layout` stay as in the draft head, the right group closes up to the edge as the read-only head's does, and a divider stands only where a status or the read-only sign follows. `readOnly` with `kind="record"` keeps its read-only sign. The props are a union: new `EditorHeaderRecordProps` (`kind: "record"`, no draft prop accepted); `EditorHeaderProps` stays the draft head's type, so an app's `Omit<EditorHeaderProps, …>` keeps compiling.
+- **Gallery (#843):** new page `record-bar` — the draft head and the record head with subtitle, tools and lifecycle, one under the other. No screenshot capture; existing baselines unchanged.
+- **Tests (#843):** unit (`src/ui/editor-header.test.tsx`) — AC 1 no save cluster, order and closed-up group, no key taken (`preventDefault` probe, draft head as control); AC 2 `@ts-expect-error` for each draft prop with `kind="record"` and for a draft head without them; AC 5 Back navigates without a leave dialog; read-only and `readOnly="content"` record heads. Gallery (`gallery/gallery.spec.ts`) — AC 1/3/6 Back, `page-title`, `page-subtitle` at the draft head's x and the same right edge at 390, 1280 and 1440 px; axe WCAG 2.2 AA on `record-bar` in both themes.
+
 ## 0.228.3 — #844: toolkit v0.43.3, strict-allow-scripts consumers can prepare `@suite/ui` (GL-CODE-004) (patch)
 
 - **Changed (#844, GL-CODE-004):** devDependency `spec-sync-toolkit` pin raised from v0.43.1 to v0.43.3 (lockfile resolves commit `8b4c888`); v0.43.3 carries the complete `allowScripts` list including `fsevents`, so a consumer with `strict-allow-scripts=true` prepares `@suite/ui` as a git dependency without `ESTRICTALLOWSCRIPTS`. The lockfile's install-script set is unchanged, `allowScripts` stays as is and its two-way test (`scripts/allow-scripts.test.ts`) stays green.

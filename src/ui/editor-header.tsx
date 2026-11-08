@@ -28,7 +28,15 @@ import {
 import { REDO_SHORTCUT, UNDO_SHORTCUT, useEditShortcuts } from "./use-edit-shortcuts.js";
 import { useFoldSteps } from "./use-fold-steps.js";
 
-type EditorHeaderProps = {
+// `SUI-FEATURE-390`: `kind="draft"` (the default) is the head of a page with one draft, its save
+// cluster included; `kind="record"` the head of a record page that saves per section, without that
+// cluster. `EditorHeader` takes either; the draft head keeps its name, so an app's type built on it
+// stays as it was.
+type EditorHeaderProps = EditorHeaderCommonProps & EditorHeaderDraftProps;
+type EditorHeaderRecordProps = EditorHeaderCommonProps & EditorHeaderRecordOnlyProps;
+
+// What both kinds of head show alike: Back, the title, the tools, the lifecycle, the status.
+type EditorHeaderCommonProps = {
   // The record's title, as the app shows it: the page's `h1` (`SUI-FEATURE-105`).
   title: React.ReactNode;
   // The text the fold budget measures in place of the title node's text, for a title given as an
@@ -36,8 +44,28 @@ type EditorHeaderProps = {
   titleText?: string;
   // One line under the title, e.g. the record's status and identifier (`SUI-FEATURE-105`).
   subtitle?: React.ReactNode;
-  // Back to the list; pass it through the leave guard (`useEditorLeaveGuard`).
+  // Back to the list. With `kind="draft"` pass it through the leave guard (`useEditorLeaveGuard`); a
+  // record head leaves the guard to each section, which owns its save (`SUI-FEATURE-390`).
   onBack: () => void;
+  // The record's lifecycle (`SUI-FEATURE-069`): Preview, ⋯ and the next step, before the editor group.
+  lifecycle?: EditorLifecycle;
+  // The editor's own tools in the header row, first in the right group (`SUI-FEATURE-104`).
+  tools?: readonly EditorHeaderTool[];
+  // A running operation, compact (icon and short text), directly left of the state; never folds.
+  status?: React.ReactNode;
+  // A role that may only read: no write controls at all, "Read only" in place of the state. The app
+  // passes `dirty={false}` with it, so `useEditorLeaveGuard` (which follows `dirty` alone) stays
+  // inactive. `"content"` (`SUI-FEATURE-119`): the content is locked by its state, not by the role;
+  // the editor group gives way to "Read only" the same, but the whole lifecycle stays, its next step
+  // without the "Save first" lock.
+  readOnly?: boolean | "content";
+  // What the header lays out, for an app whose status chooses between a full and a compact form (#599).
+  layout?: React.Ref<EditorHeaderLayout>;
+};
+
+// The page's one draft: the save cluster (Undo, Redo, the state, Reset, Save) and its shortcuts.
+type EditorHeaderDraftProps = {
+  kind?: "draft";
   canUndo: boolean;
   canRedo: boolean;
   onUndo: () => void;
@@ -53,20 +81,21 @@ type EditorHeaderProps = {
   onSave: () => void;
   // Returns the draft to the saved state; called only after the confirmation.
   onReset: () => void;
-  // The record's lifecycle (`SUI-FEATURE-069`): Preview, ⋯ and the next step, before the editor group.
-  lifecycle?: EditorLifecycle;
-  // The editor's own tools in the header row, first in the right group (`SUI-FEATURE-104`).
-  tools?: readonly EditorHeaderTool[];
-  // A running operation, compact (icon and short text), directly left of the state; never folds.
-  status?: React.ReactNode;
-  // A role that may only read: no write controls at all, "Read only" in place of the state. The app
-  // passes `dirty={false}` with it, so `useEditorLeaveGuard` (which follows `dirty` alone) stays
-  // inactive. `"content"` (`SUI-FEATURE-119`): the content is locked by its state, not by the role;
-  // the editor group gives way to "Read only" the same, but the whole lifecycle stays, its next step
-  // without the "Save first" lock.
-  readOnly?: boolean | "content";
-  // What the header lays out, for an app whose status chooses between a full and a compact form (#599).
-  layout?: React.Ref<EditorHeaderLayout>;
+};
+
+// A record page that saves per section: each section owns its save and its leave guard, so the head
+// takes none of the draft's props.
+type EditorHeaderRecordOnlyProps = {
+  kind: "record";
+  canUndo?: never;
+  canRedo?: never;
+  onUndo?: never;
+  onRedo?: never;
+  dirty?: never;
+  saving?: never;
+  pending?: never;
+  onSave?: never;
+  onReset?: never;
 };
 
 // The header's layout as an app's status needs it, read when asked (#581, #599).
@@ -211,6 +240,10 @@ function CompactSign({
 // sits in that `h1`, scrolls its own overflow without a tooltip, and is measured by `titleText`,
 // held while the focus is inside it.
 //
+// `SUI-FEATURE-390`: `kind="record"` drops the editor group (Undo, Redo, the state, Reset, Save, the
+// reset confirm) and its shortcuts; everything else stays as in the draft head, and the right group
+// closes up to the edge as the read-only head's does. With `readOnly` it keeps the read-only sign.
+//
 // `SUI-FEATURE-090`: the header measures its own width. While it overflows one line it folds a step
 // (`Fold`); each step remembers the width it needed, and once the header is that wide again it steps
 // back. The title truncates with its full text as a tooltip. There is never more than one ⋯: with a
@@ -226,12 +259,13 @@ function EditorHeader({
   titleText: measuredText,
   subtitle,
   onBack,
-  canUndo,
-  canRedo,
+  kind = "draft",
+  canUndo = false,
+  canRedo = false,
   onUndo,
   onRedo,
-  dirty,
-  saving: savingOwn,
+  dirty = false,
+  saving: savingOwn = false,
   pending = false,
   onSave,
   onReset,
@@ -240,7 +274,7 @@ function EditorHeader({
   status,
   readOnly: readOnlyMode = false,
   layout,
-}: EditorHeaderProps) {
+}: EditorHeaderProps | EditorHeaderRecordProps) {
   const { t, i18n } = useTranslation("suite");
   // While the guard's call runs the header works as for a save; the draft takes no step meanwhile.
   const saving = savingOwn || pending;
@@ -250,23 +284,27 @@ function EditorHeader({
   // and the record's menu (`SUI-FEATURE-119`).
   const readOnly = readOnlyMode !== false;
   const roleReadOnly = readOnlyMode === true;
+  // A record head (`SUI-FEATURE-390`) has no editor group; read-only, neither has a draft head.
+  const record = kind === "record";
+  const noEditorGroup = readOnly || record;
   const [confirming, setConfirming] = React.useState(false);
   // A field's typed but uncommitted entry on the page (`SUI-FEATURE-118` rev 8): Reset drops it
   // before its confirm takes the focus, whose blur would else take the tag over.
   const drafts = React.useContext(FieldDraftsContext) ?? undefined;
   const hasDrafts = useHasFieldDrafts(drafts);
   useEditShortcuts({
-    onUndo: undoable && !readOnly ? onUndo : undefined,
-    onRedo: redoable && !readOnly ? onRedo : undefined,
+    onUndo: undoable && !noEditorGroup ? onUndo : undefined,
+    onRedo: redoable && !noEditorGroup ? onRedo : undefined,
   });
   // The header tools fold with Preview. Read-only, only what it shows can fold; the read-only text
-  // stands in the state's place and folds as `SUI-FEATURE-090` stage 4 (here the second step).
+  // stands in the state's place and folds as `SUI-FEATURE-090` stage 4 (here the second step). A
+  // record head folds the same, without a state unless it is read-only.
   const foldsPreview = lifecycle?.preview !== undefined || headerTools.length > 0;
   const foldsNext = lifecycle?.next?.icon !== undefined && !roleReadOnly;
-  const folds: Fold[] = readOnly
+  const folds: Fold[] = noEditorGroup
     ? [
         ...(foldsPreview ? ["preview" as const] : []),
-        "state",
+        ...(readOnly ? ["state" as const] : []),
         "back",
         ...(foldsNext ? ["next" as const] : []),
         "title",
@@ -543,7 +581,8 @@ function EditorHeader({
       {
         label: t("editor.undo"),
         icon: <Undo2Icon aria-hidden="true" />,
-        onSelect: onUndo,
+        // Only a draft head folds Undo and Redo, and it always has them.
+        onSelect: onUndo!,
         disabled: !undoable,
         ...(undoable ? { shortcut: UNDO_SHORTCUT } : { hint: undoNone }),
         "data-testid": "editor-menu-undo",
@@ -551,7 +590,7 @@ function EditorHeader({
       {
         label: t("editor.redo"),
         icon: <Redo2Icon aria-hidden="true" />,
-        onSelect: onRedo,
+        onSelect: onRedo!,
         disabled: !redoable,
         ...(redoable ? { shortcut: REDO_SHORTCUT } : { hint: redoNone }),
         "data-testid": "editor-menu-redo",
@@ -608,6 +647,10 @@ function EditorHeader({
   // What the lifecycle group shows: a divider stands only between groups that show something.
   const previewShown = preview !== undefined && !folded("preview");
   const nextShown = lifecycle?.next !== undefined && !roleReadOnly;
+  const lifecycleShown = lifecycle !== undefined && (menu !== null || previewShown || nextShown);
+  // What stands after the lifecycle: the editor group, a draft head's always; a record head's only
+  // the status or the read-only sign, so its divider never ends the row (`SUI-FEATURE-390`).
+  const editorGroupShown = !record || readOnly || status !== undefined;
 
   return (
     <header
@@ -710,11 +753,13 @@ function EditorHeader({
             {headerTools.map((tool) => (
               <HeaderTool key={tool.id} {...tool} />
             ))}
-            <div
-              aria-hidden="true"
-              className={cn("w-px self-stretch bg-border", wrapped ? "-mb-3" : "-my-3")}
-              data-testid="editor-tools-separator"
-            />
+            {lifecycleShown || editorGroupShown ? (
+              <div
+                aria-hidden="true"
+                className={cn("w-px self-stretch bg-border", wrapped ? "-mb-3" : "-my-3")}
+                data-testid="editor-tools-separator"
+              />
+            ) : null}
           </>
         )}
         {lifecycle === undefined ? null : (
@@ -731,7 +776,7 @@ function EditorHeader({
             {/* Full bar height: the stretch reaches through the header's vertical padding; wrapped,
                 it spans the action row and the bottom padding only. Only between two groups that
                 show something: the editor group after it always does. */}
-            {menu !== null || previewShown || nextShown ? (
+            {lifecycleShown && editorGroupShown ? (
               <div
                 aria-hidden="true"
                 className={cn("w-px self-stretch bg-border", wrapped ? "-mb-3" : "-my-3")}
@@ -740,7 +785,7 @@ function EditorHeader({
             ) : null}
           </>
         )}
-        {folded("undo") || readOnly ? null : (
+        {folded("undo") || noEditorGroup ? null : (
           <>
             {/* Locked, each names why and offers no shortcut (#380). */}
             <IconButtonTooltip
@@ -802,7 +847,7 @@ function EditorHeader({
           >
             {stateText}
           </span>
-        ) : folded("state") ? (
+        ) : record ? null : folded("state") ? (
           // Shrunk to its mark, the state stays announced politely, as its text.
           <CompactSign text={stateText} live dirty={dirty} testId="editor-state">
             {/* Shape and colour both tell the state (WCAG 1.4.1): saved a hollow green ring,
@@ -824,7 +869,7 @@ function EditorHeader({
             {stateText}
           </span>
         )}
-        {folded("reset") || readOnly ? null : (
+        {folded("reset") || noEditorGroup ? null : (
           <Hint text={t("editor.resetHint")} disabledText={resetLockReason}>
             <Button
               type="button"
@@ -847,7 +892,7 @@ function EditorHeader({
         )}
         {/* Without a lifecycle the ⋯ stands directly left of Save. */}
         {lifecycle === undefined ? menu : null}
-        {readOnly ? null : folded("save") ? (
+        {noEditorGroup ? null : folded("save") ? (
           <IconButtonTooltip
             label={t("actions.save")}
             disabledText={t("editor.saveCleanHint")}
@@ -880,19 +925,21 @@ function EditorHeader({
           </Hint>
         )}
       </div>
-      <ConfirmDeleteDialog
-        open={confirming}
-        onOpenChange={setConfirming}
-        onConfirm={() => {
-          setConfirming(false);
-          onReset();
-        }}
-        title={t("actions.reset")}
-        description={t("editor.resetConfirm")}
-        confirmLabel={t("actions.reset")}
-        confirmHint={t("settings.resetHint")}
-        data-testid="editor-reset-confirm"
-      />
+      {record ? null : (
+        <ConfirmDeleteDialog
+          open={confirming}
+          onOpenChange={setConfirming}
+          onConfirm={() => {
+            setConfirming(false);
+            onReset!();
+          }}
+          title={t("actions.reset")}
+          description={t("editor.resetConfirm")}
+          confirmLabel={t("actions.reset")}
+          confirmHint={t("settings.resetHint")}
+          data-testid="editor-reset-confirm"
+        />
+      )}
     </header>
   );
 }
@@ -1052,6 +1099,7 @@ export {
   EditorHeader,
   type EditorHeaderLayout,
   type EditorHeaderProps,
+  type EditorHeaderRecordProps,
   type EditorHeaderTool,
   type EditorLeaveGuardOptions,
   type EditorLifecycle,

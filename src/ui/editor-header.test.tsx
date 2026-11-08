@@ -9,6 +9,7 @@ import {
   EditorHeader,
   type EditorHeaderLayout,
   type EditorHeaderProps,
+  type EditorHeaderRecordProps,
   type EditorHeaderTool,
   type EditorLeaveGuardOptions,
   type EditorLifecycle,
@@ -563,6 +564,184 @@ describe("EditorHeader tools, status and read-only", () => {
   it("an empty lifecycle renders no divider", () => {
     renderHeader({ lifecycle: {} });
     expect(screen.queryByTestId("editor-lifecycle-separator")).toBeNull();
+  });
+});
+
+// `SUI-FEATURE-390` AC 2, checked by the typecheck: an unused directive fails it.
+const noop = () => {};
+export const recordHead: EditorHeaderRecordProps = { kind: "record", title: "P", onBack: noop };
+export const recordWithDraftProps: EditorHeaderRecordProps = {
+  kind: "record",
+  title: "P",
+  onBack: noop,
+  // @ts-expect-error a record head takes no draft prop
+  canUndo: true,
+  // @ts-expect-error nor canRedo
+  canRedo: true,
+  // @ts-expect-error nor onUndo
+  onUndo: noop,
+  // @ts-expect-error nor onRedo
+  onRedo: noop,
+  // @ts-expect-error nor dirty
+  dirty: false,
+  // @ts-expect-error nor saving
+  saving: false,
+  // @ts-expect-error nor pending
+  pending: false,
+  // @ts-expect-error nor onSave
+  onSave: noop,
+  // @ts-expect-error nor onReset
+  onReset: noop,
+};
+// @ts-expect-error a draft head needs its draft props, as before
+export const draftWithout: EditorHeaderProps = { kind: "draft", title: "P", onBack: noop };
+// @ts-expect-error nor does the header take a record kind with a draft prop
+export const recordSave = <EditorHeader kind="record" title="P" onBack={noop} onSave={noop} />;
+// @ts-expect-error nor a draft head without them
+export const draftBare = <EditorHeader title="P" onBack={noop} />;
+
+describe('EditorHeader kind="record"', () => {
+  const order = () =>
+    [...document.querySelectorAll("[data-slot=editor-actions] [data-testid]")].map((node) =>
+      node.getAttribute("data-testid"),
+    );
+  const draftIds = [
+    "editor-undo",
+    "editor-redo",
+    "editor-state",
+    "editor-reset",
+    "editor-save",
+    "editor-reset-confirm",
+  ];
+  function renderRecord(props: Partial<EditorHeaderRecordProps> = {}) {
+    const onBack = vi.fn();
+    render(
+      <>
+        <EditorHeader
+          kind="record"
+          title="Production 24-117"
+          subtitle="In production · PR-2026-117"
+          onBack={onBack}
+          {...props}
+        />
+        <Input aria-label="Body" />
+      </>,
+    );
+    return onBack;
+  }
+
+  // AC 1
+  it("no save cluster: tools · separator · Preview · ⋯ · next, closed up to the edge", () => {
+    renderRecord({ tools: headerTools(), lifecycle: lifecycle() });
+    for (const id of draftIds) expect(screen.queryByTestId(id)).toBeNull();
+    expect(order()).toEqual([
+      "editor-tool-mode",
+      "editor-tool-grid",
+      "editor-tools-separator",
+      "editor-preview",
+      "editor-menu",
+      "editor-next",
+    ]);
+    expect(screen.getByTestId("page-title")).toHaveTextContent("Production 24-117");
+    expect(screen.getByTestId("page-subtitle")).toHaveTextContent("In production · PR-2026-117");
+    expect(screen.getByTestId("editor-back")).toHaveTextContent("Back");
+    // Nothing unsaved in the head: the next step is free.
+    expect(screen.getByTestId("editor-next")).toBeEnabled();
+  });
+
+  it("a status stands last, behind the lifecycle's divider", () => {
+    renderRecord({ tools: headerTools(), status: uploadStatus, lifecycle: lifecycle() });
+    expect(order()).toEqual([
+      "editor-tool-mode",
+      "editor-tool-grid",
+      "editor-tools-separator",
+      "editor-preview",
+      "editor-menu",
+      "editor-next",
+      "editor-lifecycle-separator",
+      "upload-status",
+    ]);
+  });
+
+  it("tools alone leave no lone divider", () => {
+    renderRecord({ tools: headerTools() });
+    expect(order()).toEqual(["editor-tool-mode", "editor-tool-grid"]);
+  });
+
+  it("Ctrl/Cmd+Z, Ctrl+Y and Ctrl/Cmd+S do nothing from the header", () => {
+    renderRecord({ lifecycle: lifecycle() });
+    for (const init of [
+      { key: "z", ctrlKey: true },
+      { key: "z", metaKey: true },
+      { key: "z", metaKey: true, shiftKey: true },
+      { key: "y", ctrlKey: true },
+      { key: "s", ctrlKey: true },
+      { key: "s", metaKey: true },
+    ])
+      // `fireEvent` reports `false` once a listener took the key (`preventDefault`).
+      expect(fireEvent.keyDown(document.body, init)).toBe(true);
+  });
+
+  it("the probe: a draft head does take Ctrl+Z", () => {
+    renderHeader();
+    expect(fireEvent.keyDown(document.body, { key: "z", ctrlKey: true })).toBe(false);
+  });
+
+  // AC 5
+  it("holds no navigation: a route change goes on without a leave dialog", async () => {
+    function Page() {
+      const navigate = useNavigate();
+      return (
+        <EditorHeader
+          kind="record"
+          title="Production 24-117"
+          onBack={() => void navigate("/list")}
+          lifecycle={lifecycle()}
+        />
+      );
+    }
+    render(
+      <MemoryRouter initialEntries={["/record"]}>
+        <Routes>
+          <Route path="/record" element={<Page />} />
+          <Route path="/list" element={<p data-testid="list">List</p>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByTestId("editor-back"));
+    expect(await screen.findByTestId("list")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
+
+  it("read-only keeps only its sign: as the read-only draft head", () => {
+    renderRecord({
+      readOnly: true,
+      tools: headerTools(),
+      status: uploadStatus,
+      lifecycle: lifecycle(),
+    });
+    expect(order()).toEqual([
+      "editor-tool-mode",
+      "editor-tool-grid",
+      "editor-tools-separator",
+      "editor-preview",
+      "editor-lifecycle-separator",
+      "upload-status",
+      "editor-read-only",
+    ]);
+    expect(screen.getByTestId("editor-read-only")).toHaveTextContent("Read only");
+  });
+
+  it('readOnly="content" keeps the lifecycle and the sign', () => {
+    renderRecord({ readOnly: "content", lifecycle: lifecycle() });
+    expect(order()).toEqual([
+      "editor-preview",
+      "editor-menu",
+      "editor-next",
+      "editor-lifecycle-separator",
+      "editor-read-only",
+    ]);
   });
 });
 
