@@ -840,6 +840,8 @@ const AXE_PAGES: [
   ["edit-panel", (page) => page.getByTestId("media-panel-trigger")],
   ["editor-shell", (page) => page.getByTestId("editor-save")],
   ["editor-shell", (page) => page.getByTestId("editor-save"), "&layout=screen"],
+  // SUI-FEATURE-390: the draft head beside the record head.
+  ["record-bar", (page) => page.getByTestId("editor-record-record")],
   // SUI-FEATURE-132: the shared tab surface after a switch to its third tab.
   [
     "components",
