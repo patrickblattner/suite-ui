@@ -8640,7 +8640,12 @@ test("settings tabs: tab row over one full-width scrolling body, one form", asyn
   const row = await box(page.getByTestId("hauptmenue-tabs"));
   const bodyBox = await box(body);
   expect(bodyBox.y).toBeGreaterThanOrEqual(row.y + row.height);
-  expect(Math.abs(bodyBox.width - (await box(form)).width)).toBeLessThanOrEqual(1);
+  // The body's side padding is ring room reaching past the form (#850); its content box is full width.
+  const room = await body.evaluate((el) => {
+    const style = getComputedStyle(el);
+    return parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
+  });
+  expect(Math.abs(bodyBox.width - room - (await box(form)).width)).toBeLessThanOrEqual(1);
   expect(await body.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
 
   await body.evaluate((el) => el.scrollTo(0, el.scrollHeight));
@@ -8677,7 +8682,11 @@ for (const width of [1280, 1920]) {
     await page.goto("/?page=settings&layout=body");
     const column = page.getByTestId("settings-column");
     const scroller = page.getByTestId("settings-body");
-    const inner = await scroller.evaluate((el) => el.clientWidth);
+    // The inner width is the content box: the scroller's side padding is the ring room (#850).
+    const inner = await scroller.evaluate((el) => {
+      const style = getComputedStyle(el);
+      return el.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+    });
     const columnWidth = (await box(column)).width;
     expect(Math.abs(columnWidth - inner)).toBeLessThanOrEqual(1);
     expect(
@@ -8827,6 +8836,58 @@ test("settings section: h2 title, divider between head and content, action at th
   expect(action.x).toBeGreaterThan(titleBox.x + titleBox.width);
   expect(Math.abs(actionLine.y - titleBox.y)).toBeLessThanOrEqual(1);
 });
+
+// #850 (`GL-UI-013` rev 5): the head action of the first section sits at the top right corner of the
+// settings body scroller; on keyboard focus its whole ring (the box-shadow spread) lies inside the
+// scroller's visible rect, in light and dark.
+for (const theme of THEMES) {
+  test(`settings section: the focused head action shows its whole ring (${theme})`, async ({
+    page,
+  }) => {
+    await page.goto("/?page=settings&layout=fields");
+    await page.getByTestId("gallery-theme").selectOption(theme);
+    const action = page.getByTestId("section-action");
+    await action.focus();
+    await page.keyboard.press("Shift+Tab");
+    await page.keyboard.press("Tab");
+    await expect(action).toBeFocused();
+    // The ring fades in (`transition-shadow`); measure it once it stands at its full 3 px.
+    const spreadOf = (el: Element) =>
+      Math.max(
+        0,
+        ...[
+          ...getComputedStyle(el).boxShadow.matchAll(
+            /(-?[\d.]+)px\s+(-?[\d.]+)px\s+(-?[\d.]+)px\s+(-?[\d.]+)px/g,
+          ),
+        ].map((m) => Number(m[4])),
+      );
+    await expect.poll(() => action.evaluate(spreadOf)).toBe(3);
+    // The ring's reach beyond the border box is that spread.
+    const [ring, view] = await action.evaluate((el, spread) => {
+      const r = el.getBoundingClientRect();
+      const scroller = el.closest("[data-testid=settings-body]")!;
+      const s = scroller.getBoundingClientRect();
+      return [
+        {
+          top: r.top - spread,
+          right: r.right + spread,
+          bottom: r.bottom + spread,
+          left: r.left - spread,
+        },
+        {
+          top: s.top + scroller.clientTop,
+          left: s.left + scroller.clientLeft,
+          right: s.left + scroller.clientLeft + scroller.clientWidth,
+          bottom: s.top + scroller.clientTop + scroller.clientHeight,
+        },
+      ];
+    }, 3);
+    expect(ring.top).toBeGreaterThanOrEqual(view.top);
+    expect(ring.right).toBeLessThanOrEqual(view.right);
+    expect(ring.left).toBeGreaterThanOrEqual(view.left);
+    expect(ring.bottom).toBeLessThanOrEqual(view.bottom);
+  });
+}
 
 // SUI-FEATURE-058 AC1: the control at the left, the label 8 px to its right on the same centre line;
 // the help text starts at the label's x, 8 px under the row.

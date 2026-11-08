@@ -80,6 +80,13 @@ type SettingsScaffoldProps = {
     }
 );
 
+// The body scroller. It clips at its padding box, so it carries 6 px of room for the 3 px focus ring
+// on the top and both sides, taken back by an equal negative margin: a control at its edge (the head
+// action of the first section) shows its whole ring, and the content keeps its place and width
+// (`GL-UI-013` rev 5, #850). The bottom keeps its 16 px.
+const BODY_SCROLL_CLASS =
+  "relative -mx-1.5 -mt-1.5 min-h-0 flex-1 scroll-py-2 overflow-y-auto px-1.5 pt-1.5 pb-4";
+
 // The frame of every settings subpage (`GL-UI-026`): title and subtitle, then directly the form body
 // as one full-width column (`body`), a tab row over it (`tabs`) or, for editors with a live preview,
 // the legacy two-column grid (`left`/`right`), then the fixed footer. While loading or after a failed
@@ -152,17 +159,11 @@ function SettingsScaffold({
   ) : null;
   const content =
     state !== null ? (
-      <div
-        className="relative min-h-0 flex-1 scroll-py-2 overflow-y-auto pb-4"
-        data-testid={scrollTestId}
-      >
+      <div className={BODY_SCROLL_CLASS} data-testid={scrollTestId}>
         {state}
       </div>
     ) : body !== undefined ? (
-      <div
-        className="relative min-h-0 flex-1 scroll-py-2 overflow-y-auto pb-4"
-        data-testid={scrollTestId}
-      >
+      <div className={BODY_SCROLL_CLASS} data-testid={scrollTestId}>
         <div className="flex flex-col gap-6" data-testid="settings-column">
           {body}
         </div>
@@ -176,18 +177,12 @@ function SettingsScaffold({
         data-testid="settings-tabs"
       >
         {tabs.list}
-        <div
-          className="relative min-h-0 flex-1 scroll-py-2 overflow-y-auto pb-4"
-          data-testid={scrollTestId}
-        >
+        <div className={BODY_SCROLL_CLASS} data-testid={scrollTestId}>
           {tabs.panels}
         </div>
       </Tabs>
     ) : (
-      <div
-        className="relative min-h-0 flex-1 scroll-py-2 overflow-y-auto pb-4"
-        data-testid={scrollTestId}
-      >
+      <div className={BODY_SCROLL_CLASS} data-testid={scrollTestId}>
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2" data-testid="settings-grid">
           <div className="flex min-w-0 flex-col gap-4" data-testid="settings-column-left">
             {left}
