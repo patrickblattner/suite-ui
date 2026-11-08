@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — #844: toolkit v0.43.3, strict-allow-scripts consumers can prepare `@suite/ui` (GL-CODE-004) (patch)
+## 0.228.3 — #844: toolkit v0.43.3, strict-allow-scripts consumers can prepare `@suite/ui` (GL-CODE-004) (patch)
 
 - **Changed (#844, GL-CODE-004):** devDependency `spec-sync-toolkit` pin raised from v0.43.1 to v0.43.3 (lockfile resolves commit `8b4c888`); v0.43.3 carries the complete `allowScripts` list including `fsevents`, so a consumer with `strict-allow-scripts=true` prepares `@suite/ui` as a git dependency without `ESTRICTALLOWSCRIPTS`. The lockfile's install-script set is unchanged, `allowScripts` stays as is and its two-way test (`scripts/allow-scripts.test.ts`) stays green.
 
