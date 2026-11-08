@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — #841: `allowScripts` lists every install-script package of the lockfile (GL-CODE-004 rev 2) (patch)
+
+- **Added (#841, GL-CODE-004 rev 2):** root `package.json` carries `allowScripts` keyed `name@version` for every lockfile package with `hasInstallScript` — `esbuild@0.28.2: true` (native binary), `fsevents@2.3.2`, `fsevents@2.3.3` and `simple-git-hooks@2.14.0: false` — so a consumer running `strict-allow-scripts=true` can prepare `@suite/ui` as a git dependency.
+- **Tests (#841):** unit (`scripts/allow-scripts.test.ts`) — a lockfile install-script package without an entry fails, an entry not in the lockfile fails.
+
 ## Unreleased — #840: devDependency Trivy scan without severity filter, findings split ticket/collector (GL-CODE-003 rev 3) (patch)
 
 - **Changed (#840, GL-CODE-003 rev 3, PROC-REL-007 rev 4):** `npm run hygiene:inventory` runs Trivy `fs --include-dev-deps` with `--scanners vuln --ignore-unfixed` and without `--severity`; the gate's production scan keeps `--severity HIGH,CRITICAL` and its finish line. The inventory additionally scans production unfiltered (`.spec-sync/hygiene/trivy-production-all.json`), so a MEDIUM/LOW production finding is not counted as devDependency. Log and `summary.json` name production and devDependency counts separately, the devDependency count split into HIGH/CRITICAL (ticket route, `trivyDevDependencies["trivy.fixable-high-or-critical"]`) and MEDIUM/LOW (collector route, `trivyDevDependencies["trivy.fixable-medium-or-low"]`), with Trivy's UNKNOWN severity counted on its own (`trivy.fixable-unknown-severity`, neither route); each count is of distinct vulnerability ids (one ticket per id), all outside `counts`. New `.spec-sync/hygiene/dependencies.json` in the `night-findings` shape (`{schemaVersion: 1, run, commit, findings: [{id, severity, source: "trivy-fs", package, version, path}]}`, `version` added to tell installed versions apart) holds the devDependency-only findings, empty list when none. Exit code unchanged.

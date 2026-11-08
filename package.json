@@ -174,6 +174,12 @@
       "minimatch": "^11.0.1"
     }
   },
+  "allowScripts": {
+    "esbuild@0.28.2": true,
+    "fsevents@2.3.2": false,
+    "fsevents@2.3.3": false,
+    "simple-git-hooks@2.14.0": false
+  },
   "simple-git-hooks": {
     "pre-push": "[ -f scripts/pre-push.ts ] || { echo 'push refused: this branch predates the pre-push hook (scripts/pre-push.ts missing) — merge or rebase main into it and push again' >&2; exit 1; }; node scripts/pre-push.ts \"$@\""
   }
