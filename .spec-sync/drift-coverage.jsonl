@@ -941,3 +941,5 @@
 {"ts":"2026-11-08T12:53:59.715Z","key":"GL-CODE-004","from":null,"to":2,"disposition":"ticket","ref":"841"}
 {"ts":"2026-11-08T13:37:09.608Z","key":"PROC-REL-007","from":4,"to":5,"disposition":"editorial","ref":"no code impact — night-findings retry names are runner/harness policy; no night run in suite-ui local mode"}
 {"ts":"2026-11-08T13:37:30.192Z","key":"PROC-RUN-013","from":4,"to":5,"disposition":"editorial","ref":"no code impact — no .env/env boot check in @suite/ui (library)"}
+{"ts":"2026-11-08T14:40:51.388Z","key":"PROC-REL-007","from":5,"to":6,"disposition":"editorial","ref":"no code impact — UNKNOWN-severity ticket route is security-run/harness policy; no night run in suite-ui local mode"}
+{"ts":"2026-11-08T14:40:51.778Z","key":"PROC-RUN-013","from":5,"to":6,"disposition":"editorial","ref":"no code impact — no .env/env switches in @suite/ui (library)"}
