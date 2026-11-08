@@ -1884,6 +1884,12 @@ describe("EditorHeader at narrow width", () => {
     expect(next).toHaveAttribute("aria-disabled", "true");
     expect(next).toHaveAccessibleName("Publish");
     expect(next).toHaveAccessibleDescription("In review");
+    expect(next).toHaveAttribute("data-size", width === 250 ? "icon" : "default");
+    const lockedClick = vi.fn();
+    cleanup();
+    record({ disabledText: "In review", onClick: lockedClick });
+    fireEvent.click(screen.getByTestId("editor-next"));
+    expect(lockedClick).not.toHaveBeenCalled();
     cleanup();
     const onClick = vi.fn();
     record({ onClick });
@@ -1939,6 +1945,8 @@ describe("EditorHeader at narrow width", () => {
     );
     // Back and the next step do reach their icons.
     expect(draft.at(-1)).toContain('"back":"icon-sm"');
+    expect(draft.at(-1)).toContain('"next":"icon"');
+    expect(record).toHaveLength(4);
     expect(record).toEqual(draft);
   });
 
