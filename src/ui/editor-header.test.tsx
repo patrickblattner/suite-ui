@@ -1866,6 +1866,90 @@ describe("EditorHeader at narrow width", () => {
     expect(reset).not.toHaveAccessibleDescription();
   });
 
+  // #846, SUI-FEATURE-390 AC8: a record head locks its next step with the app's reason, as the draft
+  // head; without one the step is usable, also icon-only.
+  it.each([2000, 250])('kind="record" at %i px: disabledText locks the next step', (width) => {
+    available = width;
+    const record = (next: Partial<NonNullable<EditorLifecycle["next"]>>) =>
+      render(
+        <EditorHeader
+          kind="record"
+          title="Production 24-117"
+          onBack={vi.fn()}
+          lifecycle={lifecycle({ icon: <EyeIcon aria-hidden="true" />, ...next })}
+        />,
+      );
+    record({ disabledText: "In review" });
+    let next = screen.getByTestId("editor-next");
+    expect(next).toHaveAttribute("aria-disabled", "true");
+    expect(next).toHaveAccessibleName("Publish");
+    expect(next).toHaveAccessibleDescription("In review");
+    expect(next).toHaveAttribute("data-size", width === 250 ? "icon" : "default");
+    const lockedClick = vi.fn();
+    cleanup();
+    record({ disabledText: "In review", onClick: lockedClick });
+    fireEvent.click(screen.getByTestId("editor-next"));
+    expect(lockedClick).not.toHaveBeenCalled();
+    cleanup();
+    const onClick = vi.fn();
+    record({ onClick });
+    next = screen.getByTestId("editor-next");
+    expect(next).not.toHaveAttribute("aria-disabled");
+    fireEvent.click(next);
+    expect(onClick).toHaveBeenCalledTimes(1);
+  });
+
+  // #846 (collector row 62): the record head folds as the draft head minus the save cluster —
+  // Preview and the tools into the ⋯ first, then Back and the next step to icons.
+  it('kind="record" folds in the draft head\'s order, without the save cluster', () => {
+    const saveCluster = new Set([
+      "editor-undo",
+      "editor-redo",
+      "editor-state",
+      "editor-reset",
+      "editor-save",
+      "editor-reset-confirm",
+      // The divider before the save cluster; and where the ⋯ stands, which moves to the front once
+      // the draft's Undo/Redo fold — its entries are compared below.
+      "editor-lifecycle-separator",
+      "editor-menu",
+    ]);
+    const draftEntries = new Set(["Undo", "Redo", "Reset"]);
+    const snapshot = () =>
+      JSON.stringify({
+        inline: inline().filter((id) => !saveCluster.has(id ?? "")),
+        menu: screen.queryByTestId("editor-menu")
+          ? entries().filter((label) => !draftEntries.has(label ?? ""))
+          : [],
+        back: screen.getByTestId("editor-back").getAttribute("data-size"),
+        next: screen.getByTestId("editor-next").getAttribute("data-size"),
+      });
+    const sequence = (head: () => void) => {
+      const states: string[] = [];
+      for (let width = 2000; width >= 100; width -= 10) {
+        available = width;
+        head();
+        const state = snapshot();
+        if (states.at(-1) !== state) states.push(state);
+        cleanup();
+      }
+      return states;
+    };
+    const props = {
+      tools: headerTools(),
+      lifecycle: lifecycle({ icon: <EyeIcon aria-hidden="true" /> }),
+    };
+    const draft = sequence(() => renderHeader(props));
+    const record = sequence(() =>
+      render(<EditorHeader kind="record" title="Spring newsletter" onBack={vi.fn()} {...props} />),
+    );
+    // Back and the next step do reach their icons.
+    expect(draft.at(-1)).toContain('"back":"icon-sm"');
+    expect(draft.at(-1)).toContain('"next":"icon"');
+    expect(record).toHaveLength(4);
+    expect(record).toEqual(draft);
+  });
+
   it("an icon-only locked next step keeps its name and describes its reason", () => {
     available = 250;
     renderHeader({ dirty: true, lifecycle: lifecycle({ icon: <EyeIcon aria-hidden="true" /> }) });

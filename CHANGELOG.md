@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased — #846: record head's next step locked by `disabledText` (SUI-FEATURE-390 rev 4) (patch)
+
+- **Tests (#846, SUI-FEATURE-390 rev 4 AC8):** unit (`src/ui/editor-header.test.tsx`) — `kind="record"` with `lifecycle.next.disabledText` locks the next step with that reason, at full width and icon-only; without it the step is usable. The record head already shares the draft head's next step, so no code changed. Collector row 62: the record head's fold sequence (tools and Preview into the ⋯, then Back and the next step to icons) equals the draft head's without the save cluster. Existing baselines unchanged.
+
 ## 0.229.0 — #843: `EditorHeader` `kind="record"`, the record head without the save cluster (SUI-FEATURE-390 rev 2) (minor)
 
 - **Added (#843, SUI-FEATURE-390 rev 2):** `EditorHeader` takes `kind?: "draft" | "record"`, default `"draft"` (unchanged). `kind="record"` renders no Undo, Redo, state, Reset, Save and no reset confirm, registers no Ctrl/Cmd+Z/Y shortcut and holds no navigation; Back, title, subtitle, tools, status, lifecycle and `layout` stay as in the draft head, the right group closes up to the edge as the read-only head's does, and a divider stands only where a status or the read-only sign follows. `readOnly` with `kind="record"` keeps its read-only sign. The props are a union: new `EditorHeaderRecordProps` (`kind: "record"`, no draft prop accepted); `EditorHeaderProps` stays the draft head's type, so an app's `Omit<EditorHeaderProps, …>` keeps compiling.
