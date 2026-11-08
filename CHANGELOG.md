@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — #846: record head's next step locked by `disabledText` (SUI-FEATURE-390 rev 4) (patch)
+## 0.229.1 — #846: record head's next step locked by `disabledText` (SUI-FEATURE-390 rev 4) (patch)
 
 - **Tests (#846, SUI-FEATURE-390 rev 4 AC8):** unit (`src/ui/editor-header.test.tsx`) — `kind="record"` with `lifecycle.next.disabledText` locks the next step with that reason, at full width and icon-only; without it the step is usable. The record head already shares the draft head's next step, so no code changed. Collector row 62: the record head's fold sequence (tools and Preview into the ⋯, then Back and the next step to icons) equals the draft head's without the save cluster. Existing baselines unchanged.
 
