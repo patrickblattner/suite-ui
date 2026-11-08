@@ -24,6 +24,7 @@ import {
   trivyCounts,
   trivyArgs,
   trivyDevOnly,
+  trivyDevRoutes,
   Unreadable,
   type SizeLines,
 } from "./hygiene";
@@ -117,10 +118,11 @@ describe("hygiene tool counts", () => {
   });
 
   it("counts Trivy devDependency findings separately from production", () => {
-    const finding = (PkgName: string, VulnerabilityID: string) => ({
+    const finding = (PkgName: string, VulnerabilityID: string, Severity = "HIGH") => ({
       PkgName,
       InstalledVersion: "1.0.0",
       VulnerabilityID,
+      Severity,
     });
     const production = {
       Results: [{ Target: "package-lock.json", Vulnerabilities: [finding("a", "CVE-1")] }],
@@ -132,23 +134,107 @@ describe("hygiene tool counts", () => {
           Vulnerabilities: [
             finding("a", "CVE-1"),
             finding("vite", "CVE-2"),
-            finding("vite", "CVE-3"),
+            finding("vite", "CVE-3", "CRITICAL"),
           ],
         },
       ],
     };
     expect(trivyCounts(production)).toEqual({ "trivy.fixable-high-or-critical": 1 });
-    expect(trivyDevOnly(production, withDev)).toBe(2);
-    expect(trivyDevOnly({ Results: [] }, withDev)).toBe(3);
+    // A finding also in production is not dev-only.
+    expect(trivyDevOnly(production, withDev).map((f) => f.id)).toEqual(["CVE-2", "CVE-3"]);
+    expect(trivyDevOnly({ Results: [] }, withDev)).toHaveLength(3);
   });
 
-  // GL-CODE-003: the gate scans production only; --include-dev-deps belongs to the inventory.
+  // GL-CODE-003 rev 3 / PROC-REL-007: HIGH/CRITICAL → ticket route, MEDIUM/LOW → collector route.
+  it("routes a planted HIGH dev-only finding to tickets and a MEDIUM one to the collector", () => {
+    const vuln = (PkgName: string, VulnerabilityID: string, Severity: string) => ({
+      PkgName,
+      InstalledVersion: "1.0.0",
+      VulnerabilityID,
+      Severity,
+    });
+    const production = {
+      Results: [
+        { Target: "package-lock.json", Vulnerabilities: [vuln("react", "CVE-9", "MEDIUM")] },
+      ],
+    };
+    const withDev = {
+      Results: [
+        {
+          Target: "package-lock.json",
+          Vulnerabilities: [
+            vuln("react", "CVE-9", "MEDIUM"),
+            vuln("vite", "CVE-HIGH", "HIGH"),
+            vuln("esbuild", "CVE-MED", "MEDIUM"),
+          ],
+        },
+      ],
+    };
+    const findings = trivyDevOnly(production, withDev);
+    expect(trivyDevRoutes(findings)).toEqual({ ticket: 1, collector: 1, unknown: 0 });
+    expect(findings).toContainEqual({
+      id: "CVE-MED",
+      severity: "MEDIUM",
+      source: "trivy-fs",
+      package: "esbuild",
+      version: "1.0.0",
+      path: "package-lock.json",
+    });
+    expect(findings.map((f) => f.id)).not.toContain("CVE-9");
+    expect(trivyDevOnly(production, production)).toEqual([]);
+  });
+
+  it("counts one CVE in two installed versions once on the ticket route, rows keep the version", () => {
+    const vuln = (InstalledVersion: string) => ({
+      PkgName: "vite",
+      InstalledVersion,
+      VulnerabilityID: "CVE-HIGH",
+      Severity: "HIGH",
+    });
+    const withDev = {
+      Results: [{ Target: "package-lock.json", Vulnerabilities: [vuln("5.0.0"), vuln("6.0.0")] }],
+    };
+    const findings = trivyDevOnly({ Results: [] }, withDev);
+    expect(findings.map((f) => f.version)).toEqual(["5.0.0", "6.0.0"]);
+    expect(trivyDevRoutes(findings)).toEqual({ ticket: 1, collector: 0, unknown: 0 });
+  });
+
+  it("counts UNKNOWN severity on its own, never on the collector route", () => {
+    const withDev = {
+      Results: [
+        {
+          Target: "package-lock.json",
+          Vulnerabilities: [
+            {
+              PkgName: "x",
+              InstalledVersion: "1.0.0",
+              VulnerabilityID: "CVE-U",
+              Severity: "UNKNOWN",
+            },
+            { PkgName: "y", InstalledVersion: "1.0.0", VulnerabilityID: "CVE-L", Severity: "LOW" },
+          ],
+        },
+      ],
+    };
+    const findings = trivyDevOnly({ Results: [] }, withDev);
+    expect(findings.find((f) => f.id === "CVE-U")?.severity).toBe("UNKNOWN");
+    expect(trivyDevRoutes(findings)).toEqual({ ticket: 0, collector: 1, unknown: 1 });
+  });
+
+  // GL-CODE-003: the gate scans production only, filtered to HIGH/CRITICAL; --include-dev-deps
+  // belongs to the inventory and runs without a severity filter.
   it("passes --include-dev-deps to Trivy only for the inventory's devDependency scan", () => {
     const gate = trivyArgs(false);
     const dev = trivyArgs(true);
     expect(gate).not.toContain("--include-dev-deps");
+    expect(gate.join(" ")).toContain("--severity HIGH,CRITICAL");
+    expect(gate.join(" ")).toContain("--scanners vuln --ignore-unfixed");
     expect(dev).toContain("--include-dev-deps");
-    expect(dev.filter((arg) => arg !== "--include-dev-deps")).toEqual(gate);
+    expect(dev).not.toContain("--severity");
+    expect(dev.join(" ")).toContain("--scanners vuln --ignore-unfixed");
+    const withoutSeverity = gate.filter((arg) => arg !== "--severity" && arg !== "HIGH,CRITICAL");
+    expect(dev.filter((arg) => arg !== "--include-dev-deps")).toEqual(withoutSeverity);
+    expect(trivyArgs(false, false)).toEqual(withoutSeverity);
   });
 
   it("counts knip issues of every type, not the file or its owners", () => {

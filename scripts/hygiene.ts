@@ -110,7 +110,13 @@ interface TrivyReport {
   Results?: {
     Target?: string;
     Vulnerabilities?:
-      { VulnerabilityID?: string; PkgName?: string; InstalledVersion?: string }[] | null;
+      | {
+          VulnerabilityID?: string;
+          PkgName?: string;
+          InstalledVersion?: string;
+          Severity?: string;
+        }[]
+      | null;
   }[];
 }
 
@@ -122,22 +128,65 @@ export function trivyCounts(report: TrivyReport): Counts {
   return { "trivy.fixable-high-or-critical": findings };
 }
 
-function trivyFindings(report: TrivyReport): Set<string> {
-  return new Set(
-    (report.Results ?? []).flatMap((result) =>
-      (result.Vulnerabilities ?? []).map((v) =>
-        [result.Target, v.PkgName, v.InstalledVersion, v.VulnerabilityID].join("|"),
-      ),
-    ),
-  );
+const findingKey = (
+  target: string | undefined,
+  v: { PkgName?: string; InstalledVersion?: string; VulnerabilityID?: string },
+) => [target, v.PkgName, v.InstalledVersion, v.VulnerabilityID].join("|");
+
+// One row of PROC-REL-007's `night-findings` `dependencies.json`.
+export interface DependencyFinding {
+  id: string;
+  severity: string;
+  source: "trivy-fs";
+  package: string;
+  version: string;
+  path: string;
 }
 
 // GL-CODE-003: the inventory names production and devDependency findings separately. The
-// `--include-dev-deps` scan also lists the production findings, so the devDependency count is
-// only the findings the production scan does not have.
-export function trivyDevOnly(production: TrivyReport, withDev: TrivyReport): number {
-  const prod = trivyFindings(production);
-  return [...trivyFindings(withDev)].filter((finding) => !prod.has(finding)).length;
+// `--include-dev-deps` scan also lists the production findings, so the devDependency findings are
+// only those the production scan (unfiltered, same severities) does not have.
+export function trivyDevOnly(production: TrivyReport, withDev: TrivyReport): DependencyFinding[] {
+  const prod = new Set(
+    (production.Results ?? []).flatMap((result) =>
+      (result.Vulnerabilities ?? []).map((v) => findingKey(result.Target, v)),
+    ),
+  );
+  const seen = new Set<string>();
+  return (withDev.Results ?? []).flatMap((result) =>
+    (result.Vulnerabilities ?? [])
+      .filter((v) => {
+        const key = findingKey(result.Target, v);
+        if (prod.has(key) || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .map((v) => ({
+        id: v.VulnerabilityID ?? "",
+        severity: v.Severity ?? "UNKNOWN",
+        source: "trivy-fs" as const,
+        package: v.PkgName ?? "",
+        version: v.InstalledVersion ?? "",
+        path: result.Target ?? "",
+      })),
+  );
+}
+
+// PROC-REL-007: CRITICAL/HIGH take the ticket route (one ticket per vulnerability id), MEDIUM/LOW
+// the collector route; Trivy's UNKNOWN takes neither and is counted on its own. Each count is of
+// distinct vulnerability ids, so one CVE in two installed versions counts once.
+export function trivyDevRoutes(findings: DependencyFinding[]): {
+  ticket: number;
+  collector: number;
+  unknown: number;
+} {
+  const ids = (severities: string[]) =>
+    new Set(findings.filter((f) => severities.includes(f.severity)).map((f) => f.id)).size;
+  return {
+    ticket: ids(["CRITICAL", "HIGH"]),
+    collector: ids(["MEDIUM", "LOW"]),
+    unknown: ids(["UNKNOWN"]),
+  };
 }
 
 // knip's JSON reporter lists, per file, one array per issue type; `file` and `owners` (CODEOWNERS)
@@ -333,9 +382,10 @@ function semgrep(out: string, targets: string[] | null) {
   return { counts: verdict.counts, note: `${scope}${warned}` };
 }
 
-// The gate scans production dependencies only; `--include-dev-deps` runs in the inventory alone
-// (GL-CODE-003), where a devDependency finding is an auto-audit ticket, never a gate failure.
-export function trivyArgs(includeDevDeps: boolean): string[] {
+// The gate scans production dependencies only, filtered to HIGH/CRITICAL; `--include-dev-deps`
+// runs in the inventory alone and without a severity filter (GL-CODE-003), where a devDependency
+// finding takes the PROC-REL-007 route, never a gate failure.
+export function trivyArgs(includeDevDeps: boolean, severityFilter = !includeDevDeps): string[] {
   return [
     "fs",
     ...(includeDevDeps ? ["--include-dev-deps"] : []),
@@ -346,8 +396,7 @@ export function trivyArgs(includeDevDeps: boolean): string[] {
     "vuln",
     // GL-CODE-002's finish line is "0 fixable at HIGH or CRITICAL".
     "--ignore-unfixed",
-    "--severity",
-    "HIGH,CRITICAL",
+    ...(severityFilter ? ["--severity", "HIGH,CRITICAL"] : []),
     "--format",
     "json",
     "--quiet",
@@ -359,10 +408,11 @@ export function trivyArgs(includeDevDeps: boolean): string[] {
   ];
 }
 
-function trivyScan(out: string, includeDevDeps: boolean): string {
+function trivyScan(out: string, includeDevDeps: boolean, file?: string): string {
   checkVersion("trivy", ["--version"]);
-  const { stdout: text } = run("trivy", trivyArgs(includeDevDeps));
-  writeFileSync(join(out, includeDevDeps ? "trivy-dev-deps.json" : "trivy.json"), text);
+  const severityFilter = file === undefined && !includeDevDeps;
+  const { stdout: text } = run("trivy", trivyArgs(includeDevDeps, severityFilter));
+  writeFileSync(join(out, file ?? (includeDevDeps ? "trivy-dev-deps.json" : "trivy.json")), text);
   return text;
 }
 
@@ -583,19 +633,30 @@ function inventory(): number {
   measure(counts, "knip", () => knip(out));
   measure(counts, "gitleaks", () => gitleaks(out));
   // Kept out of `counts`, so it never becomes a quality-baseline.json ratchet entry (GL-CODE-003).
-  const devDependencies = trivyDevOnly(
-    json("Trivy", readFileSync(join(out, "trivy.json"), "utf8")),
+  // The production side is scanned unfiltered too, so a MEDIUM/LOW production finding is not
+  // mistaken for a devDependency one.
+  const devFindings = trivyDevOnly(
+    json("Trivy", trivyScan(out, false, "trivy-production-all.json")),
     json("Trivy", trivyScan(out, true)),
   );
+  const routes = trivyDevRoutes(devFindings);
   console.log(
-    `hygiene: trivy --include-dev-deps — fixable HIGH/CRITICAL: production ${counts["trivy.fixable-high-or-critical"]}, devDependencies ${devDependencies}`,
+    `hygiene: trivy --include-dev-deps (no severity filter) — production fixable HIGH/CRITICAL ${counts["trivy.fixable-high-or-critical"]}; devDependencies ${devFindings.length} (HIGH/CRITICAL ${routes.ticket} → ticket route, MEDIUM/LOW ${routes.collector} → collector route, UNKNOWN ${routes.unknown} → neither)`,
   );
   const head = run("git", ["rev-parse", "HEAD"]).stdout.trim();
+  const recordedAt = new Date().toISOString();
+  const dependencies = { schemaVersion: 1, run: recordedAt, commit: head, findings: devFindings };
+  writeFileSync(join(out, "dependencies.json"), `${JSON.stringify(dependencies, null, 2)}\n`);
   const summary = {
-    recordedAt: new Date().toISOString(),
+    recordedAt,
     head,
     counts,
-    trivyDevDependencies: { "trivy.fixable-high-or-critical": devDependencies },
+    // Production is `counts["trivy.fixable-high-or-critical"]`; devDependencies split by route.
+    trivyDevDependencies: {
+      "trivy.fixable-high-or-critical": routes.ticket,
+      "trivy.fixable-medium-or-low": routes.collector,
+      "trivy.fixable-unknown-severity": routes.unknown,
+    },
     sizes: Object.fromEntries(size.checks.map((check) => [check.name, check.size])),
   };
   writeFileSync(join(out, "summary.json"), `${JSON.stringify(summary, null, 2)}\n`);
