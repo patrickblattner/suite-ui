@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — #850: the settings body scroller leaves room for the focus ring (GL-UI-013 rev 5) (patch)
+
+- **Fixed (#850, GL-UI-013 rev 5):** the body scroller of `SettingsScaffold` (all four forms: state, `body`, `tabs`, `left`/`right`) clipped the 3 px focus ring of a control at its edge, most visibly the `SettingsSection` head action of the first section at its top right corner. The scroller now carries 6 px padding on the top and both sides, taken back by an equal negative margin (`-mx-1.5 -mt-1.5 px-1.5 pt-1.5`), so the whole ring shows while content position and width at rest stay as before; the bottom keeps its 16 px. Two things move by 6 px: a classic scrollbar sits 6 px further out (into the page gutter), and while scrolled, content disappears 10 px under the tab row or header instead of 16 px. The scaffold needs at least 6 px of non-clipping room around it (PageScroll provides it).
+- **Tests (#850):** gallery (`gallery/gallery.spec.ts`) — the focused head action's ring box (box-shadow spread) lies inside the scroller's visible rect, light and dark. The SUI-FEATURE-041 AC 1/2 column test measures the scroller's inner width as its content box (client width minus the ring padding). Existing screenshot baselines unchanged.
+
 ## 0.229.2 — #849: `SettingsSection` head action leads to another page (SUI-FEATURE-042 rev 3) (patch)
 
 - **Docs (#849, SUI-FEATURE-042 rev 3):** the `action` prop and the component comment of `SettingsSection` state the rule: the head action leads to another page; a primary action that works in the section itself sits in the content directly under the status text, and its form opens in place. Rendering and props unchanged.
