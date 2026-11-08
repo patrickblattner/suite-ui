@@ -939,3 +939,5 @@
 {"ts":"2026-11-08T09:19:51.172Z","key":"PROC-REL-007","from":2,"to":4,"disposition":"editorial","ref":"no code impact — night security-run findings routing (night-findings artifact, HIGH/CRITICAL ticket route) is runner policy; suite-ui has no .github workflows/night run in local mode"}
 {"ts":"2026-11-08T12:05:43.069Z","key":"GL-CODE-003","from":2,"to":3,"disposition":"ticket","ref":"840"}
 {"ts":"2026-11-08T12:53:59.715Z","key":"GL-CODE-004","from":null,"to":2,"disposition":"ticket","ref":"841"}
+{"ts":"2026-11-08T13:37:09.608Z","key":"PROC-REL-007","from":4,"to":5,"disposition":"editorial","ref":"no code impact — night-findings retry names are runner/harness policy; no night run in suite-ui local mode"}
+{"ts":"2026-11-08T13:37:30.192Z","key":"PROC-RUN-013","from":4,"to":5,"disposition":"editorial","ref":"no code impact — no .env/env boot check in @suite/ui (library)"}
