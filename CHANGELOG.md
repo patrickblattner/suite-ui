@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — #843: `EditorHeader` `kind="record"`, the record head without the save cluster (SUI-FEATURE-390 rev 2) (minor)
+## 0.229.0 — #843: `EditorHeader` `kind="record"`, the record head without the save cluster (SUI-FEATURE-390 rev 2) (minor)
 
 - **Added (#843, SUI-FEATURE-390 rev 2):** `EditorHeader` takes `kind?: "draft" | "record"`, default `"draft"` (unchanged). `kind="record"` renders no Undo, Redo, state, Reset, Save and no reset confirm, registers no Ctrl/Cmd+Z/Y shortcut and holds no navigation; Back, title, subtitle, tools, status, lifecycle and `layout` stay as in the draft head, the right group closes up to the edge as the read-only head's does, and a divider stands only where a status or the read-only sign follows. `readOnly` with `kind="record"` keeps its read-only sign. The props are a union: new `EditorHeaderRecordProps` (`kind: "record"`, no draft prop accepted); `EditorHeaderProps` stays the draft head's type, so an app's `Omit<EditorHeaderProps, …>` keeps compiling.
 - **Gallery (#843):** new page `record-bar` — the draft head and the record head with subtitle, tools and lifecycle, one under the other. No screenshot capture; existing baselines unchanged.
