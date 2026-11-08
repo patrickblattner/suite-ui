@@ -208,3 +208,27 @@ export function EditorHeaderPage() {
     </Section>
   );
 }
+
+// `SUI-FEATURE-390`: a record page that saves per section carries the record head, without the save
+// cluster, next to the draft head of the record's editor pages; Back, title and subtitle stand alike.
+export function EditorRecordPage() {
+  const tools = useTools();
+  const head = {
+    title: "Spring campaign production",
+    subtitle: "In production · PR-2026-117 · Marketing",
+    tools,
+    lifecycle: LIFECYCLE,
+  };
+  return (
+    <Section id="editor-record" title="EditorHeader draft and record">
+      <div className="flex flex-col gap-4">
+        <div className="rounded-md border" data-testid="editor-record-draft">
+          <EditorHeader {...head} {...NOOP} />
+        </div>
+        <div className="rounded-md border" data-testid="editor-record-record">
+          <EditorHeader {...head} kind="record" onBack={() => {}} />
+        </div>
+      </div>
+    </Section>
+  );
+}

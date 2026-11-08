@@ -4514,6 +4514,43 @@ test("editor header: tools, status and read-only", async ({ page }) => {
   await expect(readOnly.getByTestId("gallery-upload-status")).toBeVisible();
 });
 
+// `SUI-FEATURE-390` AC 1, 3, 6: the record head beside the draft head — no save cluster, Back, title
+// and subtitle at the draft head's x, the right group closed up to the same edge.
+for (const width of [390, 1280, 1440]) {
+  test(`editor header: the record head stands as the draft head at ${width} px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/?page=record-bar&lng=en");
+    const draft = page.getByTestId("editor-record-draft");
+    const record = page.getByTestId("editor-record-record");
+    await expect(record.getByTestId("page-subtitle")).toBeVisible();
+    await expect(
+      record.locator(
+        "[data-testid=editor-undo], [data-testid=editor-redo], [data-testid=editor-state], [data-testid=editor-reset], [data-testid=editor-save]",
+      ),
+    ).toHaveCount(0);
+    await expect(record.getByTestId("editor-next")).toBeVisible();
+    for (const id of ["editor-back", "page-title", "page-subtitle"]) {
+      const a = (await draft.getByTestId(id).boundingBox())!;
+      const b = (await record.getByTestId(id).boundingBox())!;
+      expect(b.x, id).toBeCloseTo(a.x, 1);
+    }
+    // The last control of each head ends at the same right edge: no room kept for the cluster.
+    const lastRight = async (head: typeof draft) =>
+      head
+        .locator("[data-slot=editor-actions]")
+        .evaluate((node) =>
+          Math.max(
+            ...[...node.querySelectorAll("[data-testid]")].map(
+              (control) => control.getBoundingClientRect().right,
+            ),
+          ),
+        );
+    expect(await lastRight(record)).toBeCloseTo(await lastRight(draft), 1);
+  });
+}
+
 // `SUI-FEATURE-119` AC 7: the ⋯ in titled groups with a locked entry's reason in view, and a header
 // whose content is locked by its state keeping its lifecycle.
 for (const theme of THEMES) {
