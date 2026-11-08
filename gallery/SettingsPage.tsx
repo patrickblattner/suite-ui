@@ -26,6 +26,7 @@ const LABELS = {
     subtitle: "Basic data of this instance.",
     field: "Field",
     status: "Status",
+    otherPage: "Open components",
     tabs: ["Provider", "Areas", "Prompts"],
     error: "The settings could not be loaded.",
     replaceOpen: "Finish or cancel the replacement first.",
@@ -38,6 +39,7 @@ const LABELS = {
     subtitle: "Grunddaten dieser Instanz.",
     field: "Feld",
     status: "Status",
+    otherPage: "Komponenten öffnen",
     tabs: ["Anbieter", "Bereiche", "Prompts"],
     error: "Die Einstellungen konnten nicht geladen werden.",
     replaceOpen: "Erst das Ersetzen abschließen oder abbrechen.",
@@ -50,6 +52,7 @@ const LABELS = {
     subtitle: "Datos básicos de esta instancia.",
     field: "Campo",
     status: "Estado",
+    otherPage: "Abrir componentes",
     tabs: ["Proveedor", "Áreas", "Prompts"],
     error: "No se pudieron cargar los ajustes.",
     replaceOpen: "Termina o cancela primero el reemplazo.",
@@ -217,8 +220,9 @@ export function SettingsPage() {
                 title={labels.title}
                 description={labels.subtitle}
                 action={
-                  <Button variant="outline" size="sm" type="button" data-testid="section-action">
-                    {labels.status}
+                  // The head action leads to another page (`SUI-FEATURE-042` rev 3).
+                  <Button variant="link" size="sm" asChild data-testid="section-action">
+                    <a href="?page=components">{labels.otherPage}</a>
                   </Button>
                 }
               >

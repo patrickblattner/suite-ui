@@ -4,7 +4,9 @@ type SettingsSectionProps = {
   title: string;
   // One line on what the section sets.
   description: string;
-  // An optional control at the right of the head, top-aligned with the title.
+  // An optional control at the right of the head, top-aligned with the title. It leads to another
+  // page; a primary action that works in the section itself goes into `children` directly under the
+  // status text, and its form opens in place there.
   action?: React.ReactNode;
   // The fields of the section.
   children: React.ReactNode;
@@ -12,7 +14,8 @@ type SettingsSectionProps = {
 
 // One section of a settings page (`SUI-FEATURE-042`): a head with the title as `h2` and the
 // description under it, an optional action at its right, a divider under the head, then the fields
-// 16 px apart.
+// 16 px apart. The head action leads to another page; a primary action that works in the section
+// itself sits in the content directly under the status text, and its form opens in place.
 function SettingsSection({ title, description, action, children }: SettingsSectionProps) {
   return (
     <section className="flex flex-col gap-4" data-slot="settings-section">
