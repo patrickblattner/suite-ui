@@ -946,3 +946,4 @@
 {"ts":"2026-11-08T17:05:05.168Z","key":"SUI-FEATURE-390","from":null,"to":2,"disposition":"ticket","ref":"843"}
 {"ts":"2026-11-08T20:09:01.739Z","key":"SUI-FEATURE-390","from":2,"to":4,"disposition":"ticket","ref":"846"}
 {"ts":"2026-11-08T20:09:02.144Z","key":"PROC-REL-008","from":null,"to":2,"disposition":"editorial","ref":"deploy image signing (stage-infra); @suite/ui is a package without image deploy — no code impact"}
+{"ts":"2026-11-08T21:30:29.292Z","key":"SUI-FEATURE-042","from":2,"to":3,"disposition":"ticket","ref":"849"}
