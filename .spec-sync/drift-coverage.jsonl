@@ -937,3 +937,4 @@
 {"ts":"2026-11-08T08:46:38.129Z","key":"PROC-REL-003","from":11,"to":12,"disposition":"editorial","ref":"rev 12: points stage-3 red verdict to PROC-REL-007; night-window runner rule, suite-ui local mode has no stage-3 run, no code impact"}
 {"ts":"2026-11-08T08:46:38.537Z","key":"PROC-REL-007","from":null,"to":2,"disposition":"editorial","ref":"new rev 2: stage-3 night verdict for app repos (Semgrep red, package/image collected, known reds); suite-ui has no night run — local hygiene ratchet is GL-CODE-003, not stage 3; no code impact"}
 {"ts":"2026-11-08T09:19:51.172Z","key":"PROC-REL-007","from":2,"to":4,"disposition":"editorial","ref":"no code impact — night security-run findings routing (night-findings artifact, HIGH/CRITICAL ticket route) is runner policy; suite-ui has no .github workflows/night run in local mode"}
+{"ts":"2026-11-08T12:05:43.069Z","key":"GL-CODE-003","from":2,"to":3,"disposition":"ticket","ref":"840"}
