@@ -931,3 +931,4 @@
 {"ts":"2026-11-07T18:25:37.150Z","key":"PROC-REL-070","from":4,"to":5,"disposition":"editorial","ref":"diff classes live in pr-gate/iris; suite-ui runs local mode without those workflows — no code impact"}
 {"ts":"2026-11-07T21:13:00.011Z","key":"PROC-REL-070","from":5,"to":6,"disposition":"editorial","ref":"rev 6: needs:-reached jobs of pr-gate/iris count as gate files; suite-ui runs local mode without .github/workflows — no code impact"}
 {"ts":"2026-11-07T22:53:11.335Z","key":"PROC-REL-022","from":12,"to":13,"disposition":"editorial","ref":"deploy-path change (RELEASE_VERSION runtime value set by release path); @suite/ui VersionLine renders app-supplied info only — no code impact"}
+{"ts":"2026-11-08T04:26:09.436Z","key":"GL-TEST-002","from":3,"to":4,"disposition":"editorial","ref":"rev 4 refines placeholder resolution order of the stage1 screenshot run; suite-ui is a component library without a deployed surface or screenshot-routes file, no code impact"}
