@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — #849: `SettingsSection` head action leads to another page (SUI-FEATURE-042 rev 3) (patch)
+
+- **Docs (#849, SUI-FEATURE-042 rev 3):** the `action` prop and the component comment of `SettingsSection` state the rule: the head action leads to another page; a primary action that works in the section itself sits in the content directly under the status text, and its form opens in place. Rendering and props unchanged.
+- **Gallery (#849):** the head action on `?page=settings&layout=fields` is now an inline link (`Button variant="link" size="inline" asChild` around an `<a>`, SUI-FEATURE-006) to the components page, in a `Hint` that says where it leads (GL-UI-017), labelled in en/de/es. The head geometry test (SUI-FEATURE-042 AC 5) measures the top alignment on the `settings-section-action` slot, since the inline link's hit area reaches 2 px above its line; no screenshot baseline covers this layout.
+
 ## 0.229.1 — #846: record head's next step locked by `disabledText` (SUI-FEATURE-390 rev 4) (patch)
 
 - **Tests (#846, SUI-FEATURE-390 rev 4 AC8):** unit (`src/ui/editor-header.test.tsx`) — `kind="record"` with `lifecycle.next.disabledText` locks the next step with that reason, at full width and icon-only; without it the step is usable. The record head already shares the draft head's next step, so no code changed. Collector row 62: the record head's fold sequence (tools and Preview into the ⋯, then Back and the next step to icons) equals the draft head's without the save cluster. Existing baselines unchanged.

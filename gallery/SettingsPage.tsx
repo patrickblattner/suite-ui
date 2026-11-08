@@ -12,6 +12,7 @@ import { SettingsToggleField } from "../src/settings/settings-toggle-field.js";
 import { Button } from "../src/ui/button.js";
 import { Card, CardContent, CardHeader, CardTitle } from "../src/ui/card.js";
 import { Checkbox } from "../src/ui/checkbox.js";
+import { Hint } from "../src/ui/hint.js";
 import { Input } from "../src/ui/input.js";
 import { Label } from "../src/ui/label.js";
 import { RadioGroup, RadioGroupItem } from "../src/ui/radio-group.js";
@@ -26,6 +27,8 @@ const LABELS = {
     subtitle: "Basic data of this instance.",
     field: "Field",
     status: "Status",
+    otherPage: "Open components",
+    otherPageHint: "Opens the components page of the gallery.",
     tabs: ["Provider", "Areas", "Prompts"],
     error: "The settings could not be loaded.",
     replaceOpen: "Finish or cancel the replacement first.",
@@ -38,6 +41,8 @@ const LABELS = {
     subtitle: "Grunddaten dieser Instanz.",
     field: "Feld",
     status: "Status",
+    otherPage: "Komponenten öffnen",
+    otherPageHint: "Öffnet die Komponentenseite der Galerie.",
     tabs: ["Anbieter", "Bereiche", "Prompts"],
     error: "Die Einstellungen konnten nicht geladen werden.",
     replaceOpen: "Erst das Ersetzen abschließen oder abbrechen.",
@@ -50,6 +55,8 @@ const LABELS = {
     subtitle: "Datos básicos de esta instancia.",
     field: "Campo",
     status: "Estado",
+    otherPage: "Abrir componentes",
+    otherPageHint: "Abre la página de componentes de la galería.",
     tabs: ["Proveedor", "Áreas", "Prompts"],
     error: "No se pudieron cargar los ajustes.",
     replaceOpen: "Termina o cancela primero el reemplazo.",
@@ -217,9 +224,12 @@ export function SettingsPage() {
                 title={labels.title}
                 description={labels.subtitle}
                 action={
-                  <Button variant="outline" size="sm" type="button" data-testid="section-action">
-                    {labels.status}
-                  </Button>
+                  // The head action leads to another page (`SUI-FEATURE-042` rev 3).
+                  <Hint text={labels.otherPageHint}>
+                    <Button variant="link" size="inline" asChild data-testid="section-action">
+                      <a href="?page=components">{labels.otherPage}</a>
+                    </Button>
+                  </Hint>
                 }
               >
                 <SettingsField
