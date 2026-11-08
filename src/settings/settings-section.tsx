@@ -4,9 +4,9 @@ type SettingsSectionProps = {
   title: string;
   // One line on what the section sets.
   description: string;
-  // An optional control at the right of the head, top-aligned with the title. It leads to another
-  // page; a primary action that works in the section itself goes into `children` directly under the
-  // status text, and its form opens in place there.
+  // An optional control at the right of the head, top-aligned with the title. Use it only for a link
+  // to another page; a primary action that works in the section sits in the content, under its status
+  // text if it has one, and its form opens in place.
   action?: React.ReactNode;
   // The fields of the section.
   children: React.ReactNode;

@@ -8816,10 +8816,16 @@ test("settings section: h2 title, divider between head and content, action at th
     await box(section.locator("[data-slot=settings-section-content]")),
   ];
   expect(head.y + head.height).toBeLessThanOrEqual(content.y);
-  const [titleBox, action] = [await box(title), await box(page.getByTestId("section-action"))];
+  const [titleBox, action, actionLine] = [
+    await box(title),
+    await box(page.getByTestId("section-action")),
+    // The head link is an inline link (`size="inline"`): its -my-0.5 hit area reaches above the
+    // line, so the top alignment is measured on the action slot, the box of its text line.
+    await box(section.locator("[data-slot=settings-section-action]")),
+  ];
   expect(Math.abs(action.x + action.width - (head.x + head.width))).toBeLessThanOrEqual(1);
   expect(action.x).toBeGreaterThan(titleBox.x + titleBox.width);
-  expect(Math.abs(action.y - titleBox.y)).toBeLessThanOrEqual(1);
+  expect(Math.abs(actionLine.y - titleBox.y)).toBeLessThanOrEqual(1);
 });
 
 // SUI-FEATURE-058 AC1: the control at the left, the label 8 px to its right on the same centre line;
