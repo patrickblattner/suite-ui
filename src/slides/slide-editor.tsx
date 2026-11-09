@@ -1432,6 +1432,7 @@ function Editor({
     }
     setSaveError(undefined);
     setSaveFailed(false);
+    setResetFailed(false);
     setSaving(true);
     let succeeded = false;
     try {
@@ -1694,6 +1695,8 @@ function Editor({
   });
   const resettingRef = React.useRef(false);
   const [resetting, setResetting] = React.useState(false);
+  // The waiting reset failed: a way out held meanwhile is then dropped, as after a failed save (#858).
+  const [resetFailed, setResetFailed] = React.useState(false);
   const reset = () => {
     if (resettingRef.current) return false;
     const done = (result: void | boolean) => {
@@ -1702,21 +1705,46 @@ function Editor({
       history.reset(savedRef.current);
       return true;
     };
-    const result = host.onReset?.();
-    if (typeof result !== "object") return done(result);
+    // A throw is a failure, as a rejection is: nothing changes. Only a thenable is awaited; any other
+    // value (a JS host's `null` included) counts as a synchronous one (#858).
+    let result: unknown;
+    try {
+      result = host.onReset?.();
+    } catch {
+      return false;
+    }
+    if (typeof (result as { then?: unknown } | null)?.then !== "function") {
+      return done(result as void | boolean);
+    }
     resettingRef.current = true;
     setResetting(true);
-    return result
-      .then(done, () => false)
-      .finally(() => {
-        resettingRef.current = false;
-        setResetting(false);
-      });
+    // The reset document and the end of `resetting` come in one update, so the guard reads the
+    // new draft as the reset's own, not as an edit that takes a held way out back.
+    let ok = false;
+    const end = () => {
+      resettingRef.current = false;
+      setResetFailed(!ok);
+      setResetting(false);
+    };
+    return Promise.resolve(result as PromiseLike<void | boolean>).then(
+      (value) => {
+        try {
+          return (ok = done(value));
+        } finally {
+          end();
+        }
+      },
+      () => {
+        end();
+        return false;
+      },
+    );
   };
   // The header's pair follows the guard's one dirty state, field drafts on the page included
   // (`SUI-FEATURE-118` rev 8).
   // `pending`: the guard's `onSave`/`onReset` still runs; the head works and the editing area takes no
-  // input meanwhile (`SUI-FEATURE-064` rev 6).
+  // input meanwhile (`SUI-FEATURE-064` rev 6). A header Reset that waits counts as the page's own
+  // save: Back, `Esc` and route changes wait silently for it and start no Save or Discard (#858).
   const {
     guard,
     dialog,
@@ -1724,8 +1752,8 @@ function Editor({
     pending,
   } = useEditorLeaveGuard({
     dirty,
-    saving,
-    saveFailed,
+    saving: saving || resetting,
+    saveFailed: saveFailed || resetFailed,
     onBack,
     onSave: save,
     onReset: reset,

@@ -509,8 +509,7 @@ describe("SlideEditor awaits the host's onReset (SUI-FEATURE-383)", () => {
   it("locks the editor while a header Reset waits, and calls onReset only once", async () => {
     const { promise, settle } = held();
     const onReset = vi.fn(() => promise);
-    const onBack = vi.fn();
-    edited({ onReset, onBack });
+    edited({ onReset });
     await confirmReset();
     const surface = () => screen.getByTestId("slide-editor-canvas").closest("[inert]");
     for (const id of ["editor-reset", "editor-undo", "editor-redo"])
@@ -518,17 +517,111 @@ describe("SlideEditor awaits the host's onReset (SUI-FEATURE-383)", () => {
     expect(surface()).not.toBeNull();
     click("editor-reset");
     expect(screen.queryByTestId("editor-reset-confirm-confirm")).toBeNull();
-    await discard();
-    await act(async () => {});
-    expect(onReset).toHaveBeenCalledTimes(1);
-    expect(onBack).not.toHaveBeenCalled();
     await act(async () => {
       settle.resolve(false);
       await promise;
     });
+    expect(onReset).toHaveBeenCalledTimes(1);
     expect(surface()).toBeNull();
     expect(screen.getAllByTestId("editor-reset")[0]).not.toHaveAttribute("aria-disabled", "true");
     expect(undoButton()).not.toHaveAttribute("aria-disabled", "true");
+  });
+
+  // #858: Back while a header Reset waits opens no dialog, so no Save or Discard starts beside the
+  // reset, and the route waits for it: a reset that succeeds lets Back go on, a failed one keeps
+  // route, document and history and drops the held Back (AC2).
+  const backDuringReset = async (outcome: "resolve" | "false" | "reject") => {
+    const { promise, settle } = held();
+    const onReset = vi.fn(() => promise);
+    const onSave = vi.fn(() => true);
+    const onBack = vi.fn();
+    const { hostUndo } = edited({ onReset, onSave, onBack });
+    await confirmReset();
+    click("editor-back");
+    await act(async () => {});
+    expect(screen.queryByTestId("leave-guard")).toBeNull();
+    expect(onSave).not.toHaveBeenCalled();
+    expect(onBack).not.toHaveBeenCalled();
+    await act(async () => {
+      if (outcome === "reject") settle.reject(new Error("delete failed"));
+      else settle.resolve(outcome === "false" ? false : undefined);
+      await promise.catch(() => {});
+    });
+    await act(async () => {});
+    expect(onReset).toHaveBeenCalledTimes(1);
+    expect(onSave).not.toHaveBeenCalled();
+    return { onBack, hostUndo };
+  };
+  it("holds Back during a pending header Reset and goes on once it resolves", async () => {
+    const { onBack } = await backDuringReset("resolve");
+    expect(onBack).toHaveBeenCalledTimes(1);
+    cleared();
+  });
+  it.each(["false", "reject"] as const)(
+    "holds Back during a pending header Reset and drops it when onReset settles %s",
+    async (outcome) => {
+      const { onBack, hostUndo } = await backDuringReset(outcome);
+      expect(onBack).not.toHaveBeenCalled();
+      expect(screen.queryByTestId("leave-guard")).toBeNull();
+      unchanged(hostUndo);
+    },
+  );
+
+  // AC4 (rev 4): no save runs beside a waiting header Reset; a rejection frees Save and Reset again.
+  it("disables Save and Reset while a header Reset waits, enables both on rejection", async () => {
+    const { promise, settle } = held();
+    const onSave = vi.fn(() => true);
+    edited({ onReset: vi.fn(() => promise), onSave });
+    await confirmReset();
+    for (const id of ["editor-save", "editor-reset"])
+      expect(screen.getAllByTestId(id)[0]).toHaveAttribute("aria-disabled", "true");
+    click("editor-save");
+    expect(onSave).not.toHaveBeenCalled();
+    await act(async () => {
+      settle.reject(new Error("delete failed"));
+      await promise.catch(() => {});
+    });
+    for (const id of ["editor-save", "editor-reset"])
+      expect(screen.getAllByTestId(id)[0]).not.toHaveAttribute("aria-disabled", "true");
+  });
+
+  // A failed header Reset does not count against the next save: Back held during that save goes on
+  // once it succeeds.
+  it("carries out Back held during a save that follows a failed header Reset", async () => {
+    const reset = held();
+    const save = held();
+    const onSave = vi.fn(() => save.promise);
+    const onBack = vi.fn();
+    edited({ onReset: vi.fn(() => reset.promise), onSave, onBack });
+    await confirmReset();
+    await act(async () => {
+      reset.settle.reject(new Error("delete failed"));
+      await reset.promise.catch(() => {});
+    });
+    click("editor-save");
+    expect(onSave).toHaveBeenCalledTimes(1);
+    click("editor-back");
+    await act(async () => {});
+    expect(onBack).not.toHaveBeenCalled();
+    await act(async () => {
+      save.settle.resolve(true);
+      await save.promise;
+    });
+    await act(async () => {});
+    expect(onBack).toHaveBeenCalledTimes(1);
+  });
+
+  // A host whose `onReset` throws in the header Reset fails as a rejection does: nothing changes.
+  it("keeps everything when onReset throws in the header Reset", async () => {
+    const onReset = vi.fn(() => {
+      throw new Error("delete failed");
+    });
+    const { hostUndo } = edited({ onReset });
+    await confirmReset();
+    await act(async () => {});
+    expect(onReset).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId("editor-reset-confirm")).toBeNull();
+    unchanged(hostUndo);
   });
 
   // AC3: a synchronous `() => void` host resets in the same call, and Discard goes at once.
