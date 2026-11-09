@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — #858: a waiting header Reset locks Save and the leave guard until it settles (SUI-FEATURE-383 rev 4) (patch)
+## 0.229.7 — #858: a waiting header Reset locks Save and the leave guard until it settles (SUI-FEATURE-383 rev 4) (patch)
 
 - **Fixed (#858, SUI-FEATURE-383 rev 4 AC 2, AC 4):** while `SlideEditor`'s header Reset waits for the host's `onReset` promise, Save and Reset are disabled, so no save runs beside the host's delete, and the leave guard treats the reset as the page's own save: Back, `Esc` and route changes open no "Save changes?" dialog, so no Save or Discard starts beside the reset, and they wait silently. Once the promise resolves, the held way out goes on to the reset (clean) editor; when it resolves `false` or rejects, Save and Reset are enabled again and the held way out is dropped — route, document and Undo history stay, and no dialog opens. A save after such a failed reset carries out a way out held during it as usual. The leave guard's own `pending` rule (`SUI-FEATURE-064`) is unchanged.
 - **Fixed (#858):** a host `onReset` that throws synchronously fails like a rejection (nothing changes), and one that returns a value that is no thenable (a JS host's `null`) counts as a synchronous result instead of crashing.
