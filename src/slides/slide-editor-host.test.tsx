@@ -611,6 +611,29 @@ describe("SlideEditor awaits the host's onReset (SUI-FEATURE-383)", () => {
     expect(onBack).toHaveBeenCalledTimes(1);
   });
 
+  // #859: an earlier failed save does not count against a header Reset that follows: Back held
+  // during that reset goes on once it resolves.
+  it("carries out Back held during a header Reset that follows a failed save", async () => {
+    const reset = held();
+    const onSave = vi.fn(() => false);
+    const onBack = vi.fn();
+    edited({ onReset: vi.fn(() => reset.promise), onSave, onBack });
+    click("editor-save");
+    await act(async () => {});
+    expect(onSave).toHaveBeenCalledTimes(1);
+    await confirmReset();
+    click("editor-back");
+    await act(async () => {});
+    expect(onBack).not.toHaveBeenCalled();
+    await act(async () => {
+      reset.settle.resolve();
+      await reset.promise;
+    });
+    await act(async () => {});
+    expect(onBack).toHaveBeenCalledTimes(1);
+    cleared();
+  });
+
   // A host whose `onReset` throws in the header Reset fails as a rejection does: nothing changes.
   it("keeps everything when onReset throws in the header Reset", async () => {
     const onReset = vi.fn(() => {

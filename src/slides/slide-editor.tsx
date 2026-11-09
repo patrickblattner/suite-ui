@@ -1717,6 +1717,9 @@ function Editor({
       return done(result as void | boolean);
     }
     resettingRef.current = true;
+    // The guard reads the outcome of the operation that just ended: an earlier failed save does not
+    // drop Back held during this reset (#859).
+    setSaveFailed(false);
     setResetting(true);
     // The reset document and the end of `resetting` come in one update, so the guard reads the
     // new draft as the reset's own, not as an edit that takes a held way out back.
