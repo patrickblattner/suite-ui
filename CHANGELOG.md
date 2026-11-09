@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — #859: a failed save no longer drops Back held during a header Reset that follows (SUI-FEATURE-383 rev 4) (patch)
+## 0.229.8 — #859: a failed save no longer drops Back held during a header Reset that follows (SUI-FEATURE-383 rev 4) (patch)
 
 - **Fixed (#859, SUI-FEATURE-383 rev 4):** after a failed save, a header Reset that waits for the host's `onReset` promise no longer inherits the save's failure: Back, `Esc` or a route change held during that reset goes on once the promise resolves, as without the earlier save. The leave guard now reads the outcome of the operation that just ended.
 - **Tests (#859):** unit (`src/slides/slide-editor-host.test.tsx`) — failed save, then a confirmed header Reset with a pending `onReset`, then Back: resolve → Back goes on once, history cleared.
