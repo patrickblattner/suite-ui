@@ -8658,24 +8658,37 @@ test("settings tabs: tab row over one full-width scrolling body, one form", asyn
   ).toBeLessThanOrEqual(0);
 });
 
-// #851 (`GL-UI-013` rev 5): the keyboard-focused tab trigger — first, middle, last — paints its whole
-// ring above every sibling trigger its ring box reaches into, in light and dark.
+// #851/#854 (`GL-UI-013` rev 5): the keyboard-focused tab trigger — first, middle, last — paints its whole
+// ring above the active trigger next to it (light: opaque fill; dark: a faint `bg-input/30` tint), in
+// light and dark. Manual activation lets focus sit
+// beside the active trigger; the ring strip facing it must look like the strip on the free top edge.
 for (const theme of THEMES) {
   test(`tabs: the focused trigger's ring is not overlapped by a sibling (${theme})`, async ({
     page,
   }) => {
-    await page.goto("/?page=settings&layout=tabs");
+    await page.goto("/?page=components&lng=en&tabsActivation=manual");
     await page.getByTestId("gallery-theme").selectOption(theme);
-    const triggers = page.getByTestId("hauptmenue-tabs").getByRole("tab");
+    const triggers = page.getByTestId("manual-tabs").getByRole("tab");
     await expect(triggers).toHaveCount(3);
-    await triggers.first().focus();
-    await page.keyboard.press("Shift+Tab");
-    await page.keyboard.press("Tab");
-    await expect(triggers.first()).toBeFocused();
-    for (const index of [0, 1, 2]) {
-      if (index > 0) await page.keyboard.press("ArrowRight");
-      const trigger = triggers.nth(index);
+    // [focused, active]: first and last beside the middle one, the middle beside each end.
+    // Light is the reliable guard: the opaque fill covers the ring by a wide margin. In dark the faint
+    // tint shifts a covered ring far less, so how much dark catches depends on the renderer.
+    // [1, 0] and [2, 1] cannot fail by construction: the active trigger comes earlier, so the focused
+    // (later) one paints above it anyway; only [0, 1] and [1, 2] guard `focus-visible:z-10`.
+    for (const [focused, active] of [
+      [0, 1],
+      [1, 0],
+      [1, 2],
+      [2, 1],
+    ] as const) {
+      await triggers.nth(active).focus();
+      await page.keyboard.press("Enter");
+      await expect(triggers.nth(active)).toHaveAttribute("data-state", "active");
+      // After a key press, programmatic focus counts as keyboard focus (`:focus-visible`).
+      await triggers.nth(focused).focus();
+      const trigger = triggers.nth(focused);
       await expect(trigger).toBeFocused();
+      await expect(trigger).toHaveAttribute("data-state", "inactive");
       // The ring fades in (`transition-shadow`); measure it once it stands at its full 3 px.
       await expect
         .poll(() =>
@@ -8691,40 +8704,50 @@ for (const theme of THEMES) {
           ),
         )
         .toBe(3);
-      const overlaps = await trigger.evaluate((el, spread) => {
-        const r = el.getBoundingClientRect();
-        const ring = {
-          top: r.top - spread,
-          right: r.right + spread,
-          bottom: r.bottom + spread,
-          left: r.left - spread,
-        };
-        const z = (node: Element) => {
-          const value = getComputedStyle(node).zIndex;
-          return value === "auto" ? 0 : Number(value);
-        };
-        const siblings = [...el.parentElement!.querySelectorAll("[role=tab]")].filter(
-          (s) => s !== el,
+      // Every whole pixel of the 3 px ring strip (sub-pixel edges left out), over the middle 9 px of
+      // the edge, away from the rounded corners: the free top edge as reference, and the edge facing
+      // the active trigger. The ring is one solid colour, so each pixel must match the reference.
+      const box = (await trigger.boundingBox())!;
+      const span = (from: number, to: number) =>
+        Array.from(
+          { length: Math.max(0, Math.floor(to) - Math.ceil(from)) },
+          (_, i) => Math.ceil(from) + i,
         );
-        return siblings
-          .filter((s) => {
-            const b = s.getBoundingClientRect();
-            return (
-              b.left < ring.right &&
-              b.right > ring.left &&
-              b.top < ring.bottom &&
-              b.bottom > ring.top
-            );
-          })
-          .map((s) => ({ above: z(el) > z(s), position: getComputedStyle(el).position }));
-      }, 3);
-      // The ring reaches into each neighbour (end triggers have one, the middle two) …
-      expect(overlaps).toHaveLength(index === 1 ? 2 : 1);
-      // … and the focused trigger, positioned, paints above each of them.
-      for (const overlap of overlaps) {
-        expect(overlap.position).not.toBe("static");
-        expect(overlap.above).toBe(true);
-      }
+      const around = (mid: number) => span(Math.round(mid) - 4, Math.round(mid) + 5);
+      const topPoints = span(box.y - 3, box.y).flatMap((y) =>
+        around(box.x + box.width / 2).map((x) => ({ x, y })),
+      );
+      const facingXs =
+        active > focused ? span(box.x + box.width, box.x + box.width + 3) : span(box.x - 3, box.x);
+      const facingPoints = facingXs.flatMap((x) =>
+        around(box.y + box.height / 2).map((y) => ({ x, y })),
+      );
+      await parkPointer(page);
+      const shot = await page.screenshot({ scale: "css" });
+      const pixels = await page.evaluate(
+        async ({ png, points }) => {
+          const img = new Image();
+          img.src = `data:image/png;base64,${png}`;
+          await img.decode();
+          const canvas = document.createElement("canvas");
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const ctx = canvas.getContext("2d")!;
+          ctx.drawImage(img, 0, 0);
+          return points.map((p) => [...ctx.getImageData(p.x, p.y, 1, 1).data.slice(0, 3)]);
+        },
+        { png: shot.toString("base64"), points: [...topPoints, ...facingPoints] },
+      );
+      const reference = pixels[0]!;
+      const diffOf = (px: number[]) => Math.max(...px.map((c, ch) => Math.abs(c - reference[ch]!)));
+      const topDiff = Math.max(...pixels.slice(0, topPoints.length).map(diffOf));
+      const facingDiff = Math.max(...pixels.slice(topPoints.length).map(diffOf));
+      expect(topPoints.length * facingPoints.length).toBeGreaterThan(0);
+      expect(topDiff, `trigger ${focused}: top ring strip not uniform`).toBeLessThanOrEqual(2);
+      expect(
+        facingDiff,
+        `trigger ${focused}: ring strip facing ${active} differs from the top strip ${String(reference)}`,
+      ).toBeLessThanOrEqual(2);
     }
   });
 }

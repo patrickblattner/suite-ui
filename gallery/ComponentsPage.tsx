@@ -1227,6 +1227,29 @@ function SharedTabs() {
   );
 }
 
+// `?tabsActivation=manual` (#854, `GL-UI-013` rev 5): a tab list with manual activation, so a trigger
+// can hold keyboard focus next to the opaque active trigger — the focus-ring stacking test needs it.
+const MANUAL_TABS = new URLSearchParams(window.location.search).get("tabsActivation") === "manual";
+
+function ManualTabs() {
+  return (
+    <Tabs defaultValue="mail" activationMode="manual">
+      <TabsList data-testid="manual-tabs" aria-label="Manual activation">
+        {SHARED_TABS.map(([tab, label]) => (
+          <TabsTrigger key={tab} value={tab}>
+            {label}
+          </TabsTrigger>
+        ))}
+      </TabsList>
+      {SHARED_TABS.map(([tab]) => (
+        <TabsContent key={tab} value={tab}>
+          Manual activation
+        </TabsContent>
+      ))}
+    </Tabs>
+  );
+}
+
 function Structure() {
   return (
     <Section id="structure" title="Tabs · Card · Table · Accordion">
@@ -1250,6 +1273,7 @@ function Structure() {
             <TabsContent value="general">Line tabs</TabsContent>
           </Tabs>
           <SharedTabs />
+          {MANUAL_TABS && <ManualTabs />}
           <Accordion type="single" collapsible defaultValue="open">
             <AccordionItem value="open">
               <AccordionTrigger>Open item</AccordionTrigger>

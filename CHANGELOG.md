@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — #854: the tabs focus-ring test probes the painted ring (GL-UI-013 rev 5) (patch)
+
+- **Tests (#854, GL-UI-013 rev 5):** gallery (`gallery/gallery.spec.ts`) — the test "tabs: the focused trigger's ring is not overlapped by a sibling" now samples painted pixels instead of comparing computed `z-index`: with the keyboard-focused trigger (first, middle, last) next to the active trigger, every whole pixel of the 3 px ring strip facing it matches the ring on the free top edge (tolerance 2/255 per channel), light and dark. Light reliably fails without `focus-visible:z-10` on `TabsTrigger`; in dark the neighbour's faint tint shifts a covered ring far less, so how much dark catches depends on the renderer.
+- **Gallery (#854):** `?page=components&tabsActivation=manual` adds a tab list with `activationMode="manual"` (named and captioned "Manual activation") in the Tabs section, so focus can sit beside the active trigger. Off by default; existing screenshot baselines unchanged.
+
 ## 0.229.4 — #851: the focused tab trigger paints its ring above its siblings (GL-UI-013 rev 5) (patch)
 
 - **Fixed (#851, GL-UI-013 rev 5):** in a `TabsList`, the 3 px focus ring of the keyboard-focused `TabsTrigger` reaches into the neighbouring trigger, and a later trigger (positioned, `relative`) painted over its edge — visible where that neighbour carries the active background. The trigger now takes `focus-visible:z-10`, so the focused trigger paints above its siblings in every tab list; tab geometry and the resting look are unchanged.
