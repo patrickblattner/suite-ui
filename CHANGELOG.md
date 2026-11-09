@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — #851: the focused tab trigger paints its ring above its siblings (GL-UI-013 rev 5) (patch)
+
+- **Fixed (#851, GL-UI-013 rev 5):** in a `TabsList`, the 3 px focus ring of the keyboard-focused `TabsTrigger` reaches into the neighbouring trigger, and a later trigger (positioned, `relative`) painted over its edge — visible where that neighbour carries the active background. The trigger now takes `focus-visible:z-10`, so the focused trigger paints above its siblings in every tab list; tab geometry and the resting look are unchanged.
+- **Tests (#851):** gallery (`gallery/gallery.spec.ts`) — on `?page=settings&layout=tabs`, the keyboard-focused first, middle and last trigger at their full 3 px ring stack above every sibling their ring box reaches into, light and dark. Existing screenshot baselines unchanged.
+
 ## 0.229.3 — #850: the settings body scroller leaves room for the focus ring (GL-UI-013 rev 5) (patch)
 
 - **Fixed (#850, GL-UI-013 rev 5):** the body scroller of `SettingsScaffold` (all four forms: state, `body`, `tabs`, `left`/`right`) clipped the 3 px focus ring of a control at its edge, most visibly the `SettingsSection` head action of the first section at its top right corner. The scroller now carries 6 px padding on the top and both sides, taken back by an equal negative margin (`-mx-1.5 -mt-1.5 px-1.5 pt-1.5`), so the whole ring shows while content position and width at rest stay as before; the bottom keeps its 16 px. Two things move by 6 px: a classic scrollbar sits 6 px further out (into the page gutter), and while scrolled, content disappears 10 px under the tab row or header instead of 16 px. The scaffold needs at least 6 px of non-clipping room around it (PageScroll provides it).

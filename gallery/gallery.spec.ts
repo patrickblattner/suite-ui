@@ -8658,6 +8658,77 @@ test("settings tabs: tab row over one full-width scrolling body, one form", asyn
   ).toBeLessThanOrEqual(0);
 });
 
+// #851 (`GL-UI-013` rev 5): the keyboard-focused tab trigger — first, middle, last — paints its whole
+// ring above every sibling trigger its ring box reaches into, in light and dark.
+for (const theme of THEMES) {
+  test(`tabs: the focused trigger's ring is not overlapped by a sibling (${theme})`, async ({
+    page,
+  }) => {
+    await page.goto("/?page=settings&layout=tabs");
+    await page.getByTestId("gallery-theme").selectOption(theme);
+    const triggers = page.getByTestId("hauptmenue-tabs").getByRole("tab");
+    await expect(triggers).toHaveCount(3);
+    await triggers.first().focus();
+    await page.keyboard.press("Shift+Tab");
+    await page.keyboard.press("Tab");
+    await expect(triggers.first()).toBeFocused();
+    for (const index of [0, 1, 2]) {
+      if (index > 0) await page.keyboard.press("ArrowRight");
+      const trigger = triggers.nth(index);
+      await expect(trigger).toBeFocused();
+      // The ring fades in (`transition-shadow`); measure it once it stands at its full 3 px.
+      await expect
+        .poll(() =>
+          trigger.evaluate((el) =>
+            Math.max(
+              0,
+              ...[
+                ...getComputedStyle(el).boxShadow.matchAll(
+                  /(-?[\d.]+)px\s+(-?[\d.]+)px\s+(-?[\d.]+)px\s+(-?[\d.]+)px/g,
+                ),
+              ].map((m) => Number(m[4])),
+            ),
+          ),
+        )
+        .toBe(3);
+      const overlaps = await trigger.evaluate((el, spread) => {
+        const r = el.getBoundingClientRect();
+        const ring = {
+          top: r.top - spread,
+          right: r.right + spread,
+          bottom: r.bottom + spread,
+          left: r.left - spread,
+        };
+        const z = (node: Element) => {
+          const value = getComputedStyle(node).zIndex;
+          return value === "auto" ? 0 : Number(value);
+        };
+        const siblings = [...el.parentElement!.querySelectorAll("[role=tab]")].filter(
+          (s) => s !== el,
+        );
+        return siblings
+          .filter((s) => {
+            const b = s.getBoundingClientRect();
+            return (
+              b.left < ring.right &&
+              b.right > ring.left &&
+              b.top < ring.bottom &&
+              b.bottom > ring.top
+            );
+          })
+          .map((s) => ({ above: z(el) > z(s), position: getComputedStyle(el).position }));
+      }, 3);
+      // The ring reaches into each neighbour (end triggers have one, the middle two) …
+      expect(overlaps).toHaveLength(index === 1 ? 2 : 1);
+      // … and the focused trigger, positioned, paints above each of them.
+      for (const overlap of overlaps) {
+        expect(overlap.position).not.toBe("static");
+        expect(overlap.above).toBe(true);
+      }
+    }
+  });
+}
+
 test("settings tabs: an invalid change locks Save, Reset stays usable", async ({ page }) => {
   await page.goto("/?page=settings&layout=tabs");
   const save = page.getByTestId("hauptmenue-save");
