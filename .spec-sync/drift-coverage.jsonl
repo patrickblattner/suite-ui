@@ -948,3 +948,4 @@
 {"ts":"2026-11-08T20:09:02.144Z","key":"PROC-REL-008","from":null,"to":2,"disposition":"editorial","ref":"deploy image signing (stage-infra); @suite/ui is a package without image deploy — no code impact"}
 {"ts":"2026-11-08T21:30:29.292Z","key":"SUI-FEATURE-042","from":2,"to":3,"disposition":"ticket","ref":"849"}
 {"ts":"2026-11-09T07:29:10.979Z","key":"PROC-REL-007","from":6,"to":7,"disposition":"editorial","ref":"rev7: collector dedup key id+target is worker-harness behaviour; night-findings artifact format unchanged, no suite-ui code impact"}
+{"ts":"2026-11-09T16:53:18.801Z","key":"PROC-REL-007","from":7,"to":8,"disposition":"editorial","ref":"worker-harness collector dedupe + sweep PR wording; no suite-ui code impact"}
