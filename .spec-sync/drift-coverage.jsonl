@@ -949,3 +949,5 @@
 {"ts":"2026-11-08T21:30:29.292Z","key":"SUI-FEATURE-042","from":2,"to":3,"disposition":"ticket","ref":"849"}
 {"ts":"2026-11-09T07:29:10.979Z","key":"PROC-REL-007","from":6,"to":7,"disposition":"editorial","ref":"rev7: collector dedup key id+target is worker-harness behaviour; night-findings artifact format unchanged, no suite-ui code impact"}
 {"ts":"2026-11-09T16:53:18.801Z","key":"PROC-REL-007","from":7,"to":8,"disposition":"editorial","ref":"worker-harness collector dedupe + sweep PR wording; no suite-ui code impact"}
+{"ts":"2026-11-09T17:40:22.343Z","key":"SUI-FEATURE-134","from":8,"to":9,"disposition":"ticket","ref":"857"}
+{"ts":"2026-11-09T17:40:22.343Z","key":"SUI-FEATURE-383","from":null,"to":2,"disposition":"ticket","ref":"857"}
