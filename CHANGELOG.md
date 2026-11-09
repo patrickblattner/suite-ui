@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — #851: the focused tab trigger paints its ring above its siblings (GL-UI-013 rev 5) (patch)
+## 0.229.4 — #851: the focused tab trigger paints its ring above its siblings (GL-UI-013 rev 5) (patch)
 
 - **Fixed (#851, GL-UI-013 rev 5):** in a `TabsList`, the 3 px focus ring of the keyboard-focused `TabsTrigger` reaches into the neighbouring trigger, and a later trigger (positioned, `relative`) painted over its edge — visible where that neighbour carries the active background. The trigger now takes `focus-visible:z-10`, so the focused trigger paints above its siblings in every tab list; tab geometry and the resting look are unchanged.
 - **Tests (#851):** gallery (`gallery/gallery.spec.ts`) — on `?page=settings&layout=tabs`, the keyboard-focused first, middle and last trigger at their full 3 px ring stack above every sibling their ring box reaches into, light and dark. Existing screenshot baselines unchanged.
