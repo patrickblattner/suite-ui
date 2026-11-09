@@ -305,8 +305,11 @@ export interface SlideEditorProps extends Pick<
   // Reset and Save enabled, the leave guard asks). Without it only the document counts.
   hostDirty?: boolean;
   // Called once the person confirms Reset, so the host resets its own fields with the document;
-  // Reset then clears the session history, host steps too, and is never undone.
-  onReset?: () => void;
+  // Reset then clears the session history, host steps too, and is never undone. The editor awaits
+  // it in the header's Reset and the leave guard's Discard: `false` or a rejection changes nothing
+  // (document, history and route stay; the dialog closes), and the host shows the error
+  // (`SUI-FEATURE-383`).
+  onReset?: () => void | boolean | Promise<void | boolean>;
   // The editor's handle: `recordHostStep` puts a host change into the undo history (`GL-UI-034`).
   ref?: React.Ref<SlideEditorHandle>;
   "data-testid"?: string;
@@ -1680,10 +1683,35 @@ function Editor({
   // Reset drops everything since the last save, a crop being set too.
   // It is a boundary (`SUI-FEATURE-134` rev 5): the host resets its fields once, and the session
   // history, the host's steps included, starts anew, so Reset is never undone.
+  // The host's `onReset` runs first and is awaited (`SUI-FEATURE-383`): `false` or a rejection
+  // changes nothing, and the result (`false`) keeps the leave guard's route. A synchronous host
+  // resets in the same call as before.
+  // While the host's promise runs the editor locks as for the guard's `pending`, and a further Reset
+  // or Discard calls nothing; once it settles it resets to the saved state of that moment.
+  const savedRef = React.useRef(saved);
+  React.useEffect(() => {
+    savedRef.current = saved;
+  });
+  const resettingRef = React.useRef(false);
+  const [resetting, setResetting] = React.useState(false);
   const reset = () => {
-    setCropping(undefined);
-    history.reset(saved);
-    host.onReset?.();
+    if (resettingRef.current) return false;
+    const done = (result: void | boolean) => {
+      if (result === false) return false;
+      setCropping(undefined);
+      history.reset(savedRef.current);
+      return true;
+    };
+    const result = host.onReset?.();
+    if (typeof result !== "object") return done(result);
+    resettingRef.current = true;
+    setResetting(true);
+    return result
+      .then(done, () => false)
+      .finally(() => {
+        resettingRef.current = false;
+        setResetting(false);
+      });
   };
   // The header's pair follows the guard's one dirty state, field drafts on the page included
   // (`SUI-FEATURE-118` rev 8).
@@ -4372,9 +4400,9 @@ function Editor({
           onRedo={() => travelKey("redo")}
           dirty={guardDirty}
           saving={saving}
-          pending={pending}
+          pending={pending || resetting}
           onSave={() => void save()}
-          onReset={reset}
+          onReset={() => void reset()}
           layout={headLayout}
           // From 300 ms on the head's status slot shows why (`SUI-FEATURE-106` rev 7, `GL-UI-033`):
           // spinner and label where the head has the room, else the spinner alone with the label as
@@ -4436,7 +4464,7 @@ function Editor({
             : t("slides.editor.saveFailed", { rule: t(`slides.editor.saveRule.${saveError}`) })}
         </p>
       )}
-      <div className="flex min-h-0 flex-1" inert={pending}>
+      <div className="flex min-h-0 flex-1" inert={pending || resetting}>
         <DrawerRail
           items={[
             ...(readOnly

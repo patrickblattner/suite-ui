@@ -414,6 +414,135 @@ describe("SlideEditor host slots (SUI-FEATURE-134)", () => {
   });
 });
 
+describe("SlideEditor awaits the host's onReset (SUI-FEATURE-383)", () => {
+  // A held promise the test settles itself.
+  function held() {
+    let settle: { resolve: (value: void | boolean) => void; reject: (error: Error) => void } = {
+      resolve: () => {},
+      reject: () => {},
+    };
+    const promise = new Promise<void | boolean>((resolve, reject) => {
+      settle = { resolve, reject };
+    });
+    return { promise, settle };
+  }
+  // Locks the first layer (a document edit) and records a host step: a dirty draft with history.
+  function edited(props: Partial<SlideEditorProps>) {
+    const hostUndo = vi.fn();
+    const { ref } = editor(props);
+    fireEvent.click(screen.getByTestId("drawer-layers"));
+    fireEvent.click(lockButton());
+    act(() => ref.current!.recordHostStep({ undo: hostUndo, redo: () => {} }));
+    return { hostUndo };
+  }
+  const undoButton = () => screen.getAllByTestId("editor-undo")[0]!;
+  // Document and history as they were before the Reset: lock on, Undo reaches the host step.
+  const unchanged = (hostUndo: ReturnType<typeof vi.fn>) => {
+    expect(lockButton()).toHaveAttribute("aria-pressed", "true");
+    expect(undoButton()).not.toHaveAttribute("aria-disabled", "true");
+    click("editor-undo");
+    expect(hostUndo).toHaveBeenCalledTimes(1);
+  };
+  const discard = async () => {
+    click("editor-back");
+    fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+  };
+  const confirmReset = async () => {
+    click("editor-reset");
+    fireEvent.click(await screen.findByTestId("editor-reset-confirm-confirm"));
+  };
+
+  // Document changes and history gone: lock off, nothing to undo.
+  const cleared = () => {
+    expect(lockButton()).toHaveAttribute("aria-pressed", "false");
+    expect(undoButton()).toHaveAttribute("aria-disabled", "true");
+  };
+  // The two places that confirm a Reset: the leave guard's Discard (Back is the route) and the header.
+  const surfaces = [
+    ["Discard", discard, "leave-guard"],
+    ["the header Reset", confirmReset, "editor-reset-confirm"],
+  ] as const;
+
+  // AC1: a pending reset holds Discard's navigation; its resolve clears the history and lets Back go.
+  it.each(surfaces)(
+    "waits for a pending onReset on %s, then resets",
+    async (_, confirm, dialog) => {
+      const { promise, settle } = held();
+      const onReset = vi.fn(() => promise);
+      const onBack = vi.fn();
+      edited({ onReset, onBack });
+      await confirm();
+      expect(onBack).not.toHaveBeenCalled();
+      expect(lockButton()).toHaveAttribute("aria-pressed", "true");
+      await act(async () => {
+        settle.resolve();
+        await promise;
+      });
+      expect(onReset).toHaveBeenCalledTimes(1);
+      expect(onBack).toHaveBeenCalledTimes(dialog === "leave-guard" ? 1 : 0);
+      cleared();
+    },
+  );
+
+  // AC2: a rejected or `false` reset keeps route, document and history; the dialog closes.
+  const failures = [
+    ["rejects", () => Promise.reject(new Error("delete failed"))],
+    ["resolves false", () => Promise.resolve(false)],
+    ["returns false", () => false],
+  ] as const;
+  it.each(
+    surfaces.flatMap((surface) => failures.map((failure) => [...surface, ...failure] as const)),
+  )("keeps everything on %s when onReset %s", async (_, confirm, dialog, __, outcome) => {
+    const onReset = vi.fn(outcome);
+    const onBack = vi.fn();
+    const { hostUndo } = edited({ onReset, onBack });
+    await confirm();
+    await act(async () => {});
+    expect(onReset).toHaveBeenCalledTimes(1);
+    expect(onBack).not.toHaveBeenCalled();
+    expect(screen.queryByTestId(dialog)).toBeNull();
+    unchanged(hostUndo);
+  });
+
+  // While a header Reset waits the editor locks as for the guard's `pending`; nothing calls the host
+  // twice, and the lock lifts once the promise settles.
+  it("locks the editor while a header Reset waits, and calls onReset only once", async () => {
+    const { promise, settle } = held();
+    const onReset = vi.fn(() => promise);
+    const onBack = vi.fn();
+    edited({ onReset, onBack });
+    await confirmReset();
+    const surface = () => screen.getByTestId("slide-editor-canvas").closest("[inert]");
+    for (const id of ["editor-reset", "editor-undo", "editor-redo"])
+      expect(screen.getAllByTestId(id)[0]).toHaveAttribute("aria-disabled", "true");
+    expect(surface()).not.toBeNull();
+    click("editor-reset");
+    expect(screen.queryByTestId("editor-reset-confirm-confirm")).toBeNull();
+    await discard();
+    await act(async () => {});
+    expect(onReset).toHaveBeenCalledTimes(1);
+    expect(onBack).not.toHaveBeenCalled();
+    await act(async () => {
+      settle.resolve(false);
+      await promise;
+    });
+    expect(surface()).toBeNull();
+    expect(screen.getAllByTestId("editor-reset")[0]).not.toHaveAttribute("aria-disabled", "true");
+    expect(undoButton()).not.toHaveAttribute("aria-disabled", "true");
+  });
+
+  // AC3: a synchronous `() => void` host resets in the same call, and Discard goes at once.
+  it("lets a synchronous void onReset reset and Discard go at once", async () => {
+    const onReset = vi.fn(() => {});
+    const onBack = vi.fn();
+    edited({ onReset, onBack });
+    await discard();
+    expect(onReset).toHaveBeenCalledTimes(1);
+    expect(onBack).toHaveBeenCalledTimes(1);
+    cleared();
+  });
+});
+
 describe("SlideEditor subtitle and inner gutter (SUI-FEATURE-380)", () => {
   // AC1
   it("renders the subtitle as the header's one page-subtitle, none without it", () => {
