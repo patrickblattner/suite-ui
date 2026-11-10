@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased — #865: gallery target-size test split per page, longer budget for the field-pair loop, settings-tabs check pins the ring-room side (patch)
+
+- **Tests (#865, Q#5694 b, collector rows 340/344):** the target-size test (every icon button, indicator control and hint trigger hits at 24 × 24 px) runs as one test per page over the same 14 pages, each with its own 30 s budget, instead of one test walking all 14; each page asserts no miss and the labels it must measure, the same set as before. The field-pair hint test gets `test.setTimeout(60_000)` like the other loop tests. The settings-tabs check compares x coordinates instead of widths, so the ring-room overhang is pinned to the body's start side, and the settings-column comment names the end padding as the host's `GL-UI-018` floor (#864). No baseline or snapshot changes.
+
 ## 0.230.0 — #862: ESLint complexity family in phase `lint`, one baseline entry per rule (GL-CODE-002 rev 15, SUI-FEATURE-128 rev 5) (minor)
 
 - **Added (#862, GL-CODE-002 rev 15, SUI-FEATURE-128 rev 5 AC 5):** gate phase `lint` runs `complexity` (≤ 20), `max-depth` (≤ 4), `max-lines-per-function` (≤ 150), `max-params` (≤ 5) and `sonarjs/cognitive-complexity` (≤ 25). Each rule has its own `quality-baseline.json` entry, a first measurement from `npm run hygiene:inventory` on main 74818d06 (Q#5680): `eslint.complexity` 49, `eslint.max-depth` 4, `eslint.max-lines-per-function` 176, `eslint.max-params` 11, `eslint.cognitive-complexity` 23. All five stand above their finish line (0), so all five run at `warn` and phase `hygiene` ratchets their counts; a count above its entry turns `hygiene` red. Each rule flips to `error` on its own once its entry reaches 0. No code was refactored to lower a count.

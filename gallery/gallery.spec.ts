@@ -8648,8 +8648,11 @@ test("settings tabs: tab row over one full-width scrolling body, one form", asyn
   expect(bodyBox.y).toBeGreaterThanOrEqual(row.y + row.height);
   // The body's start padding is ring room reaching past the form (#850); its end edge is the form's,
   // where the host's bar-side floor gives the ring its room (#864).
+  // Compared by x, so the overhang is pinned to the start side (#865).
   const room = await body.evaluate((el) => parseFloat(getComputedStyle(el).paddingLeft));
-  expect(Math.abs(bodyBox.width - room - (await box(form)).width)).toBeLessThanOrEqual(1);
+  const formBox = await box(form);
+  expect(Math.abs(formBox.x - (bodyBox.x + room))).toBeLessThanOrEqual(1);
+  expect(Math.abs(formBox.x + formBox.width - (bodyBox.x + bodyBox.width))).toBeLessThanOrEqual(1);
   expect(await body.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
 
   await body.evaluate((el) => el.scrollTo(0, el.scrollHeight));
@@ -8780,7 +8783,8 @@ for (const width of [1280, 1920]) {
     await page.goto("/?page=settings&layout=body");
     const column = page.getByTestId("settings-column");
     const scroller = page.getByTestId("settings-body");
-    // The inner width is the content box: the scroller's side padding is the ring room (#850).
+    // The inner width is the content box: the scroller's start and top padding are the ring room
+    // (#850); its end padding is the host's GL-UI-018 bar-side floor (#864).
     const inner = await scroller.evaluate((el) => {
       const style = getComputedStyle(el);
       return el.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
@@ -10623,12 +10627,21 @@ const TARGET_PAGES = [
   "toast",
 ];
 
-test("target size: every icon button, indicator control and hint trigger hits at 24 × 24 px", async ({
-  page,
-}) => {
-  const small: string[] = [];
-  const measured: string[] = [];
-  for (const name of TARGET_PAGES) {
+// The labels a keyed page must measure, so a keyed page that renders none of its targets fails;
+// a page without an entry asserts only that nothing misses.
+const TARGET_EXPECTED: Record<string, string[]> = {
+  dialog: ["Close"],
+  sheet: ["Close"],
+  toast: ["Close toast"],
+  tiles: ["Table", "Tiles"],
+  components: ["unchecked", "off", "Focus radio item", "File too large"],
+};
+
+// #865 (Q#5694 b): one test per page, so no single test carries the time of all 14 pages.
+for (const name of TARGET_PAGES) {
+  test(`target size: every icon button, indicator control and hint trigger hits at 24 × 24 px (${name})`, async ({
+    page,
+  }) => {
     await page.goto(`/?page=${name}&lng=en`);
     await page.waitForLoadState("networkidle");
     // The toasts are added after mount; wait for all five before the settle poll.
@@ -10652,24 +10665,10 @@ test("target size: every icon button, indicator control and hint trigger hits at
       )
       .toBe(true);
     const result = await hitAreaViolations(page, TARGET_SELECTOR);
-    measured.push(...result.measured.map((label) => `${name}: ${label}`));
-    small.push(...result.small.map((label) => `${name}: ${label}`));
-  }
-  expect(small).toEqual([]);
-  expect(measured).toEqual(
-    expect.arrayContaining([
-      "dialog: Close",
-      "sheet: Close",
-      "toast: Close toast",
-      "tiles: Table",
-      "tiles: Tiles",
-      "components: unchecked",
-      "components: off",
-      "components: Focus radio item",
-      "components: File too large",
-    ]),
-  );
-});
+    expect(result.small.map((label) => `${name}: ${label}`)).toEqual([]);
+    expect(result.measured).toEqual(expect.arrayContaining(TARGET_EXPECTED[name] ?? []));
+  });
+}
 
 // SUI-FEATURE-055 AC3/AC4 (rev 4): the hint triggers of `InlineStatus` and of the compact status slot
 // hit at 24 × 24 px; every element in the row status keeps its place when the grown area is taken away
@@ -20128,6 +20127,8 @@ test("slide editor at 1440: the chart's add buttons' hints cover neither add but
 test("field pair: hints stand beside the pair; at 390 px at the field, 120 px or wider", async ({
   page,
 }) => {
+  // Eight bubbles with sixteen overlap checks at 1440 px, plus the 1000 and 390 px rounds (#865).
+  test.setTimeout(60_000);
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/?harness=field-pair&lng=en");
   for (const [id, neighbour] of [
