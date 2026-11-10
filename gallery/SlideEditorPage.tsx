@@ -435,6 +435,11 @@ function RecordName({
   );
 }
 
+// `SUI-FEATURE-384` (`?drawers=host`): the host's Stil drawer — a brand-kit field with its own save,
+// apart from the document's — and a Versions section in the Dokument drawer.
+const HOST_DRAWERS = PARAMS.get("drawers") === "host";
+const KIT_ACCENT = "#7c3aed";
+
 // `SUI-FEATURE-192`: the app's own layout with a title placeholder, offered beside the document's.
 const LAYOUTS: SlideLayoutInput[] = [
   {
@@ -498,6 +503,8 @@ export function SlideEditorPage() {
   const editor = useRef<SlideEditorHandle>(null);
   const [name, setName] = useState(HOST_NAME);
   const [savedName, setSavedName] = useState(HOST_NAME);
+  const [accent, setAccent] = useState(KIT_ACCENT);
+  const [savedAccent, setSavedAccent] = useState(KIT_ACCENT);
   const [block, setBlock] = useState<{ elements: unknown[] } | null>(null);
   // What the picker was last opened for (`SUI-FEATURE-380`), for the tests.
   const [pickContext, setPickContext] = useState<PickMediaContext | null>(null);
@@ -586,6 +593,45 @@ export function SlideEditorPage() {
                   // The renamed record is part of the draft (rev 5).
                   hostDirty: name !== savedName,
                   onReset: () => setName(savedName),
+                }
+              : {})}
+            {...(HOST_DRAWERS
+              ? {
+                  styleDrawer: {
+                    content: (
+                      <div className="flex flex-col gap-2">
+                        <Label htmlFor="gallery-kit-accent">Accent colour</Label>
+                        <Input
+                          id="gallery-kit-accent"
+                          value={accent}
+                          readOnly={READ_ONLY}
+                          onChange={(event) => setAccent(event.target.value)}
+                          data-testid="gallery-kit-accent"
+                        />
+                      </div>
+                    ),
+                    ...(READ_ONLY
+                      ? {}
+                      : {
+                          styleSave: {
+                            onSave: () => setSavedAccent(accent),
+                            onReset: () => setAccent(savedAccent),
+                            dirty: accent !== savedAccent,
+                          },
+                        }),
+                  },
+                  documentPanel: {
+                    title: "Versions",
+                    content: (
+                      <ul
+                        className="flex flex-col gap-1 text-sm"
+                        data-testid="gallery-host-versions"
+                      >
+                        <li>Version 3 · saved today</li>
+                        <li className="text-muted-foreground">Version 2 · last week</li>
+                      </ul>
+                    ),
+                  },
                 }
               : {})}
             formats={FORMATS}

@@ -5,9 +5,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SLIDE_BRAND, SLIDE_EDITOR_DOC } from "../../gallery/slide-showcase.js";
 import { SlideEditor, type SlideEditorHandle, type SlideEditorProps } from "./slide-editor.js";
 import type { SlideExtensions, SlideOverlay } from "./slide-view.js";
+import { TagInput } from "../ui/tag-input.js";
 
 // `SUI-FEATURE-134`: the host's slots — header status, page-panel section, overlay toggles, host
-// steps in the undo history with `onReset`.
+// steps in the undo history with `onReset`. `SUI-FEATURE-384`: the host's Stil drawer and Dokument
+// section.
 
 // jsdom has no layout observer and no scrolling; the slots need nothing more.
 const noop = () => {};
@@ -681,5 +683,311 @@ describe("SlideEditor subtitle and inner gutter (SUI-FEATURE-380)", () => {
     }
     expect(screen.getByTestId("slide-editor-canvas-area")).toHaveClass("ps-2", "overflow-auto");
     expect(screen.getByTestId("property-panel-body")).toHaveClass("ps-4", "overflow-y-auto");
+  });
+});
+
+// `SUI-FEATURE-384`: the host's Stil drawer (`styleDrawer`) and Dokument section (`documentPanel`).
+const railIds = () =>
+  within(screen.getByTestId("drawer-rail"))
+    .getAllByRole("button")
+    .map((button) => button.getAttribute("data-testid"))
+    .filter((id) => id !== null && /^drawer-[a-z]+$/.test(id));
+const editorState = () => screen.getAllByTestId("editor-state")[0]!;
+const lockFirstLayer = () => {
+  fireEvent.click(screen.getByTestId("drawer-layers"));
+  const layer = screen.getAllByTestId("slide-editor-layer")[0]!;
+  fireEvent.click(within(layer).getByTestId("slide-editor-layer-lock"));
+};
+const style = (more: Record<string, unknown> = {}) => ({
+  content: <p data-testid="host-style">Brand colours</p>,
+  styleSave: { onSave: vi.fn(), onReset: vi.fn(), dirty: false, ...more },
+});
+
+// Only the Stil draft dirty: Back, then the leave question's Save.
+const saveStilOnLeave = async (onSave: () => boolean | Promise<boolean>) => {
+  const onBack = vi.fn();
+  editor({ styleDrawer: { content: null, styleSave: { onSave, dirty: true } }, onBack });
+  click("editor-back");
+  fireEvent.click(await screen.findByTestId("leave-guard-save"));
+  await vi.waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+  return { onSave, onBack };
+};
+
+describe("SlideEditor host drawers (SUI-FEATURE-384)", () => {
+  // AC1
+  it("keeps the rail and the Document drawer as they are without the slots", () => {
+    editor();
+    expect(railIds()).toEqual(["drawer-add", "drawer-layers", "drawer-document"]);
+    fireEvent.click(screen.getByTestId("drawer-document"));
+    expect(screen.queryByTestId("slide-editor-document-panel")).toBeNull();
+    expect(screen.queryByTestId("drawer-style-footer")).toBeNull();
+  });
+
+  // AC2
+  it("puts Stil between Ebenen and Dokument with the host's content and the Stil footer", async () => {
+    const slot = style();
+    const { rerender } = editor({ styleDrawer: slot });
+    expect(railIds()).toEqual(["drawer-add", "drawer-layers", "drawer-style", "drawer-document"]);
+    fireEvent.click(screen.getByTestId("drawer-style"));
+    expect(screen.getByTestId("host-style")).toBeInTheDocument();
+    expect(screen.getByTestId("drawer-style-footer")).toBeInTheDocument();
+    // Clean: both locked.
+    expect(screen.getByTestId("drawer-style-save")).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByTestId("drawer-style-reset")).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(screen.getByTestId("drawer-style-save"));
+    fireEvent.click(screen.getByTestId("drawer-style-reset"));
+    expect(slot.styleSave.onSave).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("drawer-style-reset-confirm")).toBeNull();
+
+    rerender({ styleDrawer: { ...slot, styleSave: { ...slot.styleSave, dirty: true } } });
+    fireEvent.click(screen.getByTestId("drawer-style-save"));
+    expect(slot.styleSave.onSave).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByTestId("drawer-style-reset"));
+    expect(slot.styleSave.onReset).not.toHaveBeenCalled();
+    fireEvent.click(await screen.findByTestId("drawer-style-reset-confirm-confirm"));
+    expect(slot.styleSave.onReset).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the Stil drawer openable under readOnly, without a footer", () => {
+    editor({ readOnly: true, styleDrawer: { content: <p data-testid="host-style">Kit</p> } });
+    fireEvent.click(screen.getByTestId("drawer-style"));
+    expect(screen.getByTestId("host-style")).toBeInTheDocument();
+    expect(screen.queryByTestId("drawer-style-footer")).toBeNull();
+  });
+
+  // AC4
+  it("keeps the document's draft and undo apart from the Stil save", () => {
+    const onSave = vi.fn(() => true);
+    const slot = style({ dirty: true });
+    editor({ styleDrawer: slot, onSave });
+    lockFirstLayer();
+    expect(slot.styleSave.onSave).not.toHaveBeenCalled();
+    expect(slot.styleSave.onReset).not.toHaveBeenCalled();
+    expect(editorState()).toHaveTextContent("Draft");
+    fireEvent.click(screen.getByTestId("drawer-style"));
+    fireEvent.click(screen.getByTestId("drawer-style-save"));
+    expect(slot.styleSave.onSave).toHaveBeenCalledTimes(1);
+    expect(onSave).not.toHaveBeenCalled();
+    expect(editorState()).toHaveTextContent("Draft");
+    expect(screen.getAllByTestId("editor-undo")[0]).not.toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("leaves without asking when the Stil draft is clean", () => {
+    const onBack = vi.fn();
+    editor({ styleDrawer: style(), onBack });
+    click("editor-back");
+    expect(screen.queryByTestId("leave-guard")).toBeNull();
+    expect(onBack).toHaveBeenCalledTimes(1);
+  });
+
+  // AC5
+  it("shows the Document section below the editor's own content, with or without a selection", () => {
+    editor({ documentPanel: { title: "Versions", content: <p>v3 · saved</p> } });
+    fireEvent.click(screen.getByTestId("drawer-document"));
+    const section = screen.getByTestId("slide-editor-document-panel");
+    expect(within(section).getByRole("heading", { name: "Versions" })).toBeInTheDocument();
+    expect(section).toHaveTextContent("v3 · saved");
+    expect(
+      screen.getByTestId("slide-editor-grid").compareDocumentPosition(section) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    // A selection keeps it.
+    fireEvent.click(screen.getByTestId("drawer-layers"));
+    const layer = screen.getAllByTestId("slide-editor-layer")[0]!;
+    fireEvent.click(within(layer).getByTestId("slide-editor-layer-select"));
+    fireEvent.click(screen.getByTestId("drawer-document"));
+    expect(screen.getByTestId("slide-editor-document-panel")).toBeInTheDocument();
+  });
+
+  it("shows the host's read-only Document section under readOnly, on one page too", () => {
+    editor({
+      readOnly: true,
+      maxPages: 1,
+      document: { ...SLIDE_EDITOR_DOC, pages: SLIDE_EDITOR_DOC.pages.slice(0, 1) },
+      documentPanel: { title: "Versions", content: <p>v3</p> },
+    });
+    fireEvent.click(screen.getByTestId("drawer-document"));
+    expect(screen.getByTestId("slide-editor-document-panel")).toHaveTextContent("v3");
+  });
+});
+
+describe("SlideEditor leave question with a Stil draft (SUI-FEATURE-384 rev 3)", () => {
+  // AC3
+  it("marks the closed Stil button and asks on leaving while the document is clean", async () => {
+    const onBack = vi.fn();
+    const onSave = vi.fn(() => true);
+    const onReset = vi.fn();
+    const slot = style({ dirty: true });
+    editor({ styleDrawer: slot, onBack, onSave, onReset });
+    expect(screen.getByTestId("drawer-style-draft")).toBeInTheDocument();
+    // The header's own draft stays apart.
+    expect(editorState()).toHaveTextContent("Saved");
+    click("editor-back");
+    expect(await screen.findByTestId("leave-guard")).toBeInTheDocument();
+    expect(onBack).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId("leave-guard-discard"));
+    await vi.waitFor(() => expect(onBack).toHaveBeenCalledTimes(1));
+    // Discard drops the Stil draft; the clean document is neither reset nor saved.
+    expect(slot.styleSave.onReset).toHaveBeenCalledTimes(1);
+    expect(onReset).not.toHaveBeenCalled();
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it("saves the Stil draft from the leave question, the document only when it differs", async () => {
+    const onBack = vi.fn();
+    const onSave = vi.fn(() => true);
+    const slot = style({ dirty: true });
+    editor({ styleDrawer: slot, onBack, onSave });
+    click("editor-back");
+    fireEvent.click(await screen.findByTestId("leave-guard-save"));
+    await vi.waitFor(() => expect(onBack).toHaveBeenCalledTimes(1));
+    expect(slot.styleSave.onSave).toHaveBeenCalledTimes(1);
+    expect(onSave).not.toHaveBeenCalled();
+    cleanup();
+
+    const both = style({ dirty: true });
+    const back = vi.fn();
+    const save = vi.fn(() => true);
+    editor({ styleDrawer: both, onBack: back, onSave: save });
+    lockFirstLayer();
+    click("editor-back");
+    fireEvent.click(await screen.findByTestId("leave-guard-save"));
+    await vi.waitFor(() => expect(back).toHaveBeenCalledTimes(1));
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(both.styleSave.onSave).toHaveBeenCalledTimes(1);
+  });
+
+  // AC6 (rev 3)
+  it.each([
+    ["gives false", () => false],
+    ["rejects", () => Promise.reject(new Error("kit"))],
+    [
+      "throws",
+      () => {
+        throw new Error("kit");
+      },
+    ],
+  ])("stays in the editor when the Stil save %s", async (_, outcome) => {
+    const { onBack } = await saveStilOnLeave(vi.fn(outcome));
+    await vi.waitFor(() => expect(screen.queryByTestId("leave-guard")).toBeNull());
+    expect(onBack).not.toHaveBeenCalled();
+    // The Stil drawer opens, where the host shows its error.
+    expect(screen.getByTestId("drawer")).toHaveAttribute("data-drawer-open", "style");
+  });
+});
+
+describe("SlideEditor leave question while a Stil save runs or fails (SUI-FEATURE-384 rev 3)", () => {
+  it("holds Back while a Stil save runs and goes on once it ended", () => {
+    const onBack = vi.fn();
+    const onSave = vi.fn();
+    const { rerender } = editor({
+      styleDrawer: { content: null, styleSave: { onSave, dirty: true, saving: true } },
+      onBack,
+    });
+    click("editor-back");
+    expect(screen.queryByTestId("leave-guard")).toBeNull();
+    expect(onBack).not.toHaveBeenCalled();
+    rerender({ styleDrawer: { content: null, styleSave: { onSave, dirty: false } } });
+    expect(onBack).toHaveBeenCalledTimes(1);
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it("keeps the Stil draft when the document's reset fails", async () => {
+    const onBack = vi.fn();
+    const slot = style({ dirty: true });
+    editor({ styleDrawer: slot, onBack, onReset: () => false });
+    lockFirstLayer();
+    click("editor-back");
+    fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+    await vi.waitFor(() => expect(screen.queryByTestId("leave-guard")).toBeNull());
+    expect(slot.styleSave.onReset).not.toHaveBeenCalled();
+    expect(onBack).not.toHaveBeenCalled();
+  });
+
+  it("saves a field's typed entry with the document and the Stil draft", async () => {
+    const onBack = vi.fn();
+    const onSave = vi.fn(() => true);
+    const slot = style({ dirty: true });
+    // The host's tags count as its draft once the typed entry is taken over.
+    function Host() {
+      const [tags, setTags] = React.useState(["a"]);
+      return (
+        <SlideEditor
+          document={SLIDE_EDITOR_DOC}
+          title="Deck"
+          brand={SLIDE_BRAND}
+          onSave={onSave}
+          onBack={onBack}
+          styleDrawer={slot}
+          hostDirty={tags.length > 1}
+          pagePanel={{ title: "Tags", content: <TagInput value={tags} onChange={setTags} /> }}
+        />
+      );
+    }
+    render(<Host />);
+    const field = screen.getByTestId("tag-input-input");
+    act(() => field.focus());
+    fireEvent.change(field, { target: { value: "draft" } });
+    click("editor-back");
+    fireEvent.click(await screen.findByTestId("leave-guard-save"));
+    await vi.waitFor(() => expect(onBack).toHaveBeenCalledTimes(1));
+    expect(onSave).toHaveBeenCalledTimes(1);
+    expect(slot.styleSave.onSave).toHaveBeenCalledTimes(1);
+  });
+
+  it("waits for a Stil save promise before leaving", async () => {
+    let resolve: (ok: boolean) => void = () => {};
+    const { onBack } = await saveStilOnLeave(
+      vi.fn(() => new Promise<boolean>((done) => (resolve = done))),
+    );
+    expect(onBack).not.toHaveBeenCalled();
+    resolve(true);
+    await vi.waitFor(() => expect(onBack).toHaveBeenCalledTimes(1));
+  });
+
+  it("stays when the document's save fails, without starting the Stil save", async () => {
+    const onBack = vi.fn();
+    const slot = style({ dirty: true });
+    editor({ styleDrawer: slot, onBack, onSave: () => false });
+    lockFirstLayer();
+    click("editor-back");
+    fireEvent.click(await screen.findByTestId("leave-guard-save"));
+    await vi.waitFor(() => expect(screen.queryByTestId("leave-guard")).toBeNull());
+    expect(slot.styleSave.onSave).not.toHaveBeenCalled();
+    expect(onBack).not.toHaveBeenCalled();
+  });
+
+  it("discards both drafts, and leaves on Discard without onReset", async () => {
+    const onBack = vi.fn();
+    const onReset = vi.fn();
+    const slot = style({ dirty: true });
+    editor({ styleDrawer: slot, onBack, onReset });
+    lockFirstLayer();
+    click("editor-back");
+    fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+    await vi.waitFor(() => expect(onBack).toHaveBeenCalledTimes(1));
+    expect(onReset).toHaveBeenCalledTimes(1);
+    expect(slot.styleSave.onReset).toHaveBeenCalledTimes(1);
+    cleanup();
+
+    const back = vi.fn();
+    editor({
+      styleDrawer: { content: null, styleSave: { onSave: vi.fn(), dirty: true } },
+      onBack: back,
+    });
+    click("editor-back");
+    fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+    await vi.waitFor(() => expect(back).toHaveBeenCalledTimes(1));
+  });
+
+  it("does nothing on Cancel", async () => {
+    const onBack = vi.fn();
+    const slot = style({ dirty: true });
+    editor({ styleDrawer: slot, onBack });
+    click("editor-back");
+    fireEvent.click(await screen.findByTestId("leave-guard-cancel"));
+    expect(slot.styleSave.onSave).not.toHaveBeenCalled();
+    expect(slot.styleSave.onReset).not.toHaveBeenCalled();
+    expect(onBack).not.toHaveBeenCalled();
   });
 });

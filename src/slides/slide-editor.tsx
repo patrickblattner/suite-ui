@@ -36,9 +36,10 @@ import {
   ContextMenuTrigger,
 } from "../ui/context-menu.js";
 import { CanvasOverlay, type CanvasTarget, CanvasZoom, type CanvasZoomMode } from "../ui/canvas.js";
-import { type DrawerId, DrawerRail } from "../ui/drawer-rail.js";
+import { type DrawerId, DrawerRail, type DrawerRailProps } from "../ui/drawer-rail.js";
 import { EditorHeader, type EditorHeaderLayout, useEditorLeaveGuard } from "../ui/editor-header.js";
 import { Field } from "../ui/field.js";
+import { pageDrafts, useHasFieldDrafts } from "../ui/field-drafts-internal.js";
 import { GridFields, GridOverlay, GridToggle } from "../ui/grid.js";
 import { FlipToggle } from "../ui/flip-toggle.js";
 import { Hint } from "../ui/hint.js";
@@ -283,6 +284,14 @@ export interface SlideEditorProps extends Pick<
   // neither reads nor stores its values.
   status?: React.ReactNode;
   pagePanel?: { title: string; content: React.ReactNode };
+  // The host's Stil drawer and Dokument section (`SUI-FEATURE-384`). `styleDrawer`: the rail's Style
+  // item with the host's `content`; `styleSave` goes to the `DrawerRail` unchanged (footer, draft
+  // mark) and is apart from the editor's own Save, Reset and undo; a dirty one makes leaving ask.
+  // Under `readOnly` the host passes read-only content and no `styleSave`. `documentPanel`: a titled
+  // section in the Document drawer below the editor's own content, whatever the selection. The
+  // editor neither reads nor stores the values of either.
+  styleDrawer?: { content: React.ReactNode; styleSave?: NonNullable<DrawerRailProps["styleSave"]> };
+  documentPanel?: { title: string; content: React.ReactNode };
   // The host keeps the selection as a block (`SUI-FEATURE-380`): "Save as block" in the canvas menu
   // and the Add drawer hands it a deep copy (`blockOf`); naming and storage are the host's, the
   // document is unchanged. Without it, and under `readOnly`, there is no such action.
@@ -861,6 +870,8 @@ export function SlideEditor({
   readOnly = false,
   status,
   pagePanel,
+  styleDrawer,
+  documentPanel,
   onSaveBlock,
   maxPages,
   overlaysShown,
@@ -911,6 +922,8 @@ export function SlideEditor({
         subtitle,
         status,
         pagePanel,
+        styleDrawer,
+        documentPanel,
         onSaveBlock,
         maxPages,
         overlaysShown,
@@ -932,6 +945,8 @@ type HostSlots = Pick<
   | "subtitle"
   | "status"
   | "pagePanel"
+  | "styleDrawer"
+  | "documentPanel"
   | "onSaveBlock"
   | "maxPages"
   | "overlaysShown"
@@ -1748,20 +1763,53 @@ function Editor({
   // `pending`: the guard's `onSave`/`onReset` still runs; the head works and the editing area takes no
   // input meanwhile (`SUI-FEATURE-064` rev 6). A header Reset that waits counts as the page's own
   // save: Back, `Esc` and route changes wait silently for it and start no Save or Discard (#858).
+  // The host's Stil draft (`SUI-FEATURE-384` rev 3) makes leaving ask as `hostDirty` does, yet stays
+  // apart from the header's draft. The dialog's Save saves the document when it differs, then the
+  // Stil draft, and leaves only when both succeeded: the Stil save fails when it gives `false`,
+  // rejects or throws (a promise is awaited). Discard resets the document when it differs, then the
+  // Stil draft where `onReset` is given. A failed Stil save opens the Stil drawer, where the host
+  // shows its error. Never under `readOnly`, as `hostDirty`. A Stil save or reset running counts as
+  // the page's own save: a way out meanwhile waits for it, and no second save or Discard starts.
+  const styleSave = host.styleDrawer?.styleSave;
+  const styleDirty = !readOnly && styleSave?.dirty === true;
+  const styleBusy = styleSave?.saving === true || styleSave?.resetting === true;
+  const fieldDrafts = useHasFieldDrafts(pageDrafts);
+  const saveWithStyle = async () => {
+    if ((dirty || fieldDrafts) && (await save()) !== true) return false;
+    let ok = false;
+    try {
+      ok = (await styleSave?.onSave()) !== false;
+    } catch {
+      ok = false;
+    }
+    if (!ok) setDrawer("style");
+    return ok;
+  };
+  const resetWithStyle = () => {
+    const styleReset = () => {
+      styleSave?.onReset?.();
+      return true;
+    };
+    if (!dirty) return styleReset();
+    const result = reset();
+    if (result === false) return false;
+    return result === true ? styleReset() : result.then((ok) => ok && styleReset());
+  };
   const {
     guard,
     dialog,
     dirty: guardDirty,
     pending,
   } = useEditorLeaveGuard({
-    dirty,
-    saving: saving || resetting,
+    dirty: dirty || styleDirty,
+    saving: saving || resetting || styleBusy,
     saveFailed: saveFailed || resetFailed,
     onBack,
-    onSave: save,
-    onReset: reset,
+    onSave: styleDirty ? saveWithStyle : save,
+    onReset: styleDirty ? resetWithStyle : reset,
     draft,
   });
+  const headerDirty = styleDirty ? dirty || fieldDrafts : guardDirty;
 
   const frame = React.useRef<HTMLDivElement>(null);
   // Cropping an image starts from the size its view on the canvas has already loaded, so the first
@@ -1796,6 +1844,7 @@ function Editor({
   // Per instance, so two mounted editors never share a heading id.
   const animationTitle = React.useId();
   const pagePanelTitle = React.useId();
+  const documentPanelTitle = React.useId();
   const gridTitle = React.useId();
   // The same for the crop, layout and page fields (#566).
   const fieldId = React.useId();
@@ -4429,7 +4478,7 @@ function Editor({
           canRedo={(history.canRedo || adopting !== undefined) && cropping === undefined}
           onUndo={() => travelKey("undo")}
           onRedo={() => travelKey("redo")}
-          dirty={guardDirty}
+          dirty={headerDirty}
           saving={saving}
           pending={pending || resetting}
           onSave={() => void save()}
@@ -4525,9 +4574,13 @@ function Editor({
                 </ul>
               ),
             },
-            // Read-only with one page under a cap of 1, the pane would hold nothing: no item
-            // (`SUI-FEATURE-381`).
-            ...(onePage && readOnly
+            // The host's Stil drawer (`SUI-FEATURE-384`), openable under `readOnly` too.
+            ...(host.styleDrawer === undefined
+              ? []
+              : [{ id: "style" as const, content: host.styleDrawer.content }]),
+            // Read-only with one page under a cap of 1 and no host section, the pane would hold
+            // nothing: no item (`SUI-FEATURE-381`).
+            ...(onePage && readOnly && host.documentPanel === undefined
               ? []
               : [
                   {
@@ -4612,6 +4665,18 @@ function Editor({
                             />
                           </section>
                         )}
+                        {host.documentPanel === undefined ? null : (
+                          <section
+                            className="flex flex-col gap-2"
+                            aria-labelledby={documentPanelTitle}
+                            data-testid="slide-editor-document-panel"
+                          >
+                            <h3 id={documentPanelTitle} className="text-base font-semibold">
+                              {host.documentPanel.title}
+                            </h3>
+                            {host.documentPanel.content}
+                          </section>
+                        )}
                       </div>
                     ),
                   },
@@ -4619,6 +4684,7 @@ function Editor({
           ]}
           open={drawer}
           onOpen={setDrawer}
+          {...(styleSave === undefined ? {} : { styleSave })}
         />
         <div className="flex min-w-0 flex-1 flex-col">
           <div className="flex flex-wrap items-center gap-2 border-b px-2 py-1" data-tooltip-row="">

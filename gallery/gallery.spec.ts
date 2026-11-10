@@ -1061,6 +1061,37 @@ const AXE_PAGES: [
       page.locator("[data-testid=slide-editor] [data-slot=slide-view][data-slide-ready=true]"),
     "&host=1",
   ],
+  // `SUI-FEATURE-384` AC6: the host's Stil drawer with a draft, and its Dokument section.
+  [
+    "slide-editor",
+    (page) =>
+      page.locator("[data-testid=slide-editor] [data-slot=slide-view][data-slide-ready=true]"),
+    "&drawers=host",
+    [
+      "with the Stil drawer",
+      async (page) => {
+        await page.getByTestId("drawer-style").click();
+        await page.getByTestId("gallery-kit-accent").fill("#0f766e");
+        await expect(page.getByTestId("drawer-style-save")).not.toHaveAttribute(
+          "aria-disabled",
+          "true",
+        );
+      },
+    ],
+  ],
+  [
+    "slide-editor",
+    (page) =>
+      page.locator("[data-testid=slide-editor] [data-slot=slide-view][data-slide-ready=true]"),
+    "&drawers=host",
+    [
+      "with the Dokument section",
+      async (page) => {
+        await page.getByTestId("drawer-document").click();
+        await expect(page.getByTestId("slide-editor-document-panel")).toBeVisible();
+      },
+    ],
+  ],
   // `SUI-FEATURE-381` AC5: the single-page editor.
   [
     "slide-editor",
@@ -20861,3 +20892,38 @@ test("slide editor host slots under readOnly: the host's page panel is read-only
   await expect(editor.getByTestId("slide-editor-page-panel")).toContainText("Record");
   await expect(editor.getByTestId("gallery-host-name")).toHaveAttribute("readonly", "");
 });
+
+// `SUI-FEATURE-384` AC2/AC3/AC5/AC6: the host's Stil drawer between Ebenen and Dokument with its own
+// save and draft mark, leaving asks on a Stil draft alone, and the Dokument drawer's Versions section.
+for (const theme of THEMES) {
+  test(`slide editor host drawers (${theme})`, async ({ page }) => {
+    await page.goto(`/?page=slide-editor&drawers=host&lng=en&theme=${theme}`);
+    const editor = page.getByTestId("slide-editor");
+    await expect(
+      editor.locator("[data-slot=slide-view][data-slide-ready=true]").first(),
+    ).toBeVisible();
+    const rail = editor.getByTestId("drawer-rail");
+    expect(
+      await rail
+        .locator("button[data-drawer]")
+        .evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-drawer"))),
+    ).toEqual(["add", "layers", "style", "document"]);
+    await editor.getByTestId("drawer-style").click();
+    await editor.getByTestId("gallery-kit-accent").fill("#0f766e");
+    await editor.getByTestId("drawer-style").click();
+    await expect(editor.getByTestId("drawer-style-draft")).toBeVisible();
+    await expect(editor.getByTestId("editor-state").first()).toContainText("Saved");
+    await editor.getByTestId("editor-back").first().click();
+    await expect(page.getByTestId("leave-guard")).toBeVisible();
+    await page.getByTestId("leave-guard-cancel").click();
+    await expect(page.getByTestId("leave-guard")).toBeHidden();
+    await editor.getByTestId("drawer-style").click();
+    await expect(editor.getByTestId("drawer-style-footer")).toBeVisible();
+    await parkPointer(page);
+    await expect(rail).toHaveScreenshot(`slide-editor-host-drawers-style-${theme}.png`);
+    await editor.getByTestId("drawer-document").click();
+    await expect(editor.getByTestId("slide-editor-document-panel")).toContainText("Version 3");
+    await parkPointer(page);
+    await expect(rail).toHaveScreenshot(`slide-editor-host-drawers-document-${theme}.png`);
+  });
+}

@@ -37,9 +37,12 @@ type DrawerRailProps = {
   // The style drawer's own save: it applies to everything that uses the brand kit. The app supplies
   // the save and its dirty state; without it the drawer has no footer. An app whose style drawer
   // keeps its own draft also passes `onReset` (`SUI-FEATURE-370`, `GL-UI-034`): Reset then stands left
-  // of Save, asks first like the `EditorHeader`'s, and works while `resetting`.
+  // of Save, asks first like the `EditorHeader`'s, and works while `resetting`. An async `onSave`
+  // returns the save's promise: a `SlideEditor` leave question awaits it, and `false` or a rejection
+  // is a failed save that keeps the editor open (`SUI-FEATURE-384` rev 3); a void return counts as
+  // success. The rail itself only starts it.
   styleSave?: {
-    onSave: () => void;
+    onSave: () => void | boolean | Promise<void | boolean>;
     dirty: boolean;
     saving?: boolean;
     onReset?: () => void;
@@ -110,7 +113,14 @@ function DrawerRail({ items, open, onOpen, styleSave, documentLabel }: DrawerRai
           size="default"
           {...(styleClean ? { "aria-disabled": true } : {})}
           {...(styleSave.saving !== undefined ? { busy: styleSave.saving } : {})}
-          onClick={styleClean ? undefined : styleSave.onSave}
+          onClick={
+            styleClean
+              ? undefined
+              : () => {
+                  // The host shows a failure; a rejection is never left unhandled.
+                  void Promise.resolve(styleSave.onSave()).catch(() => {});
+                }
+          }
           data-testid="drawer-style-save"
         >
           <SaveIcon aria-hidden="true" />
