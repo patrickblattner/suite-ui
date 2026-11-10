@@ -1,13 +1,27 @@
 // @vitest-environment node
 import { execFileSync, spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { randomBytes } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join, matchesGlob } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   changedSources,
   depcruiseCounts,
+  ESLINT_COMPLEXITY_RULES,
+  eslintArgs,
+  eslintComplexityCounts,
+  eslintCounts,
+  eslintRun,
   eslintSecurityCounts,
   falls,
   freshReport,
@@ -18,10 +32,13 @@ import {
   gitleaksScan,
   jscpdCounts,
   knipCounts,
+  recordLintRun,
+  reusableLintReport,
   rises,
   semgrepCounts,
   semgrepVerdict,
   sizeVerdict,
+  treeFingerprint,
   trivyCounts,
   trivyArgs,
   trivyOutput,
@@ -72,6 +89,12 @@ describe("hygiene ratchet", () => {
     expect(Object.keys(file.counts).sort()).toEqual([
       "dependency-cruiser.cycles",
       "dependency-cruiser.forbidden-imports",
+      // #862: one entry per complexity rule, each flips `warn` → `error` on its own (GL-CODE-002).
+      "eslint.cognitive-complexity",
+      "eslint.complexity",
+      "eslint.max-depth",
+      "eslint.max-lines-per-function",
+      "eslint.max-params",
       // #861: phase `lint` runs the `security` rules, the inventory counts them (GL-CODE-022).
       "eslint.security",
       "jscpd.duplicated-lines",
@@ -283,6 +306,218 @@ describe("hygiene tool counts", () => {
       counts: { "eslint.security": 1 },
       excepted: 2,
     });
+  });
+
+  // #862 (GL-CODE-002 Severity): each complexity rule counts under its own key, a rule without
+  // findings counts 0, suppressed findings and other rules never count.
+  it("counts each ESLint complexity rule under its own key", () => {
+    const report = [
+      {
+        messages: [
+          { ruleId: "complexity" },
+          { ruleId: "complexity" },
+          { ruleId: "sonarjs/cognitive-complexity" },
+          { ruleId: "max-params" },
+          { ruleId: "security/detect-unsafe-regex" },
+        ],
+        suppressedMessages: [{ ruleId: "max-depth" }],
+      },
+      { messages: [{ ruleId: "max-lines-per-function" }, { ruleId: null }] },
+    ];
+    expect(eslintComplexityCounts(report)).toEqual({
+      "eslint.complexity": 2,
+      "eslint.max-depth": 0,
+      "eslint.max-lines-per-function": 1,
+      "eslint.max-params": 1,
+      "eslint.cognitive-complexity": 1,
+    });
+  });
+
+  // #862 (Q#5689): `hygiene` reuses phase lint's report only for the tree that report linted.
+  it("fingerprints HEAD, uncommitted changes and untracked files", () => {
+    const dir = mkdtempSync(join(tmpdir(), "suite-ui-hygiene-tree-"));
+    try {
+      const git = (...args: string[]) => execFileSync("git", args, { cwd: dir, encoding: "utf8" });
+      git("init", "-q", "--template=", "-b", "main");
+      writeFileSync(join(dir, ".gitignore"), "ignored/\n");
+      writeFileSync(join(dir, "a.ts"), "export const a = 1;\n");
+      git("add", ".");
+      git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "init");
+      const clean = treeFingerprint(dir);
+      expect(treeFingerprint(dir)).toBe(clean);
+      mkdirSync(join(dir, "ignored"));
+      writeFileSync(join(dir, "ignored", "out.js"), "built");
+      expect(treeFingerprint(dir)).toBe(clean);
+      writeFileSync(join(dir, "a.ts"), "export const a = 2;\n");
+      const edited = treeFingerprint(dir);
+      expect(edited).not.toBe(clean);
+      writeFileSync(join(dir, "b.ts"), "export const b = 1;\n");
+      const untracked = treeFingerprint(dir);
+      expect(untracked).not.toBe(edited);
+      writeFileSync(join(dir, "b.ts"), "export const b = 2;\n");
+      const changed = treeFingerprint(dir);
+      expect(changed).not.toBe(untracked);
+      // An untracked nested repo and a directory symlink are entries, never read as files.
+      mkdirSync(join(dir, "nested"));
+      execFileSync("git", ["init", "-q", "--template="], { cwd: join(dir, "nested") });
+      writeFileSync(join(dir, "nested", "x.ts"), "x");
+      symlinkSync(join(dir, "ignored"), join(dir, "link"));
+      expect(treeFingerprint(dir)).not.toBe(changed);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses a fingerprint when git fails", () => {
+    const dir = mkdtempSync(join(tmpdir(), "suite-ui-hygiene-nogit-"));
+    try {
+      execFileSync("git", ["init", "-q", "--template=", "-b", "main"], { cwd: dir });
+      // Unborn HEAD: `git rev-parse HEAD` exits non-zero.
+      expect(() => treeFingerprint(dir)).toThrow(Unreadable);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // Q#5690: a cached result is keyed by the file's own content, so a typed finding caused by
+  // another file (or a project-service fatal) would be served stale as clean.
+  it("lints without ESLint's cache", () => {
+    expect(eslintArgs("r.json").filter((arg) => arg.startsWith("--cache"))).toEqual([]);
+  });
+
+  it("leaves no stale lint report: old report and record go before the run", () => {
+    const dir = mkdtempSync(join(tmpdir(), "suite-ui-hygiene-record-"));
+    try {
+      writeFileSync(join(dir, "report.json"), "[]");
+      writeFileSync(
+        join(dir, "report.meta.json"),
+        JSON.stringify({ fingerprint: "f1", status: 0 }),
+      );
+      expect(recordLintRun(dir, "f1", () => 2)).toBe(2);
+      expect(existsSync(join(dir, "report.json"))).toBe(false);
+      expect(existsSync(join(dir, "report.meta.json"))).toBe(false);
+      expect(
+        recordLintRun(dir, "f2", (report) => {
+          writeFileSync(report, "[]");
+          return 1;
+        }),
+      ).toBe(1);
+      expect(reusableLintReport(dir, "f2")).toEqual({ text: "[]", status: 1 });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // The reuse path hands the recorded exit status and the report through the CX1 check.
+  it("counts phase lint's report with its recorded status, or runs its own pass", () => {
+    const dir = mkdtempSync(join(tmpdir(), "suite-ui-hygiene-reuse-"));
+    const own = join(dir, "own.json");
+    const ownPass = () => {
+      throw new Error("own pass must not run");
+    };
+    const lintRecorded = (status: number, report: unknown) => {
+      writeFileSync(join(dir, "report.json"), JSON.stringify(report));
+      writeFileSync(join(dir, "report.meta.json"), JSON.stringify({ fingerprint: "f1", status }));
+    };
+    try {
+      lintRecorded(1, [{ messages: [{ ruleId: "max-params" }] }]);
+      const reused = eslintRun(dir, "f1", own, ownPass);
+      expect(reused.source).toBe("lint");
+      expect(reused.counts["eslint.max-params"]).toBe(1);
+      expect(readFileSync(own, "utf8")).toContain("max-params");
+
+      lintRecorded(2, [{ messages: [] }]);
+      expect(() => eslintRun(dir, "f1", own, ownPass)).toThrow(Unreadable);
+      lintRecorded(1, [{ messages: [{ ruleId: null, fatal: true, message: "Parsing error" }] }]);
+      expect(() => eslintRun(dir, "f1", own, ownPass)).toThrow(/Parsing error/);
+      // Shape: never a TypeError or a 0 count.
+      for (const report of [[], {}, [{ filePath: "a.ts" }], "x"]) {
+        lintRecorded(0, report);
+        expect(() => eslintRun(dir, "f1", own, ownPass)).toThrow(Unreadable);
+      }
+
+      const fresh = eslintRun(dir, "f2", own, (report) => {
+        writeFileSync(report, JSON.stringify([{ messages: [{ ruleId: "complexity" }] }]));
+        return 1;
+      });
+      expect(fresh.source).toBe("own");
+      expect(fresh.counts["eslint.complexity"]).toBe(1);
+      expect(() => eslintRun(dir, "f2", own, () => 2)).toThrow(/wrote no report \(exit 2\)/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("reuses phase lint's report only when its fingerprint matches", () => {
+    const dir = mkdtempSync(join(tmpdir(), "suite-ui-hygiene-lint-"));
+    try {
+      expect(reusableLintReport(dir, "f1")).toBeUndefined();
+      writeFileSync(join(dir, "report.json"), "[]");
+      expect(reusableLintReport(dir, "f1")).toBeUndefined();
+      writeFileSync(
+        join(dir, "report.meta.json"),
+        JSON.stringify({ fingerprint: "f1", status: 1 }),
+      );
+      expect(reusableLintReport(dir, "f1")).toEqual({ text: "[]", status: 1 });
+      expect(reusableLintReport(dir, "f2")).toBeUndefined();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // #863 CX1: a file ESLint could not lint is never counted as 0 findings.
+  it("refuses an ESLint run with a fatal message or an operational exit", () => {
+    const fatal = [
+      { messages: [{ ruleId: "complexity" }] },
+      {
+        filePath: "src/broken.ts",
+        messages: [{ ruleId: null, fatal: true, message: "Parsing error: ';' expected." }],
+      },
+    ];
+    expect(() => eslintCounts(fatal, 1)).toThrow(Unreadable);
+    expect(() => eslintCounts(fatal, 1)).toThrow(/src\/broken\.ts: Parsing error/);
+    expect(() => eslintCounts([{ messages: [] }], 2)).toThrow(Unreadable);
+    expect(() => eslintCounts([{ messages: [] }], null)).toThrow(Unreadable);
+  });
+
+  it("counts ordinary findings of an ESLint run that exits 1", () => {
+    const report = [
+      {
+        messages: [
+          { ruleId: "security/detect-unsafe-regex" },
+          { ruleId: "max-params" },
+          { ruleId: "no-unused-vars" },
+        ],
+        suppressedMessages: [{ ruleId: "security/detect-non-literal-fs-filename" }],
+      },
+    ];
+    expect(eslintCounts(report, 1)).toEqual({
+      counts: {
+        "eslint.security": 1,
+        "eslint.complexity": 0,
+        "eslint.max-depth": 0,
+        "eslint.max-lines-per-function": 0,
+        "eslint.max-params": 1,
+        "eslint.cognitive-complexity": 0,
+      },
+      excepted: 1,
+    });
+    expect(eslintCounts([{ messages: [] }], 0).counts["eslint.security"]).toBe(0);
+  });
+
+  // #862 (GL-CODE-002 Severity): a rule whose entry is above its finish line (0) runs at `warn`,
+  // a rule at its finish line runs at `error` — the lint config follows quality-baseline.json.
+  it("runs each complexity rule at the severity its baseline entry demands", async () => {
+    const file = JSON.parse(readFileSync(new URL("quality-baseline.json", root), "utf8")) as {
+      counts: Record<string, number>;
+    };
+    const { ESLint } = await import("eslint");
+    const config = (await new ESLint({ cwd: fileURLToPath(root) }).calculateConfigForFile(
+      "scripts/hygiene.ts",
+    )) as { rules: Record<string, [number, ...unknown[]]> };
+    for (const [rule, key] of Object.entries(ESLINT_COMPLEXITY_RULES)) {
+      expect([rule, config.rules[rule]?.[0]]).toEqual([rule, (file.counts[key] ?? 0) > 0 ? 1 : 2]);
+    }
   });
 
   it("reads the number of commits gitleaks scanned", () => {

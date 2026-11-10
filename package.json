@@ -78,7 +78,7 @@
     "build": "tsup",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "lint": "eslint .",
+    "lint": "node scripts/lint.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "gallery": "playwright test --config gallery/playwright.config.ts",

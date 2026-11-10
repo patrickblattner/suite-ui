@@ -7,8 +7,9 @@
 //                                       # plus summary.json under .spec-sync/hygiene/
 //
 // Tools: jscpd, dependency-cruiser, Semgrep OSS (vendored packs in .semgrep/, no registry call), Trivy
-// `fs`, size-limit (lines in size-limit-lines.json) and `spec-sync licence-inventory`; the inventory adds
-// knip, gitleaks over the full history, ESLint's `security` count (its per-finding exceptions beside it) and Trivy `fs --include-dev-deps` (GL-CODE-003; its devDependency
+// `fs`, size-limit (lines in size-limit-lines.json), `spec-sync licence-inventory` and ESLint's `security`
+// count (its per-finding exceptions beside it) plus one count per complexity rule (#862); the inventory adds
+// knip, gitleaks over the full history and Trivy `fs --include-dev-deps` (GL-CODE-003; its devDependency
 // count lands in summary.json beside `counts`, never in the ratchet). No network except Trivy's vulnerability DB update.
 //
 // The gate is red when a count rises above its baseline, when an `exports` entry has no size lines, or
@@ -18,7 +19,16 @@
 // tool, scans the files changed against `main` in the gate and everything in the inventory.
 
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import {
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readFileSync,
+  readlinkSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -214,6 +224,51 @@ export function eslintSecurityCounts(
   return {
     counts: { "eslint.security": report.flatMap((file) => file.messages).filter(security).length },
     excepted: report.flatMap((file) => file.suppressedMessages ?? []).filter(security).length,
+  };
+}
+
+// GL-CODE-002 complexity family (#862): one ratchet entry per rule, so each rule flips from `warn`
+// to `error` on its own (GL-CODE-002 Severity).
+export const ESLINT_COMPLEXITY_RULES = {
+  complexity: "eslint.complexity",
+  "max-depth": "eslint.max-depth",
+  "max-lines-per-function": "eslint.max-lines-per-function",
+  "max-params": "eslint.max-params",
+  "sonarjs/cognitive-complexity": "eslint.cognitive-complexity",
+} as const;
+
+export function eslintComplexityCounts(report: { messages: EslintMessage[] }[]): Counts {
+  const messages = report.flatMap((file) => file.messages);
+  return Object.fromEntries(
+    Object.entries(ESLINT_COMPLEXITY_RULES).map(([rule, key]) => [
+      key,
+      messages.filter((message) => message.ruleId === rule).length,
+    ]),
+  );
+}
+
+// The one reader of an ESLint run (#863 CX1): exit 0 (clean) and 1 (findings) are counted; any
+// other exit (2: an operational failure) or a fatal message (a parse or project-service error,
+// `ruleId: null`) means a file was never linted, so the run is unreadable, never a zero.
+type EslintReport = {
+  messages: (EslintMessage & { fatal?: boolean; message?: string })[];
+  suppressedMessages?: EslintMessage[];
+  filePath?: string;
+}[];
+export function eslintCounts(
+  report: EslintReport,
+  status: number | null,
+): { counts: Counts; excepted: number } {
+  if (status !== 0 && status !== 1) throw new Unreadable(`ESLint exited ${String(status)}`);
+  const fatal = report.find((file) => file.messages.some((message) => message.fatal === true));
+  if (fatal) {
+    const message = fatal.messages.find((m) => m.fatal === true)?.message ?? "";
+    throw new Unreadable(`ESLint could not lint ${fatal.filePath ?? "a file"}: ${message}`);
+  }
+  const security = eslintSecurityCounts(report);
+  return {
+    counts: { ...security.counts, ...eslintComplexityCounts(report) },
+    excepted: security.excepted,
   };
 }
 
@@ -495,12 +550,141 @@ function knip(out: string) {
   return knipCounts(json("knip", text));
 }
 
-// The `security` rules run in gate phase `lint`; the inventory counts them over the whole repo.
-function eslintSecurity(out: string) {
-  const { stdout: text } = run(bin("eslint"), [".", "--format", "json"]);
-  // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: the repo root (module URL); form (1): out (+ literal .spec-sync/hygiene[/gate]) + a literal report name
-  writeFileSync(join(out, "eslint.json"), text);
-  return eslintSecurityCounts(json("ESLint", text));
+// The `security` and complexity rules run in gate phase `lint` (scripts/lint.ts) over the whole
+// repo; gate and inventory count them, because the complexity rules at `warn` are carried by the
+// ratchet (#862). `lint` leaves its JSON report with the tree fingerprint it linted under
+// .spec-sync/eslint/; `hygiene` reads that report when the tree is unchanged and otherwise runs
+// one whole-repo pass of its own (Q#5689). Never with `--cache`: the cache keys a file by its own
+// content, so a typed rule's finding caused by another file, or a project-service fatal, would be
+// served stale as clean (Q#5690).
+export const ESLINT_DIR = join(root, ".spec-sync", "eslint");
+
+export function eslintArgs(report: string): string[] {
+  return [".", "--format", "json", "--output-file", report];
+}
+
+// What ESLint lints: HEAD, the uncommitted changes to tracked files and every untracked file
+// outside .gitignore. Equal fingerprints mean ESLint would see the same sources.
+export function treeFingerprint(dir = root): string {
+  const git = (...args: string[]) => {
+    const result = run("git", args, dir);
+    if (result.status !== 0) {
+      throw new Unreadable(
+        `git ${args[0]} exited ${String(result.status)}: ${result.stderr.trim()}`,
+      );
+    }
+    return result.stdout;
+  };
+  const hash = createHash("sha256");
+  hash.update(git("rev-parse", "HEAD"));
+  hash.update(git("diff", "--no-ext-diff", "--no-textconv", "--binary", "HEAD"));
+  for (const file of git("ls-files", "--others", "--exclude-standard", "-z").split("\0")) {
+    if (!file) continue;
+    const path = join(dir, file);
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: dir, the repo root (module URL); form (2): + a `git ls-files` entry
+    const stat = lstatSync(path);
+    hash.update(`\0${file}\0`);
+    // A symlink counts by its target name; a nested repo or other directory entry by its name.
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: dir, the repo root (module URL); form (2): + a `git ls-files` entry
+    if (stat.isSymbolicLink()) hash.update(readlinkSync(path));
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: dir, the repo root (module URL); form (2): + a `git ls-files` entry
+    else if (stat.isFile()) hash.update(readFileSync(path));
+  }
+  return hash.digest("hex");
+}
+
+export interface LintRun {
+  fingerprint: string;
+  status: number | null;
+}
+
+// The `lint` phase's report, only when it linted the tree as it is now.
+export function reusableLintReport(
+  dir: string,
+  fingerprint: string,
+): { text: string; status: number | null } | undefined {
+  const meta = join(dir, "report.meta.json");
+  const report = join(dir, "report.json");
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: ESLINT_DIR or a test's temp dir; form (1): + literal report names
+  if (!existsSync(meta) || !existsSync(report)) return undefined;
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: ESLINT_DIR or a test's temp dir; form (1): + literal report.meta.json
+  const record = json<LintRun>("ESLint run record", readFileSync(meta, "utf8"));
+  if (record.fingerprint !== fingerprint) return undefined;
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: ESLINT_DIR or a test's temp dir; form (1): + literal report.json
+  return { text: readFileSync(report, "utf8"), status: record.status };
+}
+
+// Phase `lint`'s record (scripts/lint.ts): the previous report and record go first, so a run that
+// writes no report never leaves an older one for `hygiene`; the record is written only beside a
+// report this run wrote.
+export function recordLintRun(
+  dir: string,
+  fingerprint: string,
+  lint: (report: string) => number | null,
+): number | null {
+  const report = join(dir, "report.json");
+  const meta = join(dir, "report.meta.json");
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: ESLINT_DIR or a test's temp dir; form (1): directory itself
+  mkdirSync(dir, { recursive: true });
+  rmSync(meta, { force: true });
+  rmSync(report, { force: true });
+  const status = lint(report);
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: ESLINT_DIR or a test's temp dir; form (1): + literal report.json
+  if (existsSync(report)) {
+    const record: LintRun = { fingerprint, status };
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: ESLINT_DIR or a test's temp dir; form (1): + literal report.meta.json
+    writeFileSync(meta, `${JSON.stringify(record)}\n`);
+  }
+  return status;
+}
+
+// A report of a repo with lintable files is a non-empty array of file results.
+function eslintReport(text: string): EslintReport {
+  const report = json<unknown>("ESLint", text);
+  const fileResult = (entry: unknown) =>
+    typeof entry === "object" &&
+    entry !== null &&
+    Array.isArray((entry as { messages?: unknown }).messages);
+  if (!Array.isArray(report) || report.length === 0 || !report.every(fileResult)) {
+    throw new Unreadable("ESLint report is not a non-empty array of file results");
+  }
+  return report as EslintReport;
+}
+
+// Counts from phase lint's report when it linted this tree, otherwise from one own pass.
+export function eslintRun(
+  dir: string,
+  fingerprint: string,
+  own: string,
+  lintOwn: (report: string) => number | null,
+): { counts: Counts; excepted: number; source: "lint" | "own" } {
+  const reused = reusableLintReport(dir, fingerprint);
+  if (reused) {
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: the repo root (module URL) or a test's temp dir; form (1): out (+ literal .spec-sync/hygiene[/gate]) + a literal report name
+    writeFileSync(own, reused.text);
+    return { ...eslintCounts(eslintReport(reused.text), reused.status), source: "lint" };
+  }
+  rmSync(own, { force: true });
+  const status = lintOwn(own);
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: the repo root (module URL) or a test's temp dir; form (1): out (+ literal .spec-sync/hygiene[/gate]) + a literal report name
+  if (!existsSync(own)) throw new Unreadable(`ESLint wrote no report (exit ${String(status)})`);
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: the repo root (module URL) or a test's temp dir; form (1): out (+ literal .spec-sync/hygiene[/gate]) + a literal report name
+  return { ...eslintCounts(eslintReport(readFileSync(own, "utf8")), status), source: "own" };
+}
+
+function eslint(out: string) {
+  const result = eslintRun(
+    ESLINT_DIR,
+    treeFingerprint(),
+    join(out, "eslint.json"),
+    (report) => run(bin("eslint"), eslintArgs(report)).status,
+  );
+  console.log(
+    result.source === "lint"
+      ? "hygiene: eslint counted from phase lint's report (same tree)"
+      : "hygiene: eslint counted from its own whole-repo pass (no lint report for this tree)",
+  );
+  return result;
 }
 
 // git log prints no patch for a merge by default. `history` scans every commit, a two-parent merge
@@ -624,7 +808,12 @@ function measureAll(out: string, full: boolean) {
   console.log(`hygiene: size-limit ${JSON.stringify(size.counts)} (${size.checks.length} entries)`);
   for (const line of size.overRecommended) notes.push(`size-limit above recommended: ${line}`);
   add("licence-inventory", () => licences(out));
-  return { counts, notes, size };
+  const lint = eslint(out);
+  Object.assign(counts, lint.counts);
+  console.log(
+    `hygiene: eslint ${JSON.stringify(lint.counts)} (excepted per finding: ${lint.excepted})`,
+  );
+  return { counts, notes, size, eslintExcepted: lint.excepted };
 }
 
 function readBaseline(): Counts {
@@ -679,14 +868,9 @@ function inventory(): number {
   // size-limit measures dist/; the inventory builds it itself.
   const build = spawnSync("npm", ["run", "build"], { cwd: root, stdio: "inherit" });
   if (build.status !== 0) throw new Unreadable("npm run build failed");
-  const { counts, size } = measureAll(out, true);
+  const { counts, size, eslintExcepted } = measureAll(out, true);
   measure(counts, "knip", () => knip(out));
   measure(counts, "gitleaks", () => gitleaks(out));
-  const eslint = eslintSecurity(out);
-  Object.assign(counts, eslint.counts);
-  console.log(
-    `hygiene: eslint ${JSON.stringify(eslint.counts)} (excepted per finding: ${eslint.excepted})`,
-  );
   // Kept out of `counts`, so it never becomes a quality-baseline.json ratchet entry (GL-CODE-003).
   // The production side is scanned unfiltered too, so a MEDIUM/LOW production finding is not
   // mistaken for a devDependency one.
@@ -715,7 +899,7 @@ function inventory(): number {
     head,
     counts,
     // Beside `eslint.security`, never a ratchet count (GL-CODE-020 "Visible count").
-    eslintSecurityExcepted: eslint.excepted,
+    eslintSecurityExcepted: eslintExcepted,
     // Production is `counts["trivy.fixable-high-or-critical"]`; devDependencies split by route.
     trivyDevDependencies: {
       "trivy.fixable-high-or-critical": routes.ticket,

@@ -2,6 +2,7 @@ import js from "@eslint/js";
 import prettier from "eslint-config-prettier";
 import reactHooks from "eslint-plugin-react-hooks";
 import security from "eslint-plugin-security";
+import sonarjs from "eslint-plugin-sonarjs";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
@@ -67,6 +68,20 @@ export default tseslint.config(
       "security/detect-non-literal-fs-filename": "off",
       "security/detect-non-literal-regexp": "off",
       "security/detect-unsafe-regex": "off",
+    },
+  },
+  // GL-CODE-002 complexity family (#862): each rule carries its own quality-baseline.json entry
+  // (`eslint.<rule>`). A rule whose entry stands above its finish line runs at `warn` and its
+  // count is ratcheted in phase `hygiene`; a rule whose entry is at the finish line runs at
+  // `error` (GL-CODE-002 Severity).
+  {
+    plugins: { sonarjs },
+    rules: {
+      complexity: ["warn", { max: 20 }],
+      "max-depth": ["warn", { max: 4 }],
+      "max-lines-per-function": ["warn", { max: 150 }],
+      "max-params": ["warn", { max: 5 }],
+      "sonarjs/cognitive-complexity": ["warn", 25],
     },
   },
   prettier,

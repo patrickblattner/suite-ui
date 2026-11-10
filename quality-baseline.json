@@ -11,7 +11,12 @@
     "size-limit.over-maximum": 0,
     "licence-inventory.outside-allowlist": 0,
     "knip.findings": 3,
-    "eslint.security": 0
+    "eslint.security": 0,
+    "eslint.complexity": 49,
+    "eslint.max-depth": 4,
+    "eslint.max-lines-per-function": 176,
+    "eslint.max-params": 11,
+    "eslint.cognitive-complexity": 23
   },
   "inventoryOnly": {
     "gitleaks.history": {
