@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased — #871: spec-sync-toolkit pin raised to v0.47.0 (patch)
+
+- **Changed (#871, PROC-DEV-006 rev 5, PROC-DEV-007 rev 7):** devDependency `spec-sync-toolkit` pinned to `v0.47.0` (was `v0.43.3`); `spec-sync queue` now ranks red-main audit/security → escalated sweep → `pipeline` → due sweep → rest. No runtime or baseline changes.
+
 ## 0.231.0 — #869: SlideEditor host slots `styleDrawer` and `documentPanel` (SUI-FEATURE-384 rev 3) (minor)
 
 - **Added (#869, SUI-FEATURE-384 rev 3):** `SlideEditor` takes `styleDrawer?: { content; styleSave? }`: the rail carries Stil between Ebenen and Dokument, the drawer shows the host's `content`, and `styleSave` (the `DrawerRail` type: `onSave`, `dirty`, `saving`, `onReset`, `resetting`) goes to the rail unchanged — footer with "Stil speichern" and "Zurücksetzen", draft mark on the closed button. The editor neither reads nor stores the kit; its own Save, Reset, undo stack and "Draft · unsaved" state stay apart. A dirty `styleSave` makes leaving ask (`GL-UI-034`) even with a clean document, while the header keeps the document's state: the dialog's Save runs the document's save when it differs, then `styleSave.onSave`, and leaves only when both succeeded (a Stil save that gives `false`, rejects or throws keeps the editor open and opens the Stil drawer, where the host shows its error; a promise is awaited); a Stil save or reset running (`saving`, `resetting`) holds a way out like the editor's own save; Discard runs the document's reset when it differs, then `styleSave.onReset` where given, and leaves; Cancel does nothing (Q#5716). Under `readOnly` the Stil drawer stays openable; the host passes read-only content and no `styleSave`.
