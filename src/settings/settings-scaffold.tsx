@@ -81,11 +81,13 @@ type SettingsScaffoldProps = {
 );
 
 // The body scroller. It clips at its padding box, so it carries 6 px of room for the 3 px focus ring
-// on the top and both sides, taken back by an equal negative margin: a control at its edge (the head
-// action of the first section) shows its whole ring, and the content keeps its place and width
-// (`GL-UI-013` rev 5, #850). The bottom keeps its 16 px.
+// on the top and the start side, taken back by an equal negative margin: a control at its edge (the
+// head action of the first section) shows its whole ring, and the content keeps its place
+// (`GL-UI-013` rev 5, #850). The end side carries no padding utility: the host's `GL-UI-018` bar-side
+// floor (`padding-inline-end: var(--page-gutter)`) owns that edge and gives the ring its room there
+// (#864). The bottom keeps its 16 px.
 const BODY_SCROLL_CLASS =
-  "relative -mx-1.5 -mt-1.5 min-h-0 flex-1 scroll-py-2 overflow-y-auto px-1.5 pt-1.5 pb-4";
+  "relative -ms-1.5 -mt-1.5 min-h-0 flex-1 scroll-py-2 overflow-y-auto ps-1.5 pt-1.5 pb-4";
 
 // The frame of every settings subpage (`GL-UI-026`): title and subtitle, then directly the form body
 // as one full-width column (`body`), a tab row over it (`tabs`) or, for editors with a live preview,

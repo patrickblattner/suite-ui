@@ -27,8 +27,8 @@ describe("Settings class strings", () => {
   const forms = [
     "flex gap-2",
     "flex min-h-0 flex-1 flex-col gap-4",
-    // #850: the body scroller with its ring room.
-    "relative -mx-1.5 -mt-1.5 min-h-0 flex-1 scroll-py-2 overflow-y-auto px-1.5 pt-1.5 pb-4",
+    // #850: the body scroller with its ring room; #864: top and start side only, the end side is the host's.
+    "relative -ms-1.5 -mt-1.5 min-h-0 flex-1 scroll-py-2 overflow-y-auto ps-1.5 pt-1.5 pb-4",
     // SUI-FEATURE-042: the option group of a SettingsField and the head of a SettingsSection.
     "flex w-full max-w-xl flex-col gap-2",
     "flex items-start justify-between gap-4 border-b border-border pb-4",

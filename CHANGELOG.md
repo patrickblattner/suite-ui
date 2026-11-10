@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased — #864: SettingsScaffold scroller leaves its end side to the host's `GL-UI-018` gap floor (patch)
+
+- **Fixed (#864, GL-UI-018, GL-UI-004, Q#5692):** the settings body scroller carries its focus-ring room on the top and the start side only (`-ms-1.5 ps-1.5 -mt-1.5 pt-1.5`, was `-mx-1.5 px-1.5`). The `px-1.5` utility overrode the host's bar-side floor (`padding-inline-end: var(--page-gutter)`), so the content stood 6 px from the scrollbar instead of the page gutter on every settings route. The host's floor now owns the end side and gives the ring its room there. The gallery host carries that floor for the settings frame, the #850 head-action ring test stays green, and a unit test keeps `px-`/`pe-` off the scroller.
+
 ## 0.229.9 — #861: ESLint `security` plugin sorted rule by rule in phase `lint` (GL-CODE-022 rev 3, SUI-FEATURE-128 rev 5) (patch)
 
 - **Changed (#861, GL-CODE-022 rev 3, GL-CODE-020 rev 4, GL-CODE-002 rev 15):** `eslint-plugin-security` runs in gate phase `lint`, every rule at `error` except `detect-object-injection` (off in every repo) and `detect-possible-timing-attacks` (off: its 2 findings compared no secrets). `detect-non-literal-fs-filename`, `detect-non-literal-regexp` and `detect-unsafe-regex` are scoped off the test files (`*.test.ts(x)`, `gallery/**/*.spec.ts`), whose paths and patterns are their own; the 58 production findings (57 comments) are excepted per finding with `eslint-disable-next-line security/<rule> -- <confinement>`. `quality-baseline.json` gets `eslint.security: 0` (first measurement), and `npm run hygiene:inventory` reports `eslint.security` with the excepted findings beside it.

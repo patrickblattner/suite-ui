@@ -180,6 +180,15 @@ describe("SettingsScaffold", () => {
     expect(screen.getByTestId("settings-body")).toHaveClass("relative", "overflow-y-auto");
   });
 
+  // #864 (`GL-UI-018`): the host's bar-side floor owns the scroller's end side, so the package sets
+  // no inline-end padding there; ring room stays on the top and the start side only.
+  it("leaves the scroller's end side to the host: no px- or pe- utility", () => {
+    render(<GeneralPage save={() => Promise.resolve()} />);
+    const classes = [...screen.getByTestId("settings-body").classList];
+    expect(classes.filter((c) => /^-?(px|pe)-/.test(c))).toEqual([]);
+    expect(classes).toEqual(expect.arrayContaining(["-ms-1.5", "ps-1.5", "-mt-1.5", "pt-1.5"]));
+  });
+
   it("names the pair after testIdPrefix and keeps the footer testid", () => {
     render(
       <SettingsScaffold

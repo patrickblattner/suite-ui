@@ -127,3 +127,12 @@ body {
   min-height: 0;
   padding: 0;
 }
+
+/* The host's bar-side gap floor (`GL-UI-018`, as the cockpit carries it in `@layer base`): an inner
+   scroller gets `padding-inline-end: var(--page-gutter)` from the app, never from the package. The
+   settings body scroller leaves that edge to the host (#864), so the gallery stands in for it there;
+   `:where()` keeps the specificity at 0. Scoped to the settings frame, so no other gallery page
+   changes. */
+:where([data-testid="settings-page"]) :where([class~="overflow-y-auto"]) {
+  padding-inline-end: var(--page-gutter);
+}

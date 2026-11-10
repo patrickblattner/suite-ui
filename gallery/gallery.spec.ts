@@ -6919,10 +6919,16 @@ test("label with help: 14 px at weight 500, 8 px to the field", async ({ page })
 });
 
 // `GL-UI-026`: the left column is half the content width, and nothing stands between the subtitle
-// and the form.
+// and the form. The content width is the body's content box: the host's bar-side floor (#864) is
+// the gap to the bar, not content.
 test("settings: left column at half width, form directly under the subtitle", async ({ page }) => {
   await page.goto("/?page=settings");
-  const area = await contentArea(page);
+  const area = await page.getByTestId("settings-body").evaluate((el) => {
+    const style = getComputedStyle(el);
+    return {
+      width: el.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight),
+    };
+  });
   const left = await box(page.getByTestId("settings-column-left"));
   expect(Math.abs(left.width / area.width - 0.5)).toBeLessThanOrEqual(0.01);
   // The head's container (`page-head`, #234) stands in the page column; the form follows it.
@@ -8640,11 +8646,9 @@ test("settings tabs: tab row over one full-width scrolling body, one form", asyn
   const row = await box(page.getByTestId("hauptmenue-tabs"));
   const bodyBox = await box(body);
   expect(bodyBox.y).toBeGreaterThanOrEqual(row.y + row.height);
-  // The body's side padding is ring room reaching past the form (#850); its content box is full width.
-  const room = await body.evaluate((el) => {
-    const style = getComputedStyle(el);
-    return parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
-  });
+  // The body's start padding is ring room reaching past the form (#850); its end edge is the form's,
+  // where the host's bar-side floor gives the ring its room (#864).
+  const room = await body.evaluate((el) => parseFloat(getComputedStyle(el).paddingLeft));
   expect(Math.abs(bodyBox.width - room - (await box(form)).width)).toBeLessThanOrEqual(1);
   expect(await body.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
 
