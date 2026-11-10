@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — #865: gallery target-size test split per page, longer budget for the field-pair loop, settings-tabs check pins the ring-room side (patch)
+## 0.230.1 — #865: gallery target-size test split per page, longer budget for the field-pair loop, settings-tabs check pins the ring-room side (patch)
 
 - **Tests (#865, Q#5694 b, collector rows 340/344):** the target-size test (every icon button, indicator control and hint trigger hits at 24 × 24 px) runs as one test per page over the same 14 pages, each with its own 30 s budget, instead of one test walking all 14; each page asserts no miss and the labels it must measure, the same set as before. The field-pair hint test gets `test.setTimeout(60_000)` like the other loop tests. The settings-tabs check compares x coordinates instead of widths, so the ring-room overhang is pinned to the body's start side, and the settings-column comment names the end padding as the host's `GL-UI-018` floor (#864). No baseline or snapshot changes.
 
