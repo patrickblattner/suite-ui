@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — #861: ESLint `security` plugin sorted rule by rule in phase `lint` (GL-CODE-022 rev 3, SUI-FEATURE-128 rev 5) (patch)
+## 0.229.9 — #861: ESLint `security` plugin sorted rule by rule in phase `lint` (GL-CODE-022 rev 3, SUI-FEATURE-128 rev 5) (patch)
 
 - **Changed (#861, GL-CODE-022 rev 3, GL-CODE-020 rev 4, GL-CODE-002 rev 15):** `eslint-plugin-security` runs in gate phase `lint`, every rule at `error` except `detect-object-injection` (off in every repo) and `detect-possible-timing-attacks` (off: its 2 findings compared no secrets). `detect-non-literal-fs-filename`, `detect-non-literal-regexp` and `detect-unsafe-regex` are scoped off the test files (`*.test.ts(x)`, `gallery/**/*.spec.ts`), whose paths and patterns are their own; the 58 production findings (57 comments) are excepted per finding with `eslint-disable-next-line security/<rule> -- <confinement>`. `quality-baseline.json` gets `eslint.security: 0` (first measurement), and `npm run hygiene:inventory` reports `eslint.security` with the excepted findings beside it.
 - **Fixed (#861):** the pre-push hook keeps a gate log dir outside the throwaway worktree where it is instead of copying it to a path outside this checkout, and never copies the worktree root itself. `gate:record` sends each `package-lock.json` key through `resolveUnder` against `<root>/node_modules/` and stops with exit 4 on one outside it instead of reading it.
