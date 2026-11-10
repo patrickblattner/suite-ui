@@ -8,6 +8,7 @@ import { join, matchesGlob } from "node:path";
 import {
   changedSources,
   depcruiseCounts,
+  eslintSecurityCounts,
   falls,
   freshReport,
   GITLEAKS_PASSES,
@@ -23,6 +24,7 @@ import {
   sizeVerdict,
   trivyCounts,
   trivyArgs,
+  trivyOutput,
   trivyDevOnly,
   trivyDevRoutes,
   Unreadable,
@@ -70,6 +72,8 @@ describe("hygiene ratchet", () => {
     expect(Object.keys(file.counts).sort()).toEqual([
       "dependency-cruiser.cycles",
       "dependency-cruiser.forbidden-imports",
+      // #861: phase `lint` runs the `security` rules, the inventory counts them (GL-CODE-022).
+      "eslint.security",
       "jscpd.duplicated-lines",
       "knip.findings",
       "licence-inventory.outside-allowlist",
@@ -224,8 +228,8 @@ describe("hygiene tool counts", () => {
   // GL-CODE-003: the gate scans production only, filtered to HIGH/CRITICAL; --include-dev-deps
   // belongs to the inventory and runs without a severity filter.
   it("passes --include-dev-deps to Trivy only for the inventory's devDependency scan", () => {
-    const gate = trivyArgs(false);
-    const dev = trivyArgs(true);
+    const gate = trivyArgs(false, true);
+    const dev = trivyArgs(true, false);
     expect(gate).not.toContain("--include-dev-deps");
     expect(gate.join(" ")).toContain("--severity HIGH,CRITICAL");
     expect(gate.join(" ")).toContain("--scanners vuln --ignore-unfixed");
@@ -235,6 +239,15 @@ describe("hygiene tool counts", () => {
     const withoutSeverity = gate.filter((arg) => arg !== "--severity" && arg !== "HIGH,CRITICAL");
     expect(dev.filter((arg) => arg !== "--include-dev-deps")).toEqual(withoutSeverity);
     expect(trivyArgs(false, false)).toEqual(withoutSeverity);
+  });
+
+  // #861 (finding 53): a failed Trivy run is unreadable, never a count from partial output.
+  it("reads Trivy's stdout only from a run that exited 0", () => {
+    expect(trivyOutput({ stdout: '{"Results":[]}', stderr: "", status: 0 })).toBe('{"Results":[]}');
+    expect(() =>
+      trivyOutput({ stdout: "{", stderr: "FATAL db download failed\nmore", status: 1 }),
+    ).toThrow(new Unreadable("trivy exited 1: FATAL db download failed"));
+    expect(() => trivyOutput({ stdout: "", stderr: "", status: null })).toThrow(Unreadable);
   });
 
   it("counts knip issues of every type, not the file or its owners", () => {
@@ -251,6 +264,25 @@ describe("hygiene tool counts", () => {
       ],
     };
     expect(knipCounts(report)).toEqual({ "knip.findings": 4 });
+  });
+
+  // #861 (GL-CODE-022, GL-CODE-020): only `security/` rules count; excepted findings stand beside it.
+  it("counts ESLint security findings and the ones excepted per finding", () => {
+    const report = [
+      {
+        messages: [{ ruleId: "security/detect-unsafe-regex" }, { ruleId: "no-unused-vars" }],
+        suppressedMessages: [
+          { ruleId: "security/detect-non-literal-fs-filename" },
+          { ruleId: "security/detect-non-literal-fs-filename" },
+          { ruleId: "@typescript-eslint/no-explicit-any" },
+        ],
+      },
+      { messages: [{ ruleId: null }] },
+    ];
+    expect(eslintSecurityCounts(report)).toEqual({
+      counts: { "eslint.security": 1 },
+      excepted: 2,
+    });
   });
 
   it("reads the number of commits gitleaks scanned", () => {

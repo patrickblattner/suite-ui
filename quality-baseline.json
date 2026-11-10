@@ -10,7 +10,8 @@
     "trivy.fixable-high-or-critical": 0,
     "size-limit.over-maximum": 0,
     "licence-inventory.outside-allowlist": 0,
-    "knip.findings": 3
+    "knip.findings": 3,
+    "eslint.security": 0
   },
   "inventoryOnly": {
     "gitleaks.history": {

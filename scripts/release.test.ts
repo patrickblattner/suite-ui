@@ -12,7 +12,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join, posix } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // The release:tag guard (SUI-FEATURE-076 AC3), run as `release.ts tag --dry-run` in a throwaway repo
@@ -75,6 +75,11 @@ beforeAll(() => {
   start = fresh("suite-ui-release-start-");
   mkdirSync(join(start, "scripts"));
   copyFileSync(script, join(start, "scripts", "release.ts"));
+  // The script imports the repo's resolve-then-check helper (#861).
+  copyFileSync(
+    fileURLToPath(new URL("./resolve-under.ts", import.meta.url)),
+    join(start, "scripts", "resolve-under.ts"),
+  );
   writeFileSync(join(start, "package.json"), JSON.stringify({ version: "9.9.9" }));
   writeFileSync(join(start, ".gitignore"), ".spec-sync/\nnode_modules/\n");
   // No template: without its sample hooks there is less to copy per test.
@@ -451,6 +456,22 @@ describe("gate:record", () => {
     expect(existsSync(join(repo, ".spec-sync", "gate-records"))).toBe(false);
   });
 
+  // #861 (GL-CODE-020): a lockfile key is resolved against the checkout root; one that leaves
+  // <root>/node_modules/ is never read and stops the record.
+  it("exits 4 on a lockfile key that escapes node_modules, without reading it", () => {
+    setup("^1.0.0", "1.3.0", "1.3.0");
+    const lockFile = join(repo, "package-lock.json");
+    const lock = JSON.parse(readFileSync(lockFile, "utf8")) as { packages: object };
+    lock.packages = { ...lock.packages, "node_modules/../../x": { version: "1.0.0" } };
+    writeFileSync(lockFile, JSON.stringify(lock));
+    git("add", ".");
+    git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "escape");
+    const run = record();
+    expect(run.status).toBe(4);
+    expect(run.err).toContain("node_modules/../../x 1.0.0 ≠ outside node_modules/");
+    expect(run.err).not.toContain("≠ missing");
+  });
+
   it("exits 4 on an installed version outside its declared range", () => {
     setup("^2.0.0", "1.3.0", "1.3.0");
     const run = record();
@@ -793,20 +814,77 @@ describe("gate:record docs-only", () => {
 // SUI-FEATURE-241: a docs-only record skips the gallery, so nothing the gallery builds may read a
 // `*.md` or `docs/` file — not even as `?raw` or through `import.meta.glob`.
 describe("gallery inputs", () => {
-  it("no src/ or gallery/ file imports a .md or docs/ file", () => {
+  const isDocs = (s: string) => /\.md(\?|$)/.test(s) || /(^|\/)docs(\/|$)/.test(s);
+  // What a file reads of `*.md` or `docs/`: an import, `?raw` or glob, a CSS `@import`, or (#861) a
+  // string literal in the arguments of an fs read; and an `@import "tailwindcss" source(...)`, which
+  // moves Tailwind's scan base away from TAILWIND_SCANNED.
+  const docsInputs = (file: string, text: string): string[] => {
+    const spec =
+      /(?:\bfrom\s*|\bimport\s*\(?\s*|\bglob\s*\(\s*\[?\s*|@import\s+(?:url\()?)["']([^"']+)["']/g;
+    const fsRead =
+      /\b(?:readFileSync|readFile|existsSync|readdirSync|readdir|createReadStream)\s*\(([^)]*)\)/g;
+    const imported = [...text.matchAll(spec)].map((m) => m[1] ?? "");
+    const read = [...text.matchAll(fsRead)].flatMap((m) =>
+      [...(m[1] ?? "").matchAll(/["'`]([^"'`]*)["'`]/g)].map((literal) => literal[1] ?? ""),
+    );
+    const base = /@import\s+["']tailwindcss["'][^;]*\bsource\(/.test(text)
+      ? ['@import "tailwindcss" source(...)']
+      : [];
+    return [...[...imported, ...read].filter(isDocs), ...base].map((s) => `${file}: ${s}`);
+  };
+
+  it("no src/ or gallery/ file imports or reads a .md or docs/ file", () => {
     const root = fileURLToPath(new URL("..", import.meta.url));
     const files = gitIn(root, "ls-files", "src", "gallery")
       .split("\n")
       .filter((f) => /\.(c|m)?(t|j)sx?$|\.css$/.test(f));
-    const spec =
-      /(?:\bfrom\s*|\bimport\s*\(?\s*|\bglob\s*\(\s*\[?\s*|@import\s+(?:url\()?)["']([^"']+)["']/g;
-    const hits = files.flatMap((f) =>
-      [...readFileSync(join(root, f), "utf8").matchAll(spec)]
-        .map((m) => m[1] ?? "")
-        .filter((s) => /\.md(\?|$)/.test(s) || /(^|\/)docs\//.test(s))
-        .map((s) => `${f}: ${s}`),
-    );
+    const hits = files.flatMap((f) => docsInputs(f, readFileSync(join(root, f), "utf8")));
     expect(files.length).toBeGreaterThan(100);
     expect(hits).toEqual([]);
+  });
+
+  // #861 (finding 21): the guard sees fs reads and a moved Tailwind base.
+  it("names a gallery spec that reads docs/ or a .md file through fs", () => {
+    const spec = [
+      'const a = readFileSync(join(root, "docs", "guide.md"), "utf8");',
+      "const b = existsSync(`docs/index.html`);",
+      'await readFile("README.md", "utf8");',
+      'const c = readFileSync(join(root, "src", "styles.css"), "utf8");',
+    ].join("\n");
+    expect(docsInputs("gallery/x.spec.ts", spec)).toEqual([
+      "gallery/x.spec.ts: docs",
+      "gallery/x.spec.ts: guide.md",
+      "gallery/x.spec.ts: docs/index.html",
+      "gallery/x.spec.ts: README.md",
+    ]);
+  });
+
+  it('names an @import "tailwindcss" with a source(...) base', () => {
+    expect(docsInputs("src/styles.css", '@import "tailwindcss" source("../app");')).toEqual([
+      'src/styles.css: @import "tailwindcss" source(...)',
+    ]);
+    expect(docsInputs("src/styles.css", '@import "tailwindcss";\n@source ".";')).toEqual([]);
+  });
+
+  // #861 (finding 21): the docs-only classifier's TAILWIND_SCANNED is Tailwind's real scan scope —
+  // the gallery's Vite root (automatic source detection) plus every `@source` of a CSS file there.
+  it("TAILWIND_SCANNED matches the gallery's Vite root and the @source lines", () => {
+    const root = fileURLToPath(new URL("..", import.meta.url));
+    const read = (file: string) => readFileSync(join(root, file), "utf8");
+    const vite = /\broot:\s*fileURLToPath\(new URL\("([^"]+)", import\.meta\.url\)\)/.exec(
+      read("gallery/vite.config.ts"),
+    );
+    expect(vite).not.toBeNull();
+    const dirs = [posix.join("gallery", vite![1]!)];
+    for (const css of gitIn(root, "ls-files", "src/*.css", "gallery/*.css").split("\n")) {
+      if (css === "") continue;
+      for (const [, source] of read(css).matchAll(/^@source\s+["']([^"']+)["'];/gm)) {
+        dirs.push(posix.join(dirname(css), source!));
+      }
+    }
+    const declared = /const TAILWIND_SCANNED = \[([^\]]*)\]/.exec(read("scripts/release.ts"));
+    expect(declared).not.toBeNull();
+    const scanned = [...declared![1]!.matchAll(/"([^"]+)"/g)].map((m) => m[1]!);
+    expect([...new Set(dirs.map((dir) => `${dir}/`))].sort()).toEqual([...scanned].sort());
   });
 });

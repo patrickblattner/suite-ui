@@ -50,9 +50,12 @@ const DAY = 24 * 60 * 60 * 1000;
 export const KEEP_WEEKS = 8;
 export const COMPLEXITY_THRESHOLD = 15; // eslint-plugin-sonarjs default for cognitive-complexity
 const SOURCE = /\.(ts|tsx|js|jsx|cjs|mjs)$/;
+// Lines of code also count stylesheets and shell scripts beside the sources.
+const LOC_SOURCE = /\.(css|sh)$/;
 const MEASURE_FILES = ["quality-baseline.json", "size-limit-lines.json"];
 
 const bin = (root: string, name: string) => join(root, "node_modules", ".bin", name);
+// eslint-disable-next-line security/detect-non-literal-fs-filename -- root: the repo root (module URL in the CLI, the test's temp dir in tests); form (1): + literal quality-baseline.json, package.json, package-lock.json; or root: git common dir + literal .spec-sync/growth, form (2): a readdir entry matched by WEEK_FILE (writeWeek)
 const readJson = <T>(file: string): T => JSON.parse(readFileSync(file, "utf8")) as T;
 const byValueDesc = (a: [string, number], b: [string, number]) =>
   b[1] - a[1] || a[0].localeCompare(b[0]);
@@ -61,10 +64,12 @@ const byValueDesc = (a: [string, number], b: [string, number]) =>
 
 // Every file under `dir` whose name matches `pattern`, as absolute paths in sorted order.
 function filesUnder(dir: string, pattern: RegExp): string[] {
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: the repo root (module URL) + literal dist, or composition()'s mkdtemp dir; form (1) at the top, form (2) below: recursion only into readdir entries
   return readdirSync(dir)
     .sort()
     .flatMap((name) => {
       const path = join(dir, name);
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: filesUnder's dir (repo root + literal dist, or a mkdtemp dir); form (2): + a readdir entry
       if (statSync(path).isDirectory()) return filesUnder(path, pattern);
       return pattern.test(name) ? [path] : [];
     });
@@ -74,6 +79,7 @@ function filesUnder(dir: string, pattern: RegExp): string[] {
 export function chunkSizes(root: string): Record<string, number> {
   const dist = join(root, "dist");
   return Object.fromEntries(
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: the repo root (module URL) + literal dist; form (2): readdir entries via filesUnder
     filesUnder(dist, /\.(js|css)$/).map((path) => [relative(dist, path), statSync(path).size]),
   );
 }
@@ -232,15 +238,13 @@ export function countLines(text: string): { code: number; comment: number; blank
   return counts;
 }
 
-export function linesOfCode(run: Exec, root: string) {
-  const files = run("git", ["ls-files"], root)
-    .split("\n")
-    .filter(
-      (file) => /\.(ts|tsx|js|jsx|cjs|mjs|css|sh)$/.test(file) && existsSync(join(root, file)),
-    );
+// `tracked` is the repo's `git ls-files` that exist on disk (`trackedFiles`).
+export function linesOfCode(root: string, tracked: string[]) {
+  const files = tracked.filter((file) => SOURCE.test(file) || LOC_SOURCE.test(file));
   const modules: Record<string, { files: number; code: number; comment: number; blank: number }> =
     {};
   for (const file of files) {
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: the repo root (module URL); form (2): + a `git ls-files` entry
     const counted = countLines(readFileSync(join(root, file), "utf8"));
     const module = (modules[moduleOf(file)] ??= { files: 0, code: 0, comment: 0, blank: 0 });
     module.files++;
@@ -280,6 +284,7 @@ export const TYPED_RULE = "@typescript-eslint/no-unnecessary-condition";
 // The files of root's tsconfig.json program: only they have the type information TYPED_RULE needs.
 async function typedFiles(root: string): Promise<Set<string>> {
   const config = join(root, "tsconfig.json");
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: the repo root (module URL); form (1): + literal tsconfig.json
   if (!existsSync(config)) return new Set();
   const { default: ts } = await import("typescript");
   const parsed = ts.getParsedCommandLineOfConfigFile(
@@ -300,6 +305,7 @@ export async function lintMetrics(root: string, files: string[]) {
     import("typescript-eslint"),
   ]);
   const typed = await typedFiles(root);
+  const typedLint = files.filter((file) => typed.has(file));
   const parserOptions = { ecmaFeatures: { jsx: true } };
   const eslint = new ESLint({
     cwd: root,
@@ -315,11 +321,12 @@ export async function lintMetrics(root: string, files: string[]) {
           ...Object.fromEntries(CLEANNESS_RULES.map((rule) => [rule, "error"])),
         },
       },
-      ...(typed.size === 0
+      // ESLint refuses a block with an empty `files`: none when no file is in the program.
+      ...(typedLint.length === 0
         ? []
         : [
             {
-              files: files.filter((file) => typed.has(file)),
+              files: typedLint,
               languageOptions: {
                 parserOptions: { ...parserOptions, projectService: true, tsconfigRootDir: root },
               },
@@ -350,6 +357,8 @@ export async function lintMetrics(root: string, files: string[]) {
   return {
     complexity: {
       threshold: COMPLEXITY_THRESHOLD,
+      // Functions sonarjs reported, i.e. with a cognitive complexity of 1 or more; a function
+      // without branching has 0, gets no report and is not counted here.
       functions: values.length,
       aboveThreshold: values.filter((value) => value > COMPLEXITY_THRESHOLD).length,
       max: Math.max(0, ...values),
@@ -375,6 +384,7 @@ export function anyShare(run: Exec, root: string) {
 // What every chunk consists of: the package build again, with source maps, into a temporary
 // directory that is removed afterwards — dist/ is never touched, so no map is ever shipped.
 export function composition(run: Exec, root: string) {
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: the mkdtemp dir just created; form (1): no segment beneath it
   const out = realpathSync(mkdtempSync(join(tmpdir(), "growth-sourcemaps-")));
   try {
     run(
@@ -457,8 +467,10 @@ const median = (values: number[]) => {
 
 // The week's gate runs from the spec-sync ledger, per profile and per phase.
 export function gateTimes(ledger: string, sinceMs: number) {
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: git common dir (main checkout); form (1): + literal .spec-sync/ledger.jsonl
   const runs = existsSync(ledger)
-    ? readFileSync(ledger, "utf8")
+    ? // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: git common dir (main checkout); form (1): + literal .spec-sync/ledger.jsonl
+      readFileSync(ledger, "utf8")
         .split("\n")
         .filter(Boolean)
         .map((line) => {
@@ -617,8 +629,10 @@ export function targetList(metrics: {
 // and `targets` are what `spec-sync review growth` reads; a second run in the same week replaces
 // that week's file.
 export function writeWeek(dir: string, date: string, metrics: object, meta: object = {}) {
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: git common dir (main checkout); form (1): + literal .spec-sync/growth
   mkdirSync(dir, { recursive: true });
   const week = isoWeek(date);
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: git common dir (main checkout); form (1): + literal .spec-sync/growth
   const earlier = readdirSync(dir)
     .map((name) => WEEK_FILE.exec(name)?.[1])
     .filter((found): found is string => found !== undefined && found < week)
@@ -634,6 +648,7 @@ export function writeWeek(dir: string, date: string, metrics: object, meta: obje
   const annotated = annotate(metrics, previous) as Parameters<typeof targetList>[0];
   const targets = targetList(annotated);
   const file = join(dir, weekFile(week));
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: git common dir (main checkout); form (1): + literal .spec-sync/growth + growth-<ISO week>.json, the week computed from the date
   writeFileSync(
     file,
     `${JSON.stringify({ week, date, previous_week: previousWeek, ...gap, ...meta, targets, ...annotated }, null, 2)}\n`,
@@ -643,13 +658,35 @@ export function writeWeek(dir: string, date: string, metrics: object, meta: obje
   return { file, previousWeek, removed };
 }
 
+// The repo's tracked files that exist on disk, listed once per run.
+function trackedFiles(run: Exec, root: string): string[] {
+  return (
+    run("git", ["ls-files"], root)
+      .split("\n")
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: the repo root (module URL); form (2): + a `git ls-files` entry
+      .filter((file) => file !== "" && existsSync(join(root, file)))
+  );
+}
+
+// A failing `gh` (offline, no auth) costs only the raises, never the week's file: `raises` stays
+// empty and `raises_unavailable` names the reason; `counts.raises` is left out.
+function raisesOrReason(run: Exec, root: string, since: string) {
+  try {
+    return { raises: prRaises(run, root, since) };
+  } catch (error) {
+    return {
+      raises: [] as PrRaise[],
+      unavailable: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
 export async function collect(run: Exec, root: string, ledger: string, now: number) {
   const weekAgo = new Date(now - 7 * DAY).toISOString();
   const fta = ftaScores(run, root);
-  const sources = run("git", ["ls-files"], root)
-    .split("\n")
-    .filter((file) => SOURCE.test(file) && existsSync(join(root, file)));
-  const raises = prRaises(run, root, weekAgo.slice(0, 10));
+  const tracked = trackedFiles(run, root);
+  const sources = tracked.filter((file) => SOURCE.test(file));
+  const { raises, unavailable } = raisesOrReason(run, root, weekAgo.slice(0, 10));
   const raiseCommits = weekRaises(run, root, weekAgo);
   const { cycles, boundaryViolations } = cruise(run, root);
   const { complexity, cleanness } = await lintMetrics(root, sources);
@@ -670,10 +707,11 @@ export async function collect(run: Exec, root: string, ledger: string, now: numb
     size_limit: sizeLimitSizes(run, root),
     ratchet: ratchetCounts(root),
     raises,
+    ...(unavailable === undefined ? {} : { raises_unavailable: unavailable }),
     // The week's commits that raised a value in a measure file: suite-ui merges without PRs.
     raise_commits: raiseCommits,
     dependencies: dependencies(root),
-    modules: Object.entries(linesOfCode(run, root)).map(([module, lines]) => ({
+    modules: Object.entries(linesOfCode(root, tracked)).map(([module, lines]) => ({
       module,
       ...lines,
     })),
@@ -685,7 +723,7 @@ export async function collect(run: Exec, root: string, ledger: string, now: numb
     boundary_violations: boundaryViolations,
     check_times: gateTimes(ledger, now - 7 * DAY),
     counts: {
-      raises: raises.length,
+      ...(unavailable === undefined ? { raises: raises.length } : {}),
       raise_commits: raiseCommits.length,
       fta_files: ftaFiles.length,
       cycles: cycles.length,

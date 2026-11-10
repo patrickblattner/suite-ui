@@ -15,6 +15,8 @@ import { tmpdir } from "node:os";
 import { join, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
+import { resolveUnder } from "./resolve-under.ts";
+
 // The gitleaks hygiene pins (`TOOL_VERSIONS` in hygiene.ts; a test holds the two equal). Node needs a
 // `.ts` path to import hygiene.ts at run time and the typecheck forbids one, so the hook imports none.
 export const GITLEAKS_VERSION = "8.30.1";
@@ -192,7 +194,8 @@ function guard(refs: PushedRef[], remote: string): string[] | undefined {
         );
         const found =
           scan.status === LEAK_EXIT
-            ? (JSON.parse(readFileSync(path, "utf8")) as (Leak & { RuleID: string })[])
+            ? // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: the mkdtemp dir this function created; form (1): + literal leaks.json
+              (JSON.parse(readFileSync(path, "utf8")) as (Leak & { RuleID: string })[])
             : [];
         const leaks = pass === MERGE_PASSES[1] ? octopusOwnLeaks(found) : found;
         if (leaks.length > 0) {
@@ -232,7 +235,9 @@ function withTree<T>(sha: string, check: (cwd: string) => T): T {
   const dir = join(mkdtempSync(join(tmpdir(), "suite-ui-pre-push-")), "tree");
   execFileSync("git", ["worktree", "add", "-q", "--detach", dir, sha], { stdio: "ignore" });
   try {
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: process.cwd() (operator root, the checkout the human's git push runs the hook in); form (1): + literal node_modules
     if (existsSync(join(here, "node_modules"))) {
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- roots: process.cwd() (operator root) and the mkdtemp dir this function created; form (1): each + literal node_modules (dir = mkdtemp + literal tree)
       symlinkSync(join(here, "node_modules"), join(dir, "node_modules"));
     }
     return check(dir);
@@ -252,10 +257,15 @@ const VERDICT: Record<number, { head: string; next: string }> = {
 };
 
 // A log dir inside a throwaway worktree dies with it; it is copied to the same path in this checkout.
-function keptLogs(logDir: string, cwd: string): string {
+export function keptLogs(logDir: string, cwd: string): string {
   const here = process.cwd();
-  const source = resolve(cwd, logDir);
-  const kept = resolve(here, relative(cwd, source));
+  // logDir is a field of the gate's JSON (GL-CODE-020 form 3). A log dir outside the worktree does
+  // not die with it and stays where it is; the worktree root itself is no log dir and is never copied.
+  const source = resolveUnder(cwd, logDir);
+  if (source === undefined) return resolve(cwd, logDir);
+  const kept = resolveUnder(here, relative(cwd, source));
+  if (kept === undefined) return source;
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- roots: cwd (the mkdtemp worktree) and process.cwd() (operator root, the checkout the hook runs in); form (3): source and kept both come from resolveUnder
   if (kept !== source && existsSync(source)) cpSync(source, kept, { recursive: true });
   return kept;
 }

@@ -113,6 +113,7 @@ const label = z.string().max(SLIDE_LIMITS.maxLabelLength);
 // arguments need a separator, and a function takes at most four. The length is checked before it.
 const NUMBER = String.raw`(?:[+-]?(?:\d+(?:\.\d+)?|\.\d+)(?:e[+-]?\d+)?(?:%|deg|rad|grad|turn)?|none)`;
 const SEPARATOR = String.raw`(?:\s*[,/]\s*|\s+)`;
+// eslint-disable-next-line security/detect-non-literal-regexp -- built only from this module's String.raw constants NUMBER and SEPARATOR, no input
 const COLOR_PATTERN = new RegExp(
   String.raw`^(?:#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})|[a-z]{1,32}|(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch)\(\s*${NUMBER}(?:${SEPARATOR}${NUMBER}){0,3}\s*\))$`,
   "i",

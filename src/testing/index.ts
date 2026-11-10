@@ -73,6 +73,7 @@ function matcher(text: string): RegExp {
   const parts = text
     .split(/\{\{\s*\w+\s*\}\}/)
     .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  // eslint-disable-next-line security/detect-non-literal-regexp -- every part of the text is escaped by the replace above; only `.+` is joined in
   return new RegExp(`^${parts.join(".+")}$`, "s");
 }
 

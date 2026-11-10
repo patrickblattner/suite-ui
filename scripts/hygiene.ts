@@ -8,7 +8,7 @@
 //
 // Tools: jscpd, dependency-cruiser, Semgrep OSS (vendored packs in .semgrep/, no registry call), Trivy
 // `fs`, size-limit (lines in size-limit-lines.json) and `spec-sync licence-inventory`; the inventory adds
-// knip, gitleaks over the full history and Trivy `fs --include-dev-deps` (GL-CODE-003; its devDependency
+// knip, gitleaks over the full history, ESLint's `security` count (its per-finding exceptions beside it) and Trivy `fs --include-dev-deps` (GL-CODE-003; its devDependency
 // count lands in summary.json beside `counts`, never in the ratchet). No network except Trivy's vulnerability DB update.
 //
 // The gate is red when a count rises above its baseline, when an `exports` entry has no size lines, or
@@ -203,6 +203,20 @@ export function knipCounts(report: { issues: Record<string, unknown>[] }): Count
   return { "knip.findings": findings };
 }
 
+// ESLint's JSON reporter: the `security` plugin's findings (GL-CODE-022), and beside them the
+// findings excepted per finding with `eslint-disable-next-line security/<rule>` (GL-CODE-020
+// "Visible count"), which are no ratchet count.
+type EslintMessage = { ruleId: string | null };
+export function eslintSecurityCounts(
+  report: { messages: EslintMessage[]; suppressedMessages?: EslintMessage[] }[],
+): { counts: Counts; excepted: number } {
+  const security = (message: EslintMessage) => message.ruleId?.startsWith("security/") === true;
+  return {
+    counts: { "eslint.security": report.flatMap((file) => file.messages).filter(security).length },
+    excepted: report.flatMap((file) => file.suppressedMessages ?? []).filter(security).length,
+  };
+}
+
 // gitleaks logs "<n> commits scanned." on stderr; a run over no commits proves nothing.
 export function gitleaksCommitsScanned(log: string): number | undefined {
   const match = /(\d+) commits scanned/.exec(log);
@@ -241,7 +255,7 @@ const bin = (name: string) => join(root, "node_modules", ".bin", name);
 
 export class Unreadable extends Error {}
 
-interface Ran {
+export interface Ran {
   stdout: string;
   stderr: string;
   status: number | null;
@@ -278,7 +292,9 @@ function checkVersion(tool: keyof typeof TOOL_VERSIONS, args: string[]) {
 export function freshReport<T>(file: string, tool: string, produce: () => void): T {
   rmSync(file, { force: true });
   produce();
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: the repo root (module URL); form (1): every caller passes out (+ literal .spec-sync/hygiene[/gate]) + a literal report name
   if (!existsSync(file)) throw new Unreadable(`${tool} wrote no report`);
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: the repo root (module URL); form (1): every caller passes out (+ literal .spec-sync/hygiene[/gate]) + a literal report name
   return json<T>(tool, readFileSync(file, "utf8"));
 }
 
@@ -306,6 +322,7 @@ function depcruise(out: string) {
     "json",
     ".",
   ]);
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: the repo root (module URL); form (1): out (+ literal .spec-sync/hygiene[/gate]) + a literal report name
   writeFileSync(join(out, "dependency-cruiser.json"), text);
   return depcruiseCounts(json("dependency-cruiser", text));
 }
@@ -348,6 +365,7 @@ export function changedSources(dir = root): string[] | null {
     (file) =>
       SEMGREP_SOURCE.test(file) &&
       !SEMGREP_EXCLUDE.some((path) => file === path || file.startsWith(`${path}/`)) &&
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: dir, the repo root (module URL); form (2): + a `git ls-files` entry
       existsSync(join(dir, file)),
   );
 }
@@ -374,6 +392,7 @@ function semgrep(out: string, targets: string[] | null) {
     "--",
     ...(targets ?? ["."]),
   ]);
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: the repo root (module URL); form (1): out (+ literal .spec-sync/hygiene[/gate]) + a literal report name
   writeFileSync(join(out, "semgrep.json"), text);
   const verdict = semgrepVerdict(json("Semgrep", text), status);
   const scope = targets === null ? "whole repo" : `${targets.length} changed files`;
@@ -385,7 +404,7 @@ function semgrep(out: string, targets: string[] | null) {
 // The gate scans production dependencies only, filtered to HIGH/CRITICAL; `--include-dev-deps`
 // runs in the inventory alone and without a severity filter (GL-CODE-003), where a devDependency
 // finding takes the PROC-REL-007 route, never a gate failure.
-export function trivyArgs(includeDevDeps: boolean, severityFilter = !includeDevDeps): string[] {
+export function trivyArgs(includeDevDeps: boolean, severityFilter: boolean): string[] {
   return [
     "fs",
     ...(includeDevDeps ? ["--include-dev-deps"] : []),
@@ -408,26 +427,44 @@ export function trivyArgs(includeDevDeps: boolean, severityFilter = !includeDevD
   ];
 }
 
-function trivyScan(out: string, includeDevDeps: boolean, file?: string): string {
+// Trivy exits 0 with findings (no `--exit-code`), so any other exit is a failed scan whose stdout
+// proves nothing.
+export function trivyOutput(ran: Ran): string {
+  if (ran.status !== 0) {
+    throw new Unreadable(`trivy exited ${ran.status}: ${ran.stderr.trim().split("\n")[0] ?? ""}`);
+  }
+  return ran.stdout;
+}
+
+// The callers name the severity filter: only the gate's production scan filters (GL-CODE-003).
+function trivyScan(
+  out: string,
+  scan: { includeDevDeps: boolean; severityFilter: boolean; file?: string },
+): string {
+  const { includeDevDeps, severityFilter, file } = scan;
   checkVersion("trivy", ["--version"]);
-  const severityFilter = file === undefined && !includeDevDeps;
-  const { stdout: text } = run("trivy", trivyArgs(includeDevDeps, severityFilter));
+  const text = trivyOutput(run("trivy", trivyArgs(includeDevDeps, severityFilter)));
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: the repo root (module URL); form (1): out (+ literal .spec-sync/hygiene[/gate]) + a literal report name
   writeFileSync(join(out, file ?? (includeDevDeps ? "trivy-dev-deps.json" : "trivy.json")), text);
   return text;
 }
 
 function trivy(out: string) {
-  const counts = trivyCounts(json("Trivy", trivyScan(out, false)));
+  const counts = trivyCounts(
+    json("Trivy", trivyScan(out, { includeDevDeps: false, severityFilter: true })),
+  );
   return { counts, note: "production dependencies, without --include-dev-deps" };
 }
 
 function sizeLimit(out: string) {
   const { stdout: text } = run(bin("size-limit"), ["--json"]);
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: the repo root (module URL); form (1): out (+ literal .spec-sync/hygiene[/gate]) + a literal report name
   writeFileSync(join(out, "size-limit.json"), text);
   const checks = json<SizeCheck[] | { error: string }>("size-limit", text);
   if (!Array.isArray(checks)) throw new Unreadable(`size-limit: ${checks.error}`);
   const lines = json<{ entries: Record<string, SizeLines> }>(
     "size-limit-lines.json",
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: the repo root (module URL); form (1): + literal size-limit-lines.json
     readFileSync(join(root, "size-limit-lines.json"), "utf8"),
   ).entries;
   return { checks, ...sizeVerdict(checks, lines) };
@@ -439,6 +476,7 @@ function licences(out: string) {
     "--allowlist",
     "licence-allowlist.json",
   ]);
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: the repo root (module URL); form (1): out (+ literal .spec-sync/hygiene[/gate]) + a literal report name
   writeFileSync(join(out, "licence-inventory.json"), text);
   const report = json<{ exit: number; findings?: number; error?: string }>(
     "licence-inventory",
@@ -452,8 +490,17 @@ function licences(out: string) {
 
 function knip(out: string) {
   const { stdout: text } = run(bin("knip"), ["--no-progress", "--reporter", "json"]);
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: the repo root (module URL); form (1): out (+ literal .spec-sync/hygiene[/gate]) + a literal report name
   writeFileSync(join(out, "knip.json"), text);
   return knipCounts(json("knip", text));
+}
+
+// The `security` rules run in gate phase `lint`; the inventory counts them over the whole repo.
+function eslintSecurity(out: string) {
+  const { stdout: text } = run(bin("eslint"), [".", "--format", "json"]);
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: the repo root (module URL); form (1): out (+ literal .spec-sync/hygiene[/gate]) + a literal report name
+  writeFileSync(join(out, "eslint.json"), text);
+  return eslintSecurityCounts(json("ESLint", text));
 }
 
 // git log prints no patch for a merge by default. `history` scans every commit, a two-parent merge
@@ -583,12 +630,14 @@ function measureAll(out: string, full: boolean) {
 function readBaseline(): Counts {
   return json<{ counts: Counts }>(
     "quality-baseline.json",
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: the repo root (module URL); form (1): + literal quality-baseline.json
     readFileSync(join(root, "quality-baseline.json"), "utf8"),
   ).counts;
 }
 
 function gateOut(): string {
   const out = join(root, ".spec-sync", "hygiene", "gate");
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: the repo root (module URL); form (1): + literal .spec-sync/hygiene/gate
   mkdirSync(out, { recursive: true });
   return out;
 }
@@ -625,6 +674,7 @@ function gate(): number {
 
 function inventory(): number {
   const out = join(root, ".spec-sync", "hygiene");
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: the repo root (module URL); form (1): + literal .spec-sync/hygiene
   mkdirSync(out, { recursive: true });
   // size-limit measures dist/; the inventory builds it itself.
   const build = spawnSync("npm", ["run", "build"], { cwd: root, stdio: "inherit" });
@@ -632,12 +682,24 @@ function inventory(): number {
   const { counts, size } = measureAll(out, true);
   measure(counts, "knip", () => knip(out));
   measure(counts, "gitleaks", () => gitleaks(out));
+  const eslint = eslintSecurity(out);
+  Object.assign(counts, eslint.counts);
+  console.log(
+    `hygiene: eslint ${JSON.stringify(eslint.counts)} (excepted per finding: ${eslint.excepted})`,
+  );
   // Kept out of `counts`, so it never becomes a quality-baseline.json ratchet entry (GL-CODE-003).
   // The production side is scanned unfiltered too, so a MEDIUM/LOW production finding is not
   // mistaken for a devDependency one.
   const devFindings = trivyDevOnly(
-    json("Trivy", trivyScan(out, false, "trivy-production-all.json")),
-    json("Trivy", trivyScan(out, true)),
+    json(
+      "Trivy",
+      trivyScan(out, {
+        includeDevDeps: false,
+        severityFilter: false,
+        file: "trivy-production-all.json",
+      }),
+    ),
+    json("Trivy", trivyScan(out, { includeDevDeps: true, severityFilter: false })),
   );
   const routes = trivyDevRoutes(devFindings);
   console.log(
@@ -646,11 +708,14 @@ function inventory(): number {
   const head = run("git", ["rev-parse", "HEAD"]).stdout.trim();
   const recordedAt = new Date().toISOString();
   const dependencies = { schemaVersion: 1, run: recordedAt, commit: head, findings: devFindings };
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: the repo root (module URL); form (1): out (+ literal .spec-sync/hygiene[/gate]) + a literal report name
   writeFileSync(join(out, "dependencies.json"), `${JSON.stringify(dependencies, null, 2)}\n`);
   const summary = {
     recordedAt,
     head,
     counts,
+    // Beside `eslint.security`, never a ratchet count (GL-CODE-020 "Visible count").
+    eslintSecurityExcepted: eslint.excepted,
     // Production is `counts["trivy.fixable-high-or-critical"]`; devDependencies split by route.
     trivyDevDependencies: {
       "trivy.fixable-high-or-critical": routes.ticket,
@@ -659,6 +724,7 @@ function inventory(): number {
     },
     sizes: Object.fromEntries(size.checks.map((check) => [check.name, check.size])),
   };
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: the repo root (module URL); form (1): out (+ literal .spec-sync/hygiene[/gate]) + a literal report name
   writeFileSync(join(out, "summary.json"), `${JSON.stringify(summary, null, 2)}\n`);
   console.log(`hygiene: inventory ${JSON.stringify(counts)} — ${join(out, "summary.json")}`);
   return 0;

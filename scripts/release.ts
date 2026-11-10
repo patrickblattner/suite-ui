@@ -28,6 +28,8 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 
+import { resolveUnder } from "./resolve-under.ts";
+
 const git = (...args: string[]): string => execFileSync("git", args, { encoding: "utf8" }).trim();
 
 const isClean = (): boolean => git("status", "--porcelain") === "";
@@ -51,6 +53,7 @@ const DOCS_ONLY = "docs-only";
 
 function readRecord(tree: string): GateRecord | undefined {
   const path = recordPath(tree);
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: git common dir (main checkout); form (1): recordPath + literal .spec-sync/gate-records + a tree hash from git output
   return existsSync(path) ? (JSON.parse(readFileSync(path, "utf8")) as GateRecord) : undefined;
 }
 
@@ -144,17 +147,28 @@ function releaseParent(): { tree: string } | { why: string } {
 // Every `packages` entry of package-lock.json against its installed package.json, offline. An optional
 // package that is not installed (a platform build for another machine) does not count. Returns the
 // first differences as `<path> <locked> ≠ <installed>`.
+// GL-CODE-020 form 3: a lockfile key is data a PR or a dependency bot can edit (`node_modules/../../x`),
+// so it goes through resolveUnder against <root>/node_modules/ (root: the checkout gate:record runs
+// in, beside the literal package-lock.json); a key outside is drift and is never read.
 function lockfileDrift(): string[] {
+  const modules = join(process.cwd(), "node_modules");
   const lock = JSON.parse(readFileSync("package-lock.json", "utf8")) as {
     packages: Record<string, { version?: string; optional?: boolean; link?: boolean }>;
   };
   const drift: string[] = [];
   for (const [path, entry] of Object.entries(lock.packages)) {
     if (path === "" || entry.link || entry.version === undefined) continue;
-    const manifest = join(path, "package.json");
-    if (!existsSync(manifest)) {
+    const dir = path.startsWith("node_modules/")
+      ? resolveUnder(modules, path.slice("node_modules/".length))
+      : undefined;
+    const manifest = dir === undefined ? undefined : join(dir, "package.json");
+    if (manifest === undefined) {
+      drift.push(`${path} ${entry.version} ≠ outside node_modules/`);
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: <cwd>/node_modules (operator root, the checkout gate:record runs in); form (3): resolveUnder + literal package.json
+    } else if (!existsSync(manifest)) {
       if (!entry.optional) drift.push(`${path} ${entry.version} ≠ missing`);
     } else {
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: <cwd>/node_modules (operator root, the checkout gate:record runs in); form (3): resolveUnder + literal package.json
       const { version } = JSON.parse(readFileSync(manifest, "utf8")) as { version?: string };
       if (version !== entry.version) drift.push(`${path} ${entry.version} ≠ ${version}`);
     }
@@ -174,6 +188,7 @@ const RECORD_ARGS = ["--issue", "--run"];
 
 function mergePhases(): string[] {
   const config = JSON.parse(
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: this module's location (import.meta.url); form (1): new URL with a literal
     readFileSync(new URL("../spec-sync.config.json", import.meta.url), "utf8"),
   ) as {
     gate: { profiles: { merge: string[] } };
@@ -247,9 +262,11 @@ function record(gateArgs: string[]): void {
     fail(`the gate ran ${ran.join(",") || "no phase"}, not ${want} — no record`);
   }
   const path = recordPath(tree);
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: git common dir (main checkout); form (1): recordPath + literal .spec-sync/gate-records + a tree hash from git output
   mkdirSync(dirname(path), { recursive: true });
   const at = new Date().toISOString();
   const scope = base === undefined ? {} : { scope: DOCS_ONLY, base };
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: git common dir (main checkout); form (1): recordPath + literal .spec-sync/gate-records + a tree hash from git output
   writeFileSync(
     path,
     `${JSON.stringify({ tree, commit, profile: "merge", ...scope, phases: ran, exit, logDir, at }, null, 2)}\n`,
@@ -262,6 +279,7 @@ function tag(args: string[]): void {
   const unknown = args.filter((a) => a !== "--dry-run");
   if (unknown.length > 0) fail(`unknown argument ${unknown.join(" ")} — no tag`);
   const dryRun = args.includes("--dry-run");
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: this module's location (import.meta.url); form (1): new URL with a literal
   const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as {
     version: string;
   };
@@ -281,10 +299,12 @@ function tag(args: string[]): void {
   });
   const previous = describe.status === 0 ? describe.stdout.trim() : "";
   let path = recordPath(git("rev-parse", "HEAD^{tree}"));
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: git common dir (main checkout); form (1): recordPath + literal .spec-sync/gate-records + a tree hash from git output
   if (!existsSync(path)) {
     // SUI-FEATURE-241: a release commit takes its parent tree's record.
     const parent = releaseParent();
     const parentPath = "tree" in parent ? recordPath(parent.tree) : "";
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: git common dir (main checkout); form (1): recordPath + literal .spec-sync/gate-records + a tree hash from git output
     if (parentPath === "" || !existsSync(parentPath)) {
       const why = "why" in parent ? `; ${parent.why}` : "; its parent's tree has no record either";
       fail(
@@ -296,6 +316,7 @@ function tag(args: string[]): void {
       `release tag: ${commit} differs from its parent only in the release fields — parent tree's record`,
     );
   }
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: git common dir (main checkout); form (1): recordPath + literal .spec-sync/gate-records + a tree hash from git output
   const gate = JSON.parse(readFileSync(path, "utf8")) as GateRecord;
   if (!isGreen(gate)) {
     fail(`the gate record ${path} is not green — ${name} not created`);

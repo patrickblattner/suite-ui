@@ -199,6 +199,7 @@ export interface SlideExtensions {
 }
 
 // An add-on's id: `ext.<app>.<name>`, each part lower-case letters and digits, joined by hyphens.
+// eslint-disable-next-line security/detect-unsafe-regex -- linear: each `-` starts a new run of [a-z0-9], so the starred group matches one way only
 const ADD_ON_ID = /^ext\.[a-z0-9]+(?:-[a-z0-9]+)*\.[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 // Refuses extensions whose add-on ids are not of the form `ext.<app>.<name>` (`SUI-FEATURE-163` AC5):

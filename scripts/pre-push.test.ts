@@ -3,15 +3,17 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import {
   chmodSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   realpathSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { GITLEAKS_PASSES, octopusOwnLeaks as hygieneOwnLeaks, TOOL_VERSIONS } from "./hygiene";
@@ -19,6 +21,7 @@ import {
   checkPlan,
   GITLEAKS_VERSION,
   isWipSubject,
+  keptLogs,
   MERGE_PASSES,
   octopusOwnLeaks,
   parseRefs,
@@ -215,6 +218,12 @@ describe("pre-push hook on a real push", () => {
     git("config", "maintenance.auto", "false");
     git("config", "core.hooksPath", hooks);
     git("remote", "add", "origin", join(dir, "origin.git"));
+    // The hook imports the repo's resolve-then-check helper (#861); it goes into the start commit.
+    writeFileSync(
+      join(work, "scripts", "resolve-under.ts"),
+      readFileSync(new URL("./resolve-under.ts", import.meta.url), "utf8"),
+    );
+    git("add", "scripts/resolve-under.ts");
     commit("chore: start", "scripts/pre-push.ts", readFileSync(script, "utf8"));
     git("checkout", "-q", "-b", "feat/x");
   });
@@ -463,5 +472,51 @@ describe("pre-push hook on a real push", () => {
     expect(run.out).toContain(
       "push refused: this branch predates the pre-push hook (scripts/pre-push.ts missing) — merge or rebase main into it",
     );
+  });
+});
+
+// #861: keptLogs copies only a log dir inside the throwaway worktree. Everything lives in one temp dir
+// — the worktree, the log dirs and this checkout (process.cwd(), stubbed) — so even a regressed
+// keptLogs cannot write outside it.
+describe("keptLogs", () => {
+  let base: string;
+  let tree: string;
+  let here: string;
+  beforeEach(() => {
+    base = realpathSync(mkdtempSync(join(tmpdir(), "suite-ui-kept-logs-")));
+    tree = join(base, "tree");
+    // Deeper than the worktree, so the same relative path from here is not the log dir itself.
+    here = join(base, "x", "y", "here");
+    mkdirSync(tree, { recursive: true });
+    mkdirSync(here, { recursive: true });
+    writeFileSync(join(tree, "notes.txt"), "worktree file\n");
+    vi.spyOn(process, "cwd").mockReturnValue(here);
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    rmSync(base, { recursive: true, force: true });
+  });
+
+  it("names a log dir outside the worktree where it is, without copying it", () => {
+    const outside = join(base, "logs");
+    mkdirSync(outside);
+    writeFileSync(join(outside, "gate.log"), "gate-log\n");
+    const copyTarget = resolve(here, relative(tree, outside));
+    expect(copyTarget.startsWith(`${base}/`)).toBe(true);
+    expect(copyTarget).not.toBe(outside);
+    expect(keptLogs(outside, tree)).toBe(outside);
+    expect(existsSync(copyTarget)).toBe(false);
+  });
+
+  it("never copies the worktree root itself into this checkout", () => {
+    expect(keptLogs(".", tree)).toBe(tree);
+    expect(readdirSync(here)).toEqual([]);
+  });
+
+  it("copies a log dir inside the worktree to the same path here", () => {
+    mkdirSync(join(tree, "logs", "x"), { recursive: true });
+    writeFileSync(join(tree, "logs", "x", "gate.log"), "gate-log\n");
+    expect(keptLogs("logs/x", tree)).toBe(join(here, "logs", "x"));
+    expect(readFileSync(join(here, "logs", "x", "gate.log"), "utf8")).toBe("gate-log\n");
   });
 });

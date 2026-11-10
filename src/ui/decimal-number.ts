@@ -10,10 +10,12 @@ import type * as React from "react";
 const DECIMAL_COMMA = new Set(["de", "es"]);
 // A decimal number as typed: digits with one separator and an exponent at most, so "0x10",
 // "Infinity" or "1_000", which `Number` would take, are not numbers here.
+// eslint-disable-next-line security/detect-unsafe-regex -- linear: one optional separator and one optional exponent, each digit run is bounded by a separator or the end
 const DECIMAL = /^[+-]?(\d+([.,]\d*)?|[.,]\d+)(e[+-]?\d+)?$/i;
 // Digits with more than one separator: grouped ("1.000,5") or with a second decimal sign ("1.2.3").
 // The lookahead asks for a digit without a second run over the digits, so a long paste is rejected
 // in linear time (a `[\d.,]*\d[\d.,]*` backtracks quadratically).
+// eslint-disable-next-line security/detect-unsafe-regex -- linear: the lookahead [.,]*\d stops at the first digit and [\d.,]+ is a single run (see the note above)
 const GROUPED = /^[+-]?(?=[.,]*\d)[\d.,]+(e[+-]?\d+)?$/i;
 
 // The decimal sign of a UI language, by its primary subtag ("de-CH" is "de"): a comma in German and

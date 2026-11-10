@@ -321,6 +321,9 @@ function pack(
 }
 
 const dir = fileURLToPath(new URL("../test/fixtures/pptx/", import.meta.url));
+// eslint-disable-next-line security/detect-non-literal-fs-filename -- root: this module's location (import.meta.url); form (1): + literal ../test/fixtures/pptx/
 mkdirSync(dir, { recursive: true });
+// eslint-disable-next-line security/detect-non-literal-fs-filename -- root: this module's location (import.meta.url); form (1): + literal fixture dir + literal file name
 writeFileSync(`${dir}basic.pptx`, basic());
+// eslint-disable-next-line security/detect-non-literal-fs-filename -- root: this module's location (import.meta.url); form (1): + literal fixture dir + literal file name
 writeFileSync(`${dir}as-image.pptx`, asImage());

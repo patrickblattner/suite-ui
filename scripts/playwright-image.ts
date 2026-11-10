@@ -12,6 +12,7 @@ import { readFileSync } from "node:fs";
 const IMAGE =
   "mcr.microsoft.com/playwright:v1.60.0-jammy@sha256:e1529a04087193966ea15d4a1617345bdaa0791690a24ab2c42b65f9ce5b2cdc";
 
+// eslint-disable-next-line security/detect-non-literal-fs-filename -- root: this module's location (import.meta.url); form (1): new URL with a literal
 const lock = JSON.parse(readFileSync(new URL("../package-lock.json", import.meta.url), "utf8")) as {
   packages?: Record<string, { version?: string }>;
 };

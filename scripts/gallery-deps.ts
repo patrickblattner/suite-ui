@@ -36,6 +36,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     process.exit(4);
   }
   const key = depsKey(
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: this module's location (import.meta.url); form (1): new URL with a literal
     readFileSync(new URL("../package-lock.json", import.meta.url), "utf8"),
     image,
   );

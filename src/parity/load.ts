@@ -35,10 +35,12 @@ function mergeDeep(target: Tree, source: Tree): Tree {
 function stubPath(): string {
   const here = fileURLToPath(new URL(".", import.meta.url));
   const built = join(here, "i18n-stub.js");
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: this module's location (import.meta.url); form (1): + literal i18n-stub.js / i18n-stub.ts
   return existsSync(built) ? built : join(here, "i18n-stub.ts");
 }
 
 async function findBundles(dir: string): Promise<string[]> {
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- root = suite-ui-parity --root or cwd (operator root) + literal APP_SOURCES dir, form (1)
   const entries = await readdir(dir, { recursive: true });
   return entries
     .filter(
@@ -57,6 +59,7 @@ export async function loadAppStrings(app: App, root: string): Promise<AppStrings
   const { src, locales } = APP_SOURCES[app];
   const srcDir = join(root, src);
   const localesDir = join(root, locales);
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- root = suite-ui-parity --root or cwd (operator root) + literal APP_SOURCES dir, form (1)
   if (!existsSync(localesDir)) throw new Error(`no locale directory at ${localesDir}`);
 
   const stub = stubPath();

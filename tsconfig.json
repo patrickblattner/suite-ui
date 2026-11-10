@@ -11,6 +11,8 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "resolveJsonModule": true,
+    // The tool scripts run under plain `node` (type stripping), which needs `.ts` in a relative import.
+    "allowImportingTsExtensions": true,
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
     "esModuleInterop": true,

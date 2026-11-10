@@ -359,6 +359,50 @@ describe("growth:metrics", () => {
     SPAWN_TIMEOUT,
   );
 
+  // #861 (finding 24): ESLint refuses a block with `files: []`.
+  it(
+    "lints without the typed block when no linted file is in the tsconfig program",
+    async () => {
+      const root = join(dir, "untyped");
+      write(
+        join(root, "tsconfig.json"),
+        JSON.stringify({ compilerOptions: { strict: true, noEmit: true }, include: ["lib"] }),
+      );
+      write(join(root, "lib", "l.ts"), "export const l = 1;\n");
+      write(join(root, "src", "c.ts"), "export const c = (a: number) => (a > 1 ? 1 : 0);\n");
+      const { cleanness } = await lintMetrics(root, ["src/c.ts"]);
+      expect(cleanness.rules["@typescript-eslint/no-unnecessary-condition"]).toBe(0);
+    },
+    SPAWN_TIMEOUT,
+  );
+
+  // #861 (findings 25, 27): a failing gh costs only the raises; git ls-files runs once.
+  it("writes the week's file without raises when gh fails, naming the reason", async () => {
+    const { root, ledger, run } = fakeRoot(100);
+    const offline: Exec = (command, args, cwd) => {
+      if (basename(command) === "gh") throw new Error("gh: could not resolve host api.github.com");
+      return run(command, args, cwd);
+    };
+    const metrics = await collect(offline, root, ledger, Date.now());
+    expect(metrics.raises).toEqual([]);
+    expect(metrics.raises_unavailable).toBe("gh: could not resolve host api.github.com");
+    expect(metrics.counts).not.toHaveProperty("raises");
+    expect(metrics.modules.map((entry) => entry.module)).toContain("src");
+    const out = join(dir, "growth");
+    expect(() => writeWeek(out, "2026-11-08", metrics)).not.toThrow();
+  });
+
+  it("lists the tracked files once per run", async () => {
+    const { root, ledger, run } = fakeRoot(100);
+    let listed = 0;
+    const counting: Exec = (command, args, cwd) => {
+      if (basename(command) === "git" && args.join(" ") === "ls-files") listed++;
+      return run(command, args, cwd);
+    };
+    await collect(counting, root, ledger, Date.now());
+    expect(listed).toBe(1);
+  });
+
   it("target list: the 10 worst hotspots, then the up to 5 most-grown modules", () => {
     const out = join(dir, "growth");
     const spots = (score: number) =>

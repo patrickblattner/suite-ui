@@ -25,6 +25,7 @@ export interface ParityMap {
 
 // Read at runtime from the package root: `src/parity/` and `dist/parity/` sit at the same depth.
 export const parityMap = JSON.parse(
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: this module's location (import.meta.url); form (1): new URL with a literal
   readFileSync(new URL("../../parity-map.json", import.meta.url), "utf8"),
 ) as ParityMap;
 
