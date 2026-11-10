@@ -968,3 +968,6 @@
 {"ts":"2026-11-10T17:25:00.781Z","key":"PROC-REL-071","from":2,"to":3,"disposition":"editorial","ref":"package repo without Playwright suite; e2e-targeted phase not run here (rev3 selection/cap rules)"}
 {"ts":"2026-11-10T19:55:17.680Z","key":"PROC-DEV-006","from":3,"to":4,"disposition":"editorial","ref":"process rank rule for sweep tickets; queue sorting lives in toolkit, no suite-ui code impact"}
 {"ts":"2026-11-10T19:55:18.121Z","key":"PROC-DEV-007","from":5,"to":6,"disposition":"editorial","ref":"sweep cutting moved to worker-harness, rank forced by toolkit; no suite-ui code impact"}
+{"ts":"2026-11-10T20:04:52.626Z","key":"PROC-DEV-006","from":4,"to":5,"disposition":"ticket","ref":"871"}
+{"ts":"2026-11-10T20:04:53.256Z","key":"PROC-DEV-007","from":6,"to":7,"disposition":"editorial","ref":"finding areas fixed server-side, dependency sweep pointer; process only, sweep ranking carried by toolkit pin #871"}
+{"ts":"2026-11-10T20:04:53.826Z","key":"PROC-REL-007","from":8,"to":9,"disposition":"editorial","ref":"night security artifact schema v2; suite-ui is a package repo without workflows/night security run"}
