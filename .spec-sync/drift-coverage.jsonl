@@ -962,3 +962,5 @@
 {"ts":"2026-11-10T03:18:19.085Z","key":"GL-UI-018","from":9,"to":10,"disposition":"ticket","ref":"864"}
 {"ts":"2026-11-10T13:05:53.340Z","key":"SUI-FEATURE-384","from":null,"to":2,"disposition":"ticket","ref":"869"}
 {"ts":"2026-11-10T13:53:56.461Z","key":"SUI-FEATURE-384","from":2,"to":3,"disposition":"ticket","ref":"869"}
+{"ts":"2026-11-10T16:13:50.422Z","key":"PROC-REL-071","from":null,"to":2,"disposition":"editorial","ref":"package repo without Playwright suite: PROC-REL-071 exempts it (gallery judges in gate); no phase to wire"}
+{"ts":"2026-11-10T16:13:51.039Z","key":"PROC-REL-012","from":23,"to":24,"disposition":"editorial","ref":"rev 24 only adds e2e-targeted phase (PROC-REL-071); package repo without Playwright suite runs neither e2e lane"}
