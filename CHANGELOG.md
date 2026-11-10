@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — #864: SettingsScaffold scroller leaves its end side to the host's `GL-UI-018` gap floor (patch)
+## 0.229.10 — #864: SettingsScaffold scroller leaves its end side to the host's `GL-UI-018` gap floor (patch)
 
 - **Fixed (#864, GL-UI-018, GL-UI-004, Q#5692):** the settings body scroller carries its focus-ring room on the top and the start side only (`-ms-1.5 ps-1.5 -mt-1.5 pt-1.5`, was `-mx-1.5 px-1.5`). The `px-1.5` utility overrode the host's bar-side floor (`padding-inline-end: var(--page-gutter)`), so the content stood 6 px from the scrollbar instead of the page gutter on every settings route. The host's floor now owns the end side and gives the ring its room there. The gallery host carries that floor for the settings frame, the #850 head-action ring test stays green, and a unit test keeps `px-`/`pe-` off the scroller.
 
