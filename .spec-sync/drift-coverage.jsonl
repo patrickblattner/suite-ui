@@ -965,3 +965,4 @@
 {"ts":"2026-11-10T16:13:50.422Z","key":"PROC-REL-071","from":null,"to":2,"disposition":"editorial","ref":"package repo without Playwright suite: PROC-REL-071 exempts it (gallery judges in gate); no phase to wire"}
 {"ts":"2026-11-10T16:13:51.039Z","key":"PROC-REL-012","from":23,"to":24,"disposition":"editorial","ref":"rev 24 only adds e2e-targeted phase (PROC-REL-071); package repo without Playwright suite runs neither e2e lane"}
 {"ts":"2026-11-10T16:51:27.533Z","key":"PROC-CC-020","from":null,"to":2,"disposition":"editorial","ref":"Overmind owner-inbox process (findings watch); no code impact in suite-ui"}
+{"ts":"2026-11-10T17:25:00.781Z","key":"PROC-REL-071","from":2,"to":3,"disposition":"editorial","ref":"package repo without Playwright suite; e2e-targeted phase not run here (rev3 selection/cap rules)"}
