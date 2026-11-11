@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.232.2 — #877: `spec-sync-toolkit` pin raised to v0.49.1 (PROC-DEV-039 rev 6) (patch)
 
 - **Changed (#877, PROC-DEV-039 rev 6):** `spec-sync-toolkit` devDependency raised from v0.48.0 to v0.49.1 (queue quota window 2).
 
