@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased — #872: spec-sync-toolkit pin raised to v0.48.0 (patch)
+
+- **Changed (#872):** devDependency `spec-sync-toolkit` pinned to `v0.48.0` (was `v0.47.0`). No runtime or baseline changes; the `@typescript-eslint/typescript-estree → minimatch ^11.0.1` override stays (typescript-estree 8.71.1 still declares `minimatch ^10.2.2`).
+
 ## Unreleased — #871: spec-sync-toolkit pin raised to v0.47.0 (patch)
 
 - **Changed (#871, PROC-DEV-006 rev 5, PROC-DEV-007 rev 7):** devDependency `spec-sync-toolkit` pinned to `v0.47.0` (was `v0.43.3`); `spec-sync queue` now ranks red-main audit/security → escalated sweep → `pipeline` → due sweep → rest. No runtime or baseline changes.
