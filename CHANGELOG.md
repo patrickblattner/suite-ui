@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Changed (#877, PROC-DEV-039 rev 6):** `spec-sync-toolkit` devDependency raised from v0.48.0 to v0.49.1 (queue quota window 2).
+
 ## 0.232.1 — #874: no resize snapping for an element turned by a turned group (SUI-FEATURE-196 rev 4) (patch)
 
 - **Changed (#874, SUI-FEATURE-196 §1):** an element turned by a turned group (any group around it with a rotation not 0) no longer snaps while resizing and shows no guide, as an element turned itself already did not; moving it still snaps in the group's frame as before.
