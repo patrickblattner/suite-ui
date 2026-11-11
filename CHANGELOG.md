@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — #874: no resize snapping for an element turned by a turned group (SUI-FEATURE-196 rev 4) (patch)
+
+- **Changed (#874, SUI-FEATURE-196 §1):** an element turned by a turned group (any group around it with a rotation not 0) no longer snaps while resizing and shows no guide, as an element turned itself already did not; moving it still snaps in the group's frame as before.
+- **Fixed (#874, #875 CX1, WCAG 1.4.10):** a toolbar band wraps its own controls, so a wide view band (grid, several labelled overlays, preview) no longer overflows at 320 px; a separator beside a band that spans two rows stays visible, one a wrap leaves at a row's end or start is still cleared.
+- **Fixed (#874, SUI-FEATURE-196 §2):** the zoom and view bands right of the free space wrap their controls to the right edge; a browser test proves the toolbar does not overflow at 320 px with six labelled overlays; the unused turned-frame guide branch of a resize is gone.
+
 ## 0.232.0 — #873: SlideEditor resize snapping, toolbar bands with `toolbarStart`, toggle icons per state (SUI-FEATURE-196 rev 3) (minor)
 
 - **Migration (#873):** new optional props only, no break — `SlideEditor` `toolbarStart?: ReactNode` and `gridToggleIcons?: { icon; pressedIcon? }`; `SlideOverlay` (labelled) `icon?` and `pressedIcon?`; `GridToggle` `pressedIcon?` and `icon?` (both optional; without them the grid icon in both states, so the Community website's use is unchanged). Apps that pass none of them need no change; the toolbar's new band order applies to every editor.

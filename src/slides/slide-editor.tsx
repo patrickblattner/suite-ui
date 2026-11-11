@@ -429,7 +429,7 @@ type Drag =
       rotation: number;
       handle: Handle;
       // What the dragged edges snap to (`SUI-FEATURE-196` §1), in the frame of `box`; none for a turned
-      // element, whose edges do not run along the axes.
+      // element or one inside a turned frame, which does not snap.
       candidates: SnapCandidates | undefined;
     }
   // The box where it is drawn on the page and its groups' turn: the angle is measured on the screen.
@@ -858,7 +858,7 @@ const sameCrop = (a: ImageCrop, b: ImageCrop) =>
   a.zoom === b.zoom && a.offsetX === b.offsetX && a.offsetY === b.offsetY;
 
 // The box of a resize drag at the pointer (`local`, in the drag's frame), its dragged edges snapped
-// (`SUI-FEATURE-196` §1), and the guides drawn turned with a turned frame.
+// (`SUI-FEATURE-196` §1); a resize inside a turned frame does not snap.
 function resizedBox(
   drag: Extract<Drag, { kind: "resize" }>,
   local: Point,
@@ -882,8 +882,7 @@ function resizedBox(
     bypass: keys.altKey,
     keepRatio: keys.shiftKey,
   });
-  const turned = drag.frame.some((group) => group.rotation !== 0);
-  return { box: snap.box, guides: { ...snap.guides, ...(turned ? { frame: drag.frame } : {}) } };
+  return { box: snap.box, guides: snap.guides };
 }
 
 // Whether a host slot holds something to show.
@@ -895,8 +894,16 @@ const filled = (node: React.ReactNode) =>
 // only between two bands that hold something, and a band's own gap is smaller than the one between.
 // A band whose content renders nothing (an empty fragment, a component returning `null`) is hidden
 // with the separator next to it; one that a wrap leaves at a row's end or start is cleared by
-// `useWrappedSeparators`.
-function ToolbarBands({ bands }: { bands: readonly (readonly [string, React.ReactNode])[] }) {
+// `useWrappedSeparators`. A band wraps its own controls too, so a wide one never overflows a narrow
+// viewport (WCAG 1.4.10).
+// `end`: the bands right of the free space wrap their controls to the right edge (§2).
+function ToolbarBands({
+  bands,
+  end = false,
+}: {
+  bands: readonly (readonly [string, React.ReactNode])[];
+  end?: boolean;
+}) {
   return bands
     .filter(([, content]) => content !== null)
     .map(([name, content], index) => (
@@ -909,7 +916,7 @@ function ToolbarBands({ bands }: { bands: readonly (readonly [string, React.Reac
           />
         )}
         <div
-          className="flex items-center gap-1 empty:hidden"
+          className={cn("flex flex-wrap items-center gap-1 empty:hidden", end && "justify-end")}
           data-testid={`slide-editor-band-${name}`}
         >
           {content}
@@ -2729,16 +2736,13 @@ function Editor({
     const box = boxOf(single);
     const frame = groupChain(elements, single.id);
     const placed = placedBox(elements, single);
-    // A resize snaps as a move does (`SUI-FEATURE-196` §1); a turned element does not.
+    // A resize snaps as a move does (`SUI-FEATURE-196` §1); an element turned itself or by a turned
+    // group does not.
     const stays = (element: SlideElement) => element.id !== single.id && !element.hidden;
     const candidates =
-      kind !== "resize" || single.rotation !== 0
+      kind !== "resize" || single.rotation !== 0 || frame.some((group) => group.rotation !== 0)
         ? undefined
-        : dragCandidates(
-            frame.some((group) => group.rotation !== 0) ? frame : undefined,
-            frame,
-            stays,
-          );
+        : dragCandidates(undefined, frame, stays);
     setDrag(
       kind === "resize"
         ? {
@@ -4890,8 +4894,9 @@ function Editor({
                 ],
               ]}
             />
-            <div className="ml-auto flex flex-wrap items-center gap-2">
+            <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
               <ToolbarBands
+                end
                 bands={[
                   ["zoom", <CanvasZoom zoom={zoom} mode={zoomMode} onMode={setZoomMode} />],
                   [

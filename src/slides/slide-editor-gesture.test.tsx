@@ -215,7 +215,17 @@ function renderSnapping(
     const box = a && { x: a.x, y: a.y, width: a.width, height: a.height };
     return { guides, box };
   };
-  return { resize };
+  // Drags the selection by its body; gives the guides seen before the release.
+  const move = (from: [number, number], to: [number, number]) => {
+    fireEvent.pointerDown(canvas, { ...at(...from), button: 0 });
+    fireEvent.pointerMove(canvas, at(...to));
+    const guide = (axis: "x" | "y") =>
+      screen.queryByTestId(`slide-editor-guide-${axis}`)?.getAttribute("data-guide") ?? null;
+    const guides = { x: guide("x"), y: guide("y") };
+    fireEvent.pointerUp(canvas, at(...to));
+    return { guides };
+  };
+  return { resize, move };
 }
 
 // SUI-FEATURE-196 §1: resizing at a handle snaps as moving does.
@@ -275,7 +285,24 @@ describe("SlideEditor resize snapping (SUI-FEATURE-196)", () => {
     expect(snapping.box!.width).toBeCloseTo(357, 0);
   });
 
-  it("a child of a turned group snaps in the group's frame while resizing", () => {
+  it("an element turned 15° does not snap while resizing, but snaps while moving (AC1 rev 4)", () => {
+    const turned: SlideDocumentInput = {
+      ...SNAP_DOC,
+      pages: [
+        {
+          ...SNAP_DOC.pages[0]!,
+          elements: [{ ...shape("a", 100, 100), rotation: 15 }, shape("b", 460, 300)],
+        },
+      ],
+    };
+    const resized = renderSnapping(true, turned).resize("e", [180, 130], [457, 130]);
+    expect(resized.guides).toEqual({ x: null, y: null });
+    cleanup();
+    const moved = renderSnapping(true, turned).move([140, 130], [417, 130]);
+    expect(moved.guides.x).not.toBeNull();
+  });
+
+  it("a child of a group turned 180° does not snap while resizing, but snaps while moving", () => {
     // The group turned 180° about its centre (320, 230): a's right handle (180, 130) in the group
     // stands at (460, 330) on the page, and a pointer moved left moves the edge right in the frame.
     const grouped: SlideDocumentInput = {
@@ -298,18 +325,13 @@ describe("SlideEditor resize snapping (SUI-FEATURE-196)", () => {
         },
       ],
     };
-    const snapped = renderSnapping(false, grouped, [500, 330]).resize("e", [460, 330], [183, 330]);
-    expect(snapped.guides.x).not.toBeNull();
-    expect(snapped.box).toEqual({ x: 100, y: 100, width: 360, height: 60 });
+    const resized = renderSnapping(false, grouped, [500, 330]).resize("e", [460, 330], [183, 330]);
+    expect(resized.guides).toEqual({ x: null, y: null });
+    expect(resized.box).toEqual({ x: 100, y: 100, width: 357, height: 60 });
     cleanup();
-    const bypassed = renderSnapping(false, grouped, [500, 330]).resize(
-      "e",
-      [460, 330],
-      [183, 330],
-      {
-        altKey: true,
-      },
-    );
-    expect(bypassed.box).toEqual({ x: 100, y: 100, width: 357, height: 60 });
+    // a stands at (460..540, 300..360) on the page; 277 px left puts its left edge 3 px from b's
+    // right edge (180) on the page.
+    const moved = renderSnapping(false, grouped, [500, 330]).move([500, 330], [223, 330]);
+    expect(moved.guides.x).not.toBeNull();
   });
 });

@@ -1191,6 +1191,31 @@ describe("SlideEditor toolbar bands (SUI-FEATURE-196 §2)", () => {
     }
   });
 
+  it("a band wraps its own controls; a separator beside a band spanning two rows stays (#874)", () => {
+    // The view band starts on row one and wraps onto row two (0–72 px): its separator stands
+    // beside it on row one, so it stays visible.
+    const rows: Record<string, [number, number]> = {
+      "slide-editor-band-view": [0, 72],
+    };
+    const spy = vi
+      .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+      .mockImplementation(function (this: HTMLElement) {
+        const id = this.getAttribute("data-testid") ?? "";
+        const [top, bottom] =
+          rows[id] ?? (id === "slide-editor-toolbar-separator" ? [6, 26] : [0, 32]);
+        return DOMRect.fromRect({ x: 0, y: top, width: 0, height: bottom - top });
+      });
+    try {
+      editor({ formats: TRANSFER_FORMATS, onTransfer: noop });
+      expect(screen.getByTestId("slide-editor-band-view")).toHaveClass("flex-wrap");
+      for (const separator of screen.getAllByTestId("slide-editor-toolbar-separator")) {
+        expect(separator).not.toHaveAttribute("data-wrapped");
+      }
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
   it("AC3: one page and no transfer leave the left side empty, no separator there", () => {
     // A one-page cap with one page has no page navigation (`SUI-FEATURE-381`).
     editor({ maxPages: 1, document: { ...SLIDE_EDITOR_DOC, pages: [SLIDE_EDITOR_DOC.pages[0]!] } });

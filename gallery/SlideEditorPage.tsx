@@ -404,8 +404,10 @@ function hostExtensions(format: SlideFormat): SlideExtensions {
 // `SUI-FEATURE-196` (`?bands=1`): the toolbar in bands with the app's tools at its start (an insert
 // menu and grouping, gallery stand-ins), and the view toggles with an icon per state: the grid's from
 // `gridToggleIcons`, the host's overlays with `icon` and `pressedIcon` (the phone frame without one,
-// so it keeps its icon while shown).
-const BANDS = PARAMS.get("bands") === "1";
+// so it keeps its icon while shown). `?bands=6`: six labelled overlays, for the toolbar's reflow at
+// 320 px (WCAG 1.4.10, #874).
+const BANDS = PARAMS.get("bands") === "1" || PARAMS.get("bands") === "6";
+const SIX_OVERLAYS = PARAMS.get("bands") === "6";
 function bandExtensions(format: SlideFormat): SlideExtensions {
   const extensions = hostExtensions(format);
   const [safe, phone] = extensions.overlays!;
@@ -414,6 +416,12 @@ function bandExtensions(format: SlideFormat): SlideExtensions {
     overlays: [
       { ...safe!, icon: <EyeOffIcon />, pressedIcon: <EyeIcon /> } as SlideOverlay,
       { ...phone!, icon: <SmartphoneIcon /> } as SlideOverlay,
+      ...(SIX_OVERLAYS
+        ? ["Bleed", "Margins", "Columns", "Baseline"].map(
+            (label) =>
+              ({ ...safe!, id: label.toLowerCase(), label, icon: <EyeOffIcon /> }) as SlideOverlay,
+          )
+        : []),
     ],
   };
 }
