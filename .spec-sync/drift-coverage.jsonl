@@ -972,3 +972,4 @@
 {"ts":"2026-11-10T20:04:53.256Z","key":"PROC-DEV-007","from":6,"to":7,"disposition":"editorial","ref":"finding areas fixed server-side, dependency sweep pointer; process only, sweep ranking carried by toolkit pin #871"}
 {"ts":"2026-11-10T20:04:53.826Z","key":"PROC-REL-007","from":8,"to":9,"disposition":"editorial","ref":"night security artifact schema v2; suite-ui is a package repo without workflows/night security run"}
 {"ts":"2026-11-10T20:59:48.768Z","key":"PROC-REL-007","from":9,"to":10,"disposition":"editorial","ref":"collector key scheme for dependency rows (harness side); suite-ui is a package repo without workflows/night security run"}
+{"ts":"2026-11-11T01:37:46.567Z","key":"PROC-REL-031","from":19,"to":20,"disposition":"editorial","ref":"rev20 widens DOCKER_CONFIG isolation to host registry pull/push; suite-ui has no .github/workflows, no code impact"}
