@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — #874: no resize snapping for an element turned by a turned group (SUI-FEATURE-196 rev 4) (patch)
+## 0.232.1 — #874: no resize snapping for an element turned by a turned group (SUI-FEATURE-196 rev 4) (patch)
 
 - **Changed (#874, SUI-FEATURE-196 §1):** an element turned by a turned group (any group around it with a rotation not 0) no longer snaps while resizing and shows no guide, as an element turned itself already did not; moving it still snaps in the group's frame as before.
 - **Fixed (#874, #875 CX1, WCAG 1.4.10):** a toolbar band wraps its own controls, so a wide view band (grid, several labelled overlays, preview) no longer overflows at 320 px; a separator beside a band that spans two rows stays visible, one a wrap leaves at a row's end or start is still cleared.
