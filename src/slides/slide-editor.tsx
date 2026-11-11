@@ -28,6 +28,7 @@ import { useTranslation } from "react-i18next";
 
 import { cn } from "../lib/cn.js";
 import { PRESSED_FILL_CLASS } from "../lib/pressed-fill.js";
+import { toggleIcon } from "../lib/toggle-icon.js";
 import { Button } from "../ui/button.js";
 import {
   ContextMenu,
@@ -123,6 +124,7 @@ import {
   type SnapCandidates,
   snapBox,
   snapCandidates,
+  snapResize,
   standingElements,
   turnedFrameCandidates,
 } from "./editor-geometry.js";
@@ -305,6 +307,13 @@ export interface SlideEditorProps extends Pick<
   // kept by the editor when the app leaves it out, all shown at first; never in the document.
   overlaysShown?: readonly string[];
   onOverlaysShown?: (shown: string[]) => void;
+  // The app's tools at the toolbar's start (`SUI-FEATURE-196` §2), e.g. an insert menu and grouping:
+  // the first band, before Transfer format and the page navigation. The editor neither reads nor
+  // stores anything from it; under `readOnly` the app gives there only what changes nothing.
+  toolbarStart?: React.ReactNode;
+  // The grid toggle's icons from the app (`SUI-FEATURE-196` §3): `pressedIcon` while the grid is
+  // shown (without it `icon`); without the prop the grid icon in both states.
+  gridToggleIcons?: { icon: React.ReactNode; pressedIcon?: React.ReactNode };
   // The colours last applied in this editor's colour fields, newest first, at most eight
   // (`SUI-FEATURE-137`): view state of the person, kept by the editor for the session when the app
   // leaves it out; never in the document, never in `onChange`.
@@ -419,6 +428,9 @@ type Drag =
       box: Box;
       rotation: number;
       handle: Handle;
+      // What the dragged edges snap to (`SUI-FEATURE-196` §1), in the frame of `box`; none for a turned
+      // element, whose edges do not run along the axes.
+      candidates: SnapCandidates | undefined;
     }
   // The box where it is drawn on the page and its groups' turn: the angle is measured on the screen.
   | { kind: "rotate"; base: SlideDocument; id: string; box: Box; turn: number }
@@ -845,6 +857,101 @@ function shownCrop(
 const sameCrop = (a: ImageCrop, b: ImageCrop) =>
   a.zoom === b.zoom && a.offsetX === b.offsetX && a.offsetY === b.offsetY;
 
+// The box of a resize drag at the pointer (`local`, in the drag's frame), its dragged edges snapped
+// (`SUI-FEATURE-196` §1), and the guides drawn turned with a turned frame.
+function resizedBox(
+  drag: Extract<Drag, { kind: "resize" }>,
+  local: Point,
+  zoom: number,
+  keys: { altKey: boolean; shiftKey: boolean },
+): { box: Box; guides: { x?: number; y?: number; frame?: Group[] } } {
+  const box = resizeBox(
+    drag.box,
+    drag.rotation,
+    drag.handle,
+    { x: local.x - drag.start.x, y: local.y - drag.start.y },
+    keys.shiftKey,
+  );
+  if (drag.candidates === undefined) return { box, guides: {} };
+  const snap = snapResize({
+    start: drag.box,
+    handle: drag.handle,
+    box,
+    candidates: drag.candidates,
+    tolerance: SNAP_PX / zoom,
+    bypass: keys.altKey,
+    keepRatio: keys.shiftKey,
+  });
+  const turned = drag.frame.some((group) => group.rotation !== 0);
+  return { box: snap.box, guides: { ...snap.guides, ...(turned ? { frame: drag.frame } : {}) } };
+}
+
+// Whether a host slot holds something to show.
+const filled = (node: React.ReactNode) =>
+  node !== undefined && node !== null && typeof node !== "boolean" && node !== "";
+
+// Toolbar bands in order (`SUI-FEATURE-196` §2): an empty one (`null`) is left out with its
+// separator; a separator, in the border colour at about two thirds of a control's height, stands
+// only between two bands that hold something, and a band's own gap is smaller than the one between.
+// A band whose content renders nothing (an empty fragment, a component returning `null`) is hidden
+// with the separator next to it; one that a wrap leaves at a row's end or start is cleared by
+// `useWrappedSeparators`.
+function ToolbarBands({ bands }: { bands: readonly (readonly [string, React.ReactNode])[] }) {
+  return bands
+    .filter(([, content]) => content !== null)
+    .map(([name, content], index) => (
+      <React.Fragment key={name}>
+        {index === 0 ? null : (
+          <span
+            className="h-5 w-px bg-border data-wrapped:invisible [&:has(+div:empty)]:hidden [div:empty+&]:hidden"
+            aria-hidden="true"
+            data-testid="slide-editor-toolbar-separator"
+          />
+        )}
+        <div
+          className="flex items-center gap-1 empty:hidden"
+          data-testid={`slide-editor-band-${name}`}
+        >
+          {content}
+        </div>
+      </React.Fragment>
+    ));
+}
+
+// A wrapped toolbar (narrow viewports): a separator that does not stand on one row with both of its
+// bands is marked `data-wrapped` and turns invisible, keeping its place so the wrap cannot flip back.
+// Read from the layout after each render and again whenever the toolbar resizes.
+function useWrappedSeparators(toolbar: React.RefObject<HTMLDivElement | null>) {
+  const measure = React.useCallback(() => {
+    const node = toolbar.current;
+    if (!node) return;
+    const separators = node.querySelectorAll<HTMLElement>(
+      "[data-testid=slide-editor-toolbar-separator]",
+    );
+    for (const separator of separators) {
+      const rect = separator.getBoundingClientRect();
+      const middle = (rect.top + rect.bottom) / 2;
+      const beside = (band: Element | null) => {
+        if (!band) return false;
+        const box = band.getBoundingClientRect();
+        return box.top <= middle && middle <= box.bottom;
+      };
+      separator.toggleAttribute(
+        "data-wrapped",
+        !beside(separator.previousElementSibling) || !beside(separator.nextElementSibling),
+      );
+    }
+  }, [toolbar]);
+  React.useLayoutEffect(measure);
+  React.useLayoutEffect(() => {
+    const node = toolbar.current;
+    if (!node || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [toolbar, measure]);
+}
+
 export function SlideEditor({
   document: source,
   title,
@@ -876,6 +983,8 @@ export function SlideEditor({
   maxPages,
   overlaysShown,
   onOverlaysShown,
+  toolbarStart,
+  gridToggleIcons,
   recentColors,
   onRecentColors,
   hostDirty,
@@ -928,6 +1037,8 @@ export function SlideEditor({
         maxPages,
         overlaysShown,
         onOverlaysShown,
+        toolbarStart,
+        gridToggleIcons,
         recentColors,
         onRecentColors,
         hostDirty,
@@ -951,6 +1062,8 @@ type HostSlots = Pick<
   | "maxPages"
   | "overlaysShown"
   | "onOverlaysShown"
+  | "toolbarStart"
+  | "gridToggleIcons"
   | "recentColors"
   | "onRecentColors"
   | "hostDirty"
@@ -1773,6 +1886,17 @@ function Editor({
   const styleSave = host.styleDrawer?.styleSave;
   const styleDirty = !readOnly && styleSave?.dirty === true;
   const styleBusy = styleSave?.saving === true || styleSave?.resetting === true;
+  // The guard reads the outcome of the operation that held the way out: a Stil save or reset that
+  // starts drops an earlier document save's or reset's failure, so a Back held during a successful
+  // Stil save goes on (collector row 371).
+  const [styleBusyBefore, setStyleBusyBefore] = React.useState(styleBusy);
+  if (styleBusy !== styleBusyBefore) {
+    setStyleBusyBefore(styleBusy);
+    if (styleBusy) {
+      setSaveFailed(false);
+      setResetFailed(false);
+    }
+  }
   const fieldDrafts = useHasFieldDrafts(pageDrafts);
   const saveWithStyle = async () => {
     if ((dirty || fieldDrafts) && (await save()) !== true) return false;
@@ -1831,6 +1955,8 @@ function Editor({
     return shownCrop(image, src === brokenCropSrc ? undefined : size);
   };
   const canvas = React.useRef<HTMLDivElement>(null);
+  const toolbar = React.useRef<HTMLDivElement>(null);
+  useWrappedSeparators(toolbar);
   // A delete down to the one page under a cap of 1 takes the page list away with its confirm dialog,
   // whose focus would fall to the body: the canvas takes it, after the dialog's own focus return.
   const focusCanvasOnOnePage = React.useRef(false);
@@ -2318,6 +2444,24 @@ function Editor({
         updateElements(current, page, [id], (element) => withBody(element, cell, change)),
       merge,
     );
+  // What a move or a resize snaps to, once per drag (`SUI-FEATURE-190`, `SUI-FEATURE-196` §1): in a
+  // turned group's frame (`turned`) at it, the groups enclosing it there and the siblings; else on the
+  // page at the page, the elements that stay (in the `enclosing` groups too, at every level) and the
+  // shown grid.
+  const dragCandidates = (
+    turned: readonly Group[] | undefined,
+    enclosing: readonly Group[],
+    stays: (element: SlideElement) => boolean,
+  ): SnapCandidates =>
+    turned !== undefined
+      ? turnedFrameCandidates(turned, stays)
+      : snapCandidates(
+          { width: pageWidth, height: pageHeight },
+          standingElements(elements, new Set(enclosing.map((group) => group.id)), stays).map(
+            (element) => pageBox(elements, element),
+          ),
+          gridShown ? grid : null,
+        );
   // Pointer work on the canvas: select, move, frame-select, resize, rotate.
   const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if (event.button !== 0) return;
@@ -2374,9 +2518,7 @@ function Editor({
     if (moving.length === 0 || (event.shiftKey && !ids.includes(hit.id))) return;
     const movingIds = moving.map((element) => element.id);
     const frames = movingIds.map((id) => groupChain(elements, id));
-    // Children of the same turned group snap in its frame, at it, the groups enclosing it there and
-    // the siblings; any other selection by its box on the page, at the page, the elements that stay
-    // (in its groups too, at every level) and the shown grid (`SUI-FEATURE-190`). Once per drag.
+    // Children of the same turned group snap in its frame, any other selection by its box on the page.
     const first = frames[0]!;
     const shared =
       first.some((group) => group.rotation !== 0) &&
@@ -2395,7 +2537,7 @@ function Editor({
         base: history.document,
         ids: movingIds,
         box: boundsOf(moving.map(drawnBox))!,
-        candidates: turnedFrameCandidates(first, stays),
+        candidates: dragCandidates(first, first, stays),
       });
       return;
     }
@@ -2407,13 +2549,7 @@ function Editor({
       base: history.document,
       ids: movingIds,
       box: boundsOf(moving.map((element) => pageBox(elements, element)))!,
-      candidates: snapCandidates(
-        { width: pageWidth, height: pageHeight },
-        standingElements(elements, new Set(frames.flat().map((group) => group.id)), stays).map(
-          (element) => pageBox(elements, element),
-        ),
-        gridShown ? grid : null,
-      ),
+      candidates: dragCandidates(undefined, frames.flat(), stays),
     });
   };
 
@@ -2542,14 +2678,8 @@ function Editor({
       return;
     }
     if (drag.kind === "resize") {
-      const local = intoGroups(drag.frame, point);
-      const box = resizeBox(
-        drag.box,
-        drag.rotation,
-        drag.handle,
-        { x: local.x - drag.start.x, y: local.y - drag.start.y },
-        event.shiftKey,
-      );
+      const { box, guides } = resizedBox(drag, intoGroups(drag.frame, point), zoom, event);
+      setGuides(guides);
       // A handle on a side that follows the text makes the field `fixed`, in the same step
       // (`SUI-FEATURE-165`).
       const dragged = findElement(drag.base.pages[page]?.elements ?? [], drag.id)?.element;
@@ -2599,6 +2729,16 @@ function Editor({
     const box = boxOf(single);
     const frame = groupChain(elements, single.id);
     const placed = placedBox(elements, single);
+    // A resize snaps as a move does (`SUI-FEATURE-196` §1); a turned element does not.
+    const stays = (element: SlideElement) => element.id !== single.id && !element.hidden;
+    const candidates =
+      kind !== "resize" || single.rotation !== 0
+        ? undefined
+        : dragCandidates(
+            frame.some((group) => group.rotation !== 0) ? frame : undefined,
+            frame,
+            stays,
+          );
     setDrag(
       kind === "resize"
         ? {
@@ -2610,6 +2750,7 @@ function Editor({
             box,
             rotation: single.rotation,
             handle,
+            candidates,
           }
         : {
             kind,
@@ -4687,76 +4828,117 @@ function Editor({
           {...(styleSave === undefined ? {} : { styleSave })}
         />
         <div className="flex min-w-0 flex-1 flex-col">
-          <div className="flex flex-wrap items-center gap-2 border-b px-2 py-1" data-tooltip-row="">
-            {onePage ? null : (
-              <>
-                <IconButtonTooltip label={t("slides.editor.previousPage")}>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    disabled={page === 0}
-                    onClick={() => {
-                      setPage(page - 1);
-                      setSelection([]);
-                    }}
-                    data-testid="slide-editor-previous-page"
-                  >
-                    <ChevronLeftIcon />
-                  </Button>
-                </IconButtonTooltip>
-                <span className="text-sm tabular-nums" data-testid="slide-editor-page">
-                  {t("slides.editor.page", { current: page + 1, total: document.pages.length })}
-                </span>
-                <IconButtonTooltip label={t("slides.editor.nextPage")}>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    disabled={page >= document.pages.length - 1}
-                    onClick={() => {
-                      setPage(page + 1);
-                      setSelection([]);
-                    }}
-                    data-testid="slide-editor-next-page"
-                  >
-                    <ChevronRightIcon />
-                  </Button>
-                </IconButtonTooltip>
-              </>
-            )}
+          <div
+            ref={toolbar}
+            className="flex flex-wrap items-center gap-2 border-b px-2 py-1"
+            data-tooltip-row=""
+            data-testid="slide-editor-toolbar"
+          >
+            {/* The bands (`SUI-FEATURE-196` §2): what makes something on the left, what only changes
+                the view on the right; a separator only between two bands that hold something. */}
+            <ToolbarBands
+              bands={[
+                ["start", filled(host.toolbarStart) ? host.toolbarStart : null],
+                [
+                  "transfer",
+                  readOnly || onTransfer === undefined || otherFormats.length === 0 ? null : (
+                    <TransferFormat formats={otherFormats} onTransfer={transfer} />
+                  ),
+                ],
+                [
+                  "pages",
+                  onePage ? null : (
+                    <>
+                      <IconButtonTooltip label={t("slides.editor.previousPage")}>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          disabled={page === 0}
+                          onClick={() => {
+                            setPage(page - 1);
+                            setSelection([]);
+                          }}
+                          data-testid="slide-editor-previous-page"
+                        >
+                          <ChevronLeftIcon />
+                        </Button>
+                      </IconButtonTooltip>
+                      <span className="text-sm tabular-nums" data-testid="slide-editor-page">
+                        {t("slides.editor.page", {
+                          current: page + 1,
+                          total: document.pages.length,
+                        })}
+                      </span>
+                      <IconButtonTooltip label={t("slides.editor.nextPage")}>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          disabled={page >= document.pages.length - 1}
+                          onClick={() => {
+                            setPage(page + 1);
+                            setSelection([]);
+                          }}
+                          data-testid="slide-editor-next-page"
+                        >
+                          <ChevronRightIcon />
+                        </Button>
+                      </IconButtonTooltip>
+                    </>
+                  ),
+                ],
+              ]}
+            />
             <div className="ml-auto flex flex-wrap items-center gap-2">
-              <SlidePreview document={document} page={page} view={view} />
-              {readOnly || onTransfer === undefined || otherFormats.length === 0 ? null : (
-                <TransferFormat formats={otherFormats} onTransfer={transfer} />
-              )}
-              <GridToggle
-                mode="coupled"
-                value={{ guides: gridShown, snap: gridShown }}
-                onChange={(value) => setGridShown(value.guides)}
-                definition={grid}
-                unavailableText={t("slides.editor.gridUnavailable")}
+              <ToolbarBands
+                bands={[
+                  ["zoom", <CanvasZoom zoom={zoom} mode={zoomMode} onMode={setZoomMode} />],
+                  [
+                    "view",
+                    <>
+                      <GridToggle
+                        mode="coupled"
+                        value={{ guides: gridShown, snap: gridShown }}
+                        onChange={(value) => setGridShown(value.guides)}
+                        definition={grid}
+                        unavailableText={t("slides.editor.gridUnavailable")}
+                        {...(host.gridToggleIcons === undefined
+                          ? {}
+                          : {
+                              icon: host.gridToggleIcons.icon,
+                              pressedIcon: host.gridToggleIcons.pressedIcon,
+                            })}
+                      />
+                      {/* A labelled overlay's toggle with the app's hint, already translated, on
+                          hover and focus; the type requires it, never the label in its place
+                          (`GL-UI-017`, rev 8). With the app's `icon` the icon before the label, while
+                          shown its `pressedIcon` (`SUI-FEATURE-196` §3). */}
+                      {overlays.map((overlay) => {
+                        if (overlay.label === undefined) return null;
+                        const shown = overlaysShown.includes(overlay.id);
+                        return (
+                          <Hint key={overlay.id} text={overlay.hint}>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              aria-pressed={shown}
+                              className={PRESSED_FILL_CLASS}
+                              onClick={() => toggleOverlay(overlay.id)}
+                              data-testid={`slide-editor-overlay-toggle-${overlay.id}`}
+                            >
+                              {toggleIcon(shown, overlay.icon, overlay.pressedIcon)}
+                              {overlay.label}
+                            </Button>
+                          </Hint>
+                        );
+                      })}
+                      <SlidePreview document={document} page={page} view={view} />
+                    </>,
+                  ],
+                ]}
               />
-              {/* A labelled overlay's toggle with the app's hint, already translated, on hover and
-                  focus; the type requires it, never the label in its place (`GL-UI-017`, rev 8). */}
-              {overlays.map((overlay) =>
-                overlay.label === undefined ? null : (
-                  <Hint key={overlay.id} text={overlay.hint}>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      aria-pressed={overlaysShown.includes(overlay.id)}
-                      className={PRESSED_FILL_CLASS}
-                      onClick={() => toggleOverlay(overlay.id)}
-                      data-testid={`slide-editor-overlay-toggle-${overlay.id}`}
-                    >
-                      {overlay.label}
-                    </Button>
-                  </Hint>
-                ),
-              )}
-              <CanvasZoom zoom={zoom} mode={zoomMode} onMode={setZoomMode} />
             </div>
           </div>
           <div

@@ -1,6 +1,6 @@
 import { cleanup, createEvent, fireEvent, render, screen } from "@testing-library/react";
 import i18n from "i18next";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { PRESSED_FILL_CLASS } from "../lib/pressed-fill.js";
@@ -249,10 +249,14 @@ function Toggle({
   mode,
   definition = COLUMNS,
   onChange = () => {},
+  icon,
+  pressedIcon,
 }: {
   mode: "coupled" | "separate";
   definition?: GridDefinition | null;
   onChange?: (value: GridToggleValue) => void;
+  icon?: ReactNode;
+  pressedIcon?: ReactNode;
 }) {
   const [value, setValue] = useState<GridToggleValue>({ guides: false, snap: false });
   return (
@@ -265,6 +269,8 @@ function Toggle({
       }}
       definition={definition}
       unavailableText="Set a grid in the brand kit"
+      {...(icon === undefined ? {} : { icon })}
+      {...(pressedIcon === undefined ? {} : { pressedIcon })}
     />
   );
 }
@@ -568,6 +574,40 @@ describe("GridToggle rev 6 (SUI-FEATURE-087)", () => {
     render(<Toggle mode="coupled" />);
     const classes = screen.getByTestId("grid-toggle-button").className.split(" ");
     for (const token of PRESSED_FILL_CLASS.split(" ")) expect(classes).toContain(token);
+  });
+});
+
+// SUI-FEATURE-196 §3: an icon per state; the fill and `aria-pressed` stay as they are.
+describe("GridToggle icons (SUI-FEATURE-196)", () => {
+  const off = <svg data-testid="icon-off" />;
+  const on = <svg data-testid="icon-on" />;
+  it.each(["coupled", "separate"] as const)("%s: shows pressedIcon while pressed", (mode) => {
+    render(<Toggle mode={mode} icon={off} pressedIcon={on} />);
+    const button = screen.getByTestId("grid-toggle-button");
+    expect(button).toHaveAccessibleName("Grid");
+    expect(screen.getByTestId("icon-off")).toHaveAttribute("aria-hidden", "true");
+    expect(screen.getByTestId("icon-off").parentElement).toBe(button);
+    expect(screen.queryByTestId("icon-on")).toBeNull();
+    fireEvent.click(button);
+    expect(button).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("icon-on")).toBeInTheDocument();
+    expect(screen.queryByTestId("icon-off")).toBeNull();
+    fireEvent.click(button);
+    expect(button).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByTestId("icon-off")).toBeInTheDocument();
+  });
+
+  it("keeps icon while pressed without pressedIcon, the grid icon without either", () => {
+    render(<Toggle mode="coupled" icon={off} />);
+    fireEvent.click(screen.getByTestId("grid-toggle-button"));
+    expect(screen.getByTestId("icon-off")).toBeInTheDocument();
+    cleanup();
+    render(<Toggle mode="coupled" />);
+    const button = screen.getByTestId("grid-toggle-button");
+    const before = button.innerHTML;
+    expect(button.querySelector(":scope > svg[aria-hidden=true]")).not.toBeNull();
+    fireEvent.click(button);
+    expect(button.innerHTML).toBe(before);
   });
 });
 

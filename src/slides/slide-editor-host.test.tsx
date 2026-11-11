@@ -3,13 +3,15 @@ import { act, cleanup, fireEvent, render, screen, within } from "@testing-librar
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SLIDE_BRAND, SLIDE_EDITOR_DOC } from "../../gallery/slide-showcase.js";
+import { PRESSED_FILL_CLASS } from "../lib/pressed-fill.js";
 import { SlideEditor, type SlideEditorHandle, type SlideEditorProps } from "./slide-editor.js";
 import type { SlideExtensions, SlideOverlay } from "./slide-view.js";
 import { TagInput } from "../ui/tag-input.js";
 
 // `SUI-FEATURE-134`: the host's slots — header status, page-panel section, overlay toggles, host
 // steps in the undo history with `onReset`. `SUI-FEATURE-384`: the host's Stil drawer and Dokument
-// section.
+// section. `SUI-FEATURE-196`: the toolbar in bands with the host's `toolbarStart`, and the view
+// toggles with an icon per state.
 
 // jsdom has no layout observer and no scrolling; the slots need nothing more.
 const noop = () => {};
@@ -614,27 +616,38 @@ describe("SlideEditor awaits the host's onReset (SUI-FEATURE-383)", () => {
   });
 
   // #859: an earlier failed save does not count against a header Reset that follows: Back held
-  // during that reset goes on once it resolves.
-  it("carries out Back held during a header Reset that follows a failed save", async () => {
-    const reset = held();
-    const onSave = vi.fn(() => false);
-    const onBack = vi.fn();
-    edited({ onReset: vi.fn(() => reset.promise), onSave, onBack });
-    click("editor-save");
-    await act(async () => {});
-    expect(onSave).toHaveBeenCalledTimes(1);
-    await confirmReset();
-    click("editor-back");
-    await act(async () => {});
-    expect(onBack).not.toHaveBeenCalled();
-    await act(async () => {
-      reset.settle.resolve();
-      await reset.promise;
-    });
-    await act(async () => {});
-    expect(onBack).toHaveBeenCalledTimes(1);
-    cleared();
-  });
+  // during that reset goes on once it resolves. Collector row 236: a reset that then fails itself
+  // (`false` or a rejection) drops the held Back and keeps the history.
+  it.each(["resolve", "false", "reject"] as const)(
+    "decides Back held during a header Reset after a failed save by the reset (%s)",
+    async (outcome) => {
+      const reset = held();
+      const onSave = vi.fn(() => false);
+      const onBack = vi.fn();
+      const { hostUndo } = edited({ onReset: vi.fn(() => reset.promise), onSave, onBack });
+      click("editor-save");
+      await act(async () => {});
+      expect(onSave).toHaveBeenCalledTimes(1);
+      await confirmReset();
+      click("editor-back");
+      await act(async () => {});
+      expect(onBack).not.toHaveBeenCalled();
+      await act(async () => {
+        if (outcome === "reject") reset.settle.reject(new Error("delete failed"));
+        else reset.settle.resolve(outcome === "false" ? false : undefined);
+        await reset.promise.catch(() => {});
+      });
+      await act(async () => {});
+      if (outcome === "resolve") {
+        expect(onBack).toHaveBeenCalledTimes(1);
+        cleared();
+        return;
+      }
+      expect(onBack).not.toHaveBeenCalled();
+      expect(screen.queryByTestId("leave-guard")).toBeNull();
+      unchanged(hostUndo);
+    },
+  );
 
   // A host whose `onReset` throws in the header Reset fails as a rejection does: nothing changes.
   it("keeps everything when onReset throws in the header Reset", async () => {
@@ -989,5 +1002,271 @@ describe("SlideEditor leave question while a Stil save runs or fails (SUI-FEATUR
     expect(slot.styleSave.onSave).not.toHaveBeenCalled();
     expect(slot.styleSave.onReset).not.toHaveBeenCalled();
     expect(onBack).not.toHaveBeenCalled();
+  });
+});
+
+// Collector rows 368 and 371 (#873): the Stil draft's reset and save after the document's own.
+describe("SlideEditor Stil reset and save after the document's (SUI-FEATURE-384 rev 3)", () => {
+  // Row 368: Discard with a document reset the host awaits resets the Stil draft once, only after
+  // that reset resolved, then leaves.
+  it("runs the Stil onReset once after an awaited document reset on Discard", async () => {
+    let resolve: () => void = () => {};
+    const promise = new Promise<void>((done) => (resolve = done));
+    const onReset = vi.fn(() => promise);
+    const slot = style({ dirty: true });
+    const onBack = vi.fn();
+    editor({ onReset, styleDrawer: slot, onBack });
+    lockFirstLayer();
+    click("editor-back");
+    const discard = await screen.findByTestId("leave-guard-discard");
+    fireEvent.click(discard);
+    await act(async () => {});
+    expect(onReset).toHaveBeenCalledTimes(1);
+    expect(slot.styleSave.onReset).not.toHaveBeenCalled();
+    expect(onBack).not.toHaveBeenCalled();
+    await act(async () => {
+      resolve();
+      await promise;
+    });
+    await vi.waitFor(() => expect(onBack).toHaveBeenCalledTimes(1));
+    expect(slot.styleSave.onReset).toHaveBeenCalledTimes(1);
+    expect(onReset).toHaveBeenCalledTimes(1);
+  });
+
+  // Row 371: an earlier failed document save does not drop a Back held during a Stil save that
+  // succeeds; the failure counts only for the save that held it.
+  it("carries out Back held during a successful Stil save after a failed document save", async () => {
+    const onBack = vi.fn();
+    const onSave = vi.fn(() => false);
+    const stil = vi.fn();
+    const { rerender } = editor({
+      styleDrawer: { content: null, styleSave: { onSave: stil, dirty: false } },
+      onSave,
+      onBack,
+    });
+    lockFirstLayer();
+    click("editor-save");
+    await act(async () => {});
+    expect(onSave).toHaveBeenCalledTimes(1);
+    // The document clean again; its failed save lies behind.
+    click("editor-undo");
+    rerender({
+      styleDrawer: { content: null, styleSave: { onSave: stil, dirty: true, saving: true } },
+    });
+    click("editor-back");
+    expect(screen.queryByTestId("leave-guard")).toBeNull();
+    expect(onBack).not.toHaveBeenCalled();
+    rerender({ styleDrawer: { content: null, styleSave: { onSave: stil, dirty: false } } });
+    await act(async () => {});
+    expect(onBack).toHaveBeenCalledTimes(1);
+  });
+});
+
+const labelledOverlay = (id: string, more: Partial<SlideOverlay> = {}) =>
+  ({
+    id,
+    label: `Overlay ${id}`,
+    hint: `Shows ${id}`,
+    render: () => null,
+    ...more,
+  }) as SlideOverlay;
+
+// The toolbar's bands and separators in order: a band by its name, a separator as "|", the free
+// space between the two sides as "~".
+function bands() {
+  const toolbar = screen.getByTestId("slide-editor-toolbar");
+  const name = (node: Element) =>
+    node.getAttribute("data-testid") === "slide-editor-toolbar-separator"
+      ? "|"
+      : node.getAttribute("data-testid")!.replace("slide-editor-band-", "");
+  const children = [...toolbar.children];
+  const right = children.at(-1)!;
+  return [...children.slice(0, -1).map(name), "~", ...[...right.children].map(name)].join(" ");
+}
+
+const TRANSFER_FORMATS = [SLIDE_EDITOR_DOC.format, { name: "Square", width: 600, height: 600 }];
+
+describe("SlideEditor toolbar bands (SUI-FEATURE-196 §2)", () => {
+  it("AC3: app tools, transfer, pages, then zoom and view, separators between filled bands", () => {
+    editor({
+      toolbarStart: (
+        <button type="button" data-testid="app-insert">
+          Insert
+        </button>
+      ),
+      formats: TRANSFER_FORMATS,
+      onTransfer: noop,
+      extensions: { overlays: [labelledOverlay("safe"), labelledOverlay("phone")] },
+    });
+    expect(bands()).toBe("start | transfer | pages ~ zoom | view");
+    expect(
+      within(screen.getByTestId("slide-editor-band-start")).getByTestId("app-insert"),
+    ).toBeInTheDocument();
+    // The view band: grid, the app's overlays in their order, preview.
+    const view = screen.getByTestId("slide-editor-band-view");
+    expect(
+      [...view.querySelectorAll("[data-testid]")]
+        .map((node) => node.getAttribute("data-testid"))
+        .filter(
+          (id) =>
+            ["grid-toggle-button", "slide-editor-preview"].includes(id!) ||
+            id!.startsWith("slide-editor-overlay-toggle-"),
+        ),
+    ).toEqual([
+      "grid-toggle-button",
+      "slide-editor-overlay-toggle-safe",
+      "slide-editor-overlay-toggle-phone",
+      "slide-editor-preview",
+    ]);
+    // A separator: the border colour, about two thirds of a control's height, never read out.
+    const separator = screen.getAllByTestId("slide-editor-toolbar-separator")[0]!;
+    expect(separator).toHaveClass("h-5", "w-px", "bg-border");
+    expect(separator).toHaveAttribute("aria-hidden", "true");
+    // A band's own gap is smaller than the one between bands.
+    expect(screen.getByTestId("slide-editor-band-view")).toHaveClass("gap-1");
+    expect(screen.getByTestId("slide-editor-toolbar")).toHaveClass("gap-2");
+  });
+
+  it.each([
+    ["without a slot", undefined],
+    ["with an empty slot", null],
+    ["with a false slot", false],
+  ])("AC3: leaves out an empty band and its separator %s", (_, start) => {
+    editor({
+      ...(start === undefined ? {} : { toolbarStart: start }),
+      formats: TRANSFER_FORMATS,
+      onTransfer: noop,
+    });
+    expect(bands()).toBe("transfer | pages ~ zoom | view");
+  });
+
+  function Nothing() {
+    return null;
+  }
+  it.each([
+    ["an empty fragment", <>{false}</>],
+    ["a component that renders nothing", <Nothing />],
+  ])("AC3: hides a start band that renders nothing, and its separator, with %s", (_, start) => {
+    editor({ toolbarStart: start, formats: TRANSFER_FORMATS, onTransfer: noop });
+    // The band stands in the DOM but holds nothing: `:empty` hides it, and the separator after it
+    // hides with it (the styles themselves are checked in the gallery, not in jsdom).
+    const band = screen.getByTestId("slide-editor-band-start");
+    expect(band.matches(":empty")).toBe(true);
+    expect(band).toHaveClass("empty:hidden");
+    expect(band.nextElementSibling).toHaveAttribute(
+      "data-testid",
+      "slide-editor-toolbar-separator",
+    );
+    expect(band.nextElementSibling).toHaveClass("[div:empty+&]:hidden");
+    for (const separator of screen.getAllByTestId("slide-editor-toolbar-separator")) {
+      expect(separator).toHaveClass("[&:has(+div:empty)]:hidden");
+    }
+  });
+
+  it("AC3: clears a separator a wrap leaves at a row's end, keeping its place", () => {
+    // Row one 0–32 px, row two 40–72 px: the view band wrapped below zoom and its separator.
+    const rows: Record<string, [number, number]> = {
+      "slide-editor-band-view": [40, 72],
+    };
+    const spy = vi
+      .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+      .mockImplementation(function (this: HTMLElement) {
+        const id = this.getAttribute("data-testid") ?? "";
+        const [top, bottom] =
+          rows[id] ?? (id === "slide-editor-toolbar-separator" ? [6, 26] : [0, 32]);
+        return DOMRect.fromRect({ x: 0, y: top, width: 0, height: bottom - top });
+      });
+    try {
+      editor({ formats: TRANSFER_FORMATS, onTransfer: noop });
+      const [between, beforeView] = screen.getAllByTestId("slide-editor-toolbar-separator");
+      expect(beforeView!.nextElementSibling).toHaveAttribute(
+        "data-testid",
+        "slide-editor-band-view",
+      );
+      expect(beforeView).toHaveAttribute("data-wrapped");
+      expect(beforeView).toHaveClass("data-wrapped:invisible");
+      expect(between).not.toHaveAttribute("data-wrapped");
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("AC3: one page and no transfer leave the left side empty, no separator there", () => {
+    // A one-page cap with one page has no page navigation (`SUI-FEATURE-381`).
+    editor({ maxPages: 1, document: { ...SLIDE_EDITOR_DOC, pages: [SLIDE_EDITOR_DOC.pages[0]!] } });
+    expect(bands()).toBe("~ zoom | view");
+    cleanup();
+    editor({
+      maxPages: 1,
+      document: { ...SLIDE_EDITOR_DOC, pages: [SLIDE_EDITOR_DOC.pages[0]!] },
+      toolbarStart: <span>App</span>,
+    });
+    expect(bands()).toBe("start ~ zoom | view");
+  });
+
+  it("keeps the app's slot under readOnly, and reads nothing from it", () => {
+    editor({ readOnly: true, toolbarStart: <span data-testid="app-view-only">View</span> });
+    expect(screen.getByTestId("app-view-only")).toBeInTheDocument();
+    expect(bands()).toBe("start | pages ~ zoom | view");
+  });
+});
+
+describe("SlideEditor view toggles with an icon per state (SUI-FEATURE-196 §3)", () => {
+  const off = (id: string) => <svg data-testid={`${id}-off`} />;
+  const on = (id: string) => <svg data-testid={`${id}-on`} />;
+
+  it("AC4: an overlay's icon changes with its state, aria-pressed and fill follow", () => {
+    editor({
+      extensions: {
+        overlays: [
+          labelledOverlay("safe", { icon: off("safe"), pressedIcon: on("safe") }),
+          labelledOverlay("plain"),
+        ],
+      },
+    });
+    const toggle = screen.getByTestId("slide-editor-overlay-toggle-safe");
+    for (const token of PRESSED_FILL_CLASS.split(" ")) expect(toggle).toHaveClass(token);
+    expect(toggle).toHaveAccessibleName("Overlay safe");
+    // Shown at first: the pressed icon.
+    expect(toggle).toHaveAttribute("aria-pressed", "true");
+    expect(within(toggle).getByTestId("safe-on")).toHaveAttribute("aria-hidden", "true");
+    // A direct child, so the button's icon padding reaches it.
+    expect(within(toggle).getByTestId("safe-on").parentElement).toBe(toggle);
+    expect(within(toggle).queryByTestId("safe-off")).toBeNull();
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+    expect(within(toggle).getByTestId("safe-off")).toBeInTheDocument();
+    expect(within(toggle).queryByTestId("safe-on")).toBeNull();
+    // Without an icon: the label only, as before.
+    const plain = screen.getByTestId("slide-editor-overlay-toggle-plain");
+    expect(plain.children).toHaveLength(0);
+    expect(plain).toHaveTextContent("Overlay plain");
+  });
+
+  it("AC4: an overlay without pressedIcon keeps its icon while shown", () => {
+    editor({ extensions: { overlays: [labelledOverlay("safe", { icon: off("safe") })] } });
+    const toggle = screen.getByTestId("slide-editor-overlay-toggle-safe");
+    expect(toggle).toHaveAttribute("aria-pressed", "true");
+    expect(within(toggle).getByTestId("safe-off")).toBeInTheDocument();
+  });
+
+  it("AC4: the grid toggle takes gridToggleIcons, aria-pressed follows", () => {
+    editor({ gridToggleIcons: { icon: off("grid"), pressedIcon: on("grid") } });
+    const toggle = screen.getByTestId("grid-toggle-button");
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+    expect(within(toggle).getByTestId("grid-off")).toBeInTheDocument();
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-pressed", "true");
+    expect(within(toggle).getByTestId("grid-on")).toBeInTheDocument();
+    expect(within(toggle).queryByTestId("grid-off")).toBeNull();
+  });
+
+  it("AC4: without gridToggleIcons the grid icon in both states", () => {
+    editor();
+    const toggle = screen.getByTestId("grid-toggle-button");
+    const before = toggle.querySelector(":scope > svg")!.outerHTML;
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-pressed", "true");
+    expect(toggle.querySelector(":scope > svg")!.outerHTML).toBe(before);
   });
 });

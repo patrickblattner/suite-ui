@@ -11,8 +11,10 @@ import {
   setRotation,
 } from "./editor-ops.js";
 import {
+  resizeBox,
   snapBox,
   snapCandidates,
+  snapResize,
   standingElements,
   turnedFrameCandidates,
 } from "./editor-geometry.js";
@@ -113,5 +115,100 @@ describe("snapping a child of nested upright groups (#478, SUI-FEATURE-190 rev 5
     // Nothing of another frame: not the page, nor the elements outside the outer group.
     expect(xs).not.toContain(960);
     expect(xs).not.toContain(900);
+  });
+});
+
+// SUI-FEATURE-196 §1: a resize snaps its dragged edges as a move snaps, the opposite ones stay.
+describe("snapResize", () => {
+  type Handle = Parameters<typeof resizeBox>[2];
+  const start = { x: 100, y: 100, width: 80, height: 60 };
+  // The page 800 × 450, one element at 460, 300 (80 × 60), a 40 px grid when shown.
+  const candidates = (grid: boolean, other = { x: 460, y: 300, width: 80, height: 60 }) =>
+    snapCandidates({ width: 800, height: 450 }, [other], grid ? { kind: "step", step: 40 } : null);
+  const drag = (handle: Handle, dx: number, dy: number, shift = false) =>
+    resizeBox(start, 0, handle, { x: dx, y: dy }, shift);
+  // `handle` dragged by dx, dy and snapped; tolerance 6, the grid shown, no Alt, no Shift by default.
+  const snap = (
+    handle: Handle,
+    [dx, dy]: [number, number],
+    {
+      grid = true,
+      bypass = false,
+      keepRatio = false,
+      tolerance = 6,
+      other = candidates(grid),
+    } = {},
+  ) =>
+    snapResize({
+      start,
+      handle,
+      box: drag(handle, dx, dy, keepRatio),
+      candidates: other,
+      tolerance,
+      bypass,
+      keepRatio,
+    });
+
+  it("snaps the dragged right edge to an element 3 px away, the left edge stays (AC1)", () => {
+    expect(snap("e", [277, 0])).toEqual({
+      box: { x: 100, y: 100, width: 360, height: 60 },
+      guides: { x: 460 },
+    });
+  });
+
+  it("snaps nothing with Alt, and never to a hidden grid, while page and elements still do", () => {
+    expect(snap("e", [277, 0], { bypass: true })).toEqual({ box: drag("e", 277, 0), guides: {} });
+    // 357 is 3 px from the grid line 360 only.
+    expect(snap("e", [177, 0]).box.width).toBe(260);
+    expect(snap("e", [177, 0], { grid: false }).box).toEqual(drag("e", 177, 0));
+    // 397 is 3 px from the page's centre.
+    expect(snap("e", [217, 0], { grid: false })).toMatchObject({
+      box: { width: 300 },
+      guides: { x: 400 },
+    });
+  });
+
+  it("anchors only the moved edges: the left handle its edge, the right edge stays", () => {
+    // The left edge dragged to 43: the grid line 40 takes it; the edge it left (180) does not count.
+    expect(snap("w", [-57, 0])).toEqual({
+      box: { x: 40, y: 100, width: 140, height: 60 },
+      guides: { x: 40 },
+    });
+  });
+
+  it("snaps both dragged edges at a corner without Shift", () => {
+    // The right edge to 457 (element 460), the bottom to 297 (element 300).
+    expect(snap("se", [277, 137], { grid: false })).toEqual({
+      box: { x: 100, y: 100, width: 360, height: 200 },
+      guides: { x: 460, y: 300 },
+    });
+  });
+
+  it("snaps the axis with the smaller offset at a corner with Shift, the ratio stays exact (AC2)", () => {
+    // Shift scales to 357 × 267.75: the right edge is 3 px from 460, the bottom 7.75 px from 360.
+    expect(drag("se", 277, 170, true)).toEqual({ x: 100, y: 100, width: 357, height: 267.75 });
+    const shifted = { grid: false, keepRatio: true, tolerance: 24 };
+    const { box, guides } = snap("se", [277, 170], shifted);
+    expect(box).toEqual({ x: 100, y: 100, width: 360, height: 270 });
+    expect(box.width / box.height).toBe(start.width / start.height);
+    expect(guides).toEqual({ x: 460 });
+    // The other axis nearer: the bottom snaps, the width follows, exact to the 1/1000 px every box
+    // is rounded to, as Shift's own resize.
+    expect(snap("se", [267, 205], shifted)).toEqual({
+      box: { x: 100, y: 100, width: 346.667, height: 260 },
+      guides: { y: 360 },
+    });
+  });
+
+  it("keeps the centre of the axis that follows a side handle with Shift", () => {
+    const { box } = snap("e", [277, 0], { grid: false, keepRatio: true });
+    expect(box).toMatchObject({ width: 360, height: 270 });
+    expect(box.y + box.height / 2).toBe(start.y + start.height / 2);
+  });
+
+  it("prefers an element over the grid at the same distance", () => {
+    // The right edge at 363: grid 360 and element 366 both 3 px away.
+    const tie = candidates(true, { x: 366, y: 300, width: 80, height: 60 });
+    expect(snap("e", [183, 0], { other: tie }).guides).toEqual({ x: 366 });
   });
 });

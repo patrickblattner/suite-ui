@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SLIDE_BRAND, SLIDE_EDITOR_DOC } from "../../gallery/slide-showcase.js";
 import { resizeCursor } from "./editor-geometry.js";
 import type { SlideDocumentInput } from "./schema.js";
-import { SlideEditor } from "./slide-editor.js";
+import { type ReadonlySlideDocument, SlideEditor } from "./slide-editor.js";
 
 beforeEach(() => {
   // jsdom has no pointer capture.
@@ -152,5 +152,164 @@ describe("SlideEditor gesture pointer", () => {
     fireEvent.keyDown(canvas, { key: "Escape" });
     expect(stamp()).toBe(before);
     expect(canvas).toHaveClass("cursor-default");
+  });
+});
+
+const shape = (id: string, x: number, y: number) =>
+  ({ id, type: "shape", shape: "rectangle", x, y, width: 80, height: 60 }) as const;
+// "a" (100, 100, 80 × 60) to resize, "b" with its left edge at 460, a 40 px grid.
+const SNAP_DOC: SlideDocumentInput = {
+  ...SLIDE_EDITOR_DOC,
+  grid: { kind: "step", step: 40 },
+  pages: [
+    { ...SLIDE_EDITOR_DOC.pages[0]!, elements: [shape("a", 100, 100), shape("b", 460, 300)] },
+  ],
+};
+
+// "a" is selected at `pick`; in a group by a double click there, which selects the child.
+function renderSnapping(
+  gridShown: boolean,
+  document: SlideDocumentInput = SNAP_DOC,
+  pick: [number, number] = [140, 130],
+) {
+  const onChange = vi.fn<(document: ReadonlySlideDocument) => void>();
+  render(
+    <SlideEditor
+      document={document}
+      title="Deck"
+      brand={SLIDE_BRAND}
+      onSave={() => true}
+      onBack={() => {}}
+      onChange={onChange}
+      gridShown={gridShown}
+    />,
+  );
+  const canvas = screen.getByTestId("slide-editor-canvas");
+  fireEvent.pointerDown(canvas, { ...at(...pick), button: 0 });
+  fireEvent.pointerUp(canvas, at(...pick));
+  if (document.pages?.[0]?.elements?.[0]?.type === "group") {
+    fireEvent.doubleClick(canvas, at(...pick));
+  }
+  // Drags a handle of "a" to a point and lets go; gives the guides seen before the release and the
+  // box after it.
+  const resize = (
+    handle: string,
+    from: [number, number],
+    to: [number, number],
+    keys: { altKey?: boolean; shiftKey?: boolean } = {},
+  ) => {
+    fireEvent.pointerDown(screen.getByTestId(`slide-editor-handle-${handle}`), {
+      ...at(...from),
+      button: 0,
+    });
+    fireEvent.pointerMove(canvas, { ...at(...to), ...keys });
+    const guide = (axis: "x" | "y") =>
+      screen.queryByTestId(`slide-editor-guide-${axis}`)?.getAttribute("data-guide") ?? null;
+    const guides = { x: guide("x"), y: guide("y") };
+    fireEvent.pointerUp(canvas, { ...at(...to), ...keys });
+    const elements = onChange.mock.lastCall?.[0].pages[0]?.elements ?? [];
+    const a = [
+      ...elements,
+      ...elements.flatMap((one) => (one.type === "group" ? one.children : [])),
+    ].find((one) => one.id === "a");
+    const box = a && { x: a.x, y: a.y, width: a.width, height: a.height };
+    return { guides, box };
+  };
+  return { resize };
+}
+
+// SUI-FEATURE-196 §1: resizing at a handle snaps as moving does.
+describe("SlideEditor resize snapping (SUI-FEATURE-196)", () => {
+  it("AC1: snaps the right edge 3 px from an element edge with a guide, the left edge stays", () => {
+    const { resize } = renderSnapping(true);
+    const { guides, box } = resize("e", [180, 130], [457, 130]);
+    expect(guides).toEqual({ x: "460", y: null });
+    expect(box).toEqual({ x: 100, y: 100, width: 360, height: 60 });
+  });
+
+  it("AC1: snaps nothing with Alt", () => {
+    const { resize } = renderSnapping(true);
+    const { guides, box } = resize("e", [180, 130], [457, 130], { altKey: true });
+    expect(guides).toEqual({ x: null, y: null });
+    expect(box).toEqual({ x: 100, y: 100, width: 357, height: 60 });
+  });
+
+  it("AC1: snaps to the shown grid only, to page and elements either way", () => {
+    // 357 is 3 px from the grid line 360 and from nothing else.
+    expect(renderSnapping(true).resize("e", [180, 130], [357, 130]).box?.width).toBe(260);
+    cleanup();
+    const hidden = renderSnapping(false).resize("e", [180, 130], [357, 130]);
+    expect(hidden.box?.width).toBe(257);
+    expect(hidden.guides).toEqual({ x: null, y: null });
+    cleanup();
+    expect(renderSnapping(false).resize("e", [180, 130], [457, 130]).box?.width).toBe(360);
+  });
+
+  it("AC2: a corner with Shift snaps one axis, keeps the ratio exact, one guide only", () => {
+    const { resize } = renderSnapping(false);
+    // Shift scales to 357 × 267.75: the right edge is 3 px from 460, the bottom 7.75 from 360.
+    const { guides, box } = resize("se", [180, 160], [457, 330], { shiftKey: true });
+    expect(guides).toEqual({ x: "460", y: null });
+    expect(box).toEqual({ x: 100, y: 100, width: 360, height: 270 });
+    expect(box!.width / box!.height).toBe(80 / 60);
+  });
+
+  it("a turned element does not snap while resizing", () => {
+    const turned: SlideDocumentInput = {
+      ...SNAP_DOC,
+      pages: [
+        {
+          ...SNAP_DOC.pages[0]!,
+          elements: [{ ...shape("a", 100, 100), rotation: 1 }, shape("b", 460, 300)],
+        },
+      ],
+    };
+    const snapping = renderSnapping(true, turned).resize("e", [180, 130], [457, 130]);
+    expect(snapping.guides).toEqual({ x: null, y: null });
+    cleanup();
+    const bypassed = renderSnapping(true, turned).resize("e", [180, 130], [457, 130], {
+      altKey: true,
+    });
+    // As with Alt: 457 is 3 px from b's left edge, 3 from the grid line 460, and no snap.
+    expect(snapping.box).toEqual(bypassed.box);
+    expect(snapping.box!.width).toBeCloseTo(357, 0);
+  });
+
+  it("a child of a turned group snaps in the group's frame while resizing", () => {
+    // The group turned 180° about its centre (320, 230): a's right handle (180, 130) in the group
+    // stands at (460, 330) on the page, and a pointer moved left moves the edge right in the frame.
+    const grouped: SlideDocumentInput = {
+      ...SNAP_DOC,
+      pages: [
+        {
+          ...SNAP_DOC.pages[0]!,
+          elements: [
+            {
+              id: "g",
+              type: "group",
+              x: 100,
+              y: 100,
+              width: 440,
+              height: 260,
+              rotation: 180,
+              children: [shape("a", 100, 100), shape("b", 460, 300)],
+            },
+          ],
+        },
+      ],
+    };
+    const snapped = renderSnapping(false, grouped, [500, 330]).resize("e", [460, 330], [183, 330]);
+    expect(snapped.guides.x).not.toBeNull();
+    expect(snapped.box).toEqual({ x: 100, y: 100, width: 360, height: 60 });
+    cleanup();
+    const bypassed = renderSnapping(false, grouped, [500, 330]).resize(
+      "e",
+      [460, 330],
+      [183, 330],
+      {
+        altKey: true,
+      },
+    );
+    expect(bypassed.box).toEqual({ x: 100, y: 100, width: 357, height: 60 });
   });
 });

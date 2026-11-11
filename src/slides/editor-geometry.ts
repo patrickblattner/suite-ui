@@ -209,3 +209,65 @@ export function snapBox(
     guides: { x: hx?.candidate.value, y: hy?.candidate.value },
   };
 }
+
+// A resized upright box snapped (`SUI-FEATURE-196` §1): only the dragged edges anchor (a side handle
+// one, a corner two), with the candidates, tolerance and rule of a move; the opposite edges stay where
+// `start` has them. With `keepRatio` (Shift) at a corner the axis with the smaller offset snaps and
+// the other follows the ratio of `start`; only the snapped axis has a guide. `bypass` (Alt) snaps
+// nothing. An edge that would leave a side under 1 px does not snap.
+export function snapResize({
+  start,
+  handle,
+  box,
+  candidates,
+  tolerance,
+  bypass,
+  keepRatio,
+}: {
+  start: Box;
+  handle: Handle;
+  box: Box;
+  candidates: SnapCandidates;
+  tolerance: number;
+  bypass: boolean;
+  keepRatio: boolean;
+}): { box: Box; guides: { x?: number; y?: number } } {
+  const sx = handle.includes("e") ? 1 : handle.includes("w") ? -1 : 0;
+  const sy = handle.includes("s") ? 1 : handle.includes("n") ? -1 : 0;
+  const edge = (side: number, at: number, size: number) =>
+    side === 0 ? null : side === 1 ? at + size : at;
+  const snapAxis = (side: number, anchor: number | null, list: SnapCandidate[], size: number) => {
+    if (anchor === null) return null;
+    const hit = pickSnap({ anchors: [anchor], candidates: list, tolerance, bypass });
+    return hit === null || size + side * hit.offset < 1 ? null : hit;
+  };
+  let hx = snapAxis(sx, edge(sx, box.x, box.width), candidates.x, box.width);
+  let hy = snapAxis(sy, edge(sy, box.y, box.height), candidates.y, box.height);
+  const ratio = keepRatio && start.width > 0 && start.height > 0 ? start.width / start.height : 0;
+  if (ratio > 0 && hx !== null && hy !== null) {
+    if (Math.abs(hy.offset) < Math.abs(hx.offset)) hx = null;
+    else hy = null;
+  }
+  if (hx === null && hy === null) return { box, guides: {} };
+  let width = box.width + (hx === null ? 0 : sx * hx.offset);
+  let height = box.height + (hy === null ? 0 : sy * hy.offset);
+  if (ratio > 0) {
+    if (hx !== null) height = width / ratio;
+    else width = height * ratio;
+  }
+  // The fixed edge of each axis from `start`; an axis without a dragged edge keeps its centre.
+  const place = (side: number, at: number, size: number, next: number) =>
+    side === 1 ? at : side === -1 ? at + size - next : at + size / 2 - next / 2;
+  return {
+    box: {
+      x: round(place(sx, start.x, start.width, width)),
+      y: round(place(sy, start.y, start.height, height)),
+      width: round(width),
+      height: round(height),
+    },
+    guides: {
+      ...(hx === null ? {} : { x: hx.candidate.value }),
+      ...(hy === null ? {} : { y: hy.candidate.value }),
+    },
+  };
+}

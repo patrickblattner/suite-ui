@@ -1,3 +1,12 @@
+import {
+  EyeIcon,
+  EyeOffIcon,
+  Grid2x2CheckIcon,
+  Grid3x3Icon,
+  GroupIcon,
+  PlusIcon,
+  SmartphoneIcon,
+} from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 
 import { safeParseSlideDocument } from "../src/slides/document.js";
@@ -7,7 +16,7 @@ import {
   SlideEditor,
   type SlideEditorHandle,
 } from "../src/slides/slide-editor.js";
-import type { SlideExtensions } from "../src/slides/slide-view.js";
+import type { SlideExtensions, SlideOverlay } from "../src/slides/slide-view.js";
 import type { PickedMedia } from "../src/slides/slide-editor-library.js";
 import { phoneFrameOverlay } from "../src/slides/phone-frame.js";
 import { SlidePlayer } from "../src/slides/slide-player.js";
@@ -392,6 +401,35 @@ function hostExtensions(format: SlideFormat): SlideExtensions {
   };
 }
 
+// `SUI-FEATURE-196` (`?bands=1`): the toolbar in bands with the app's tools at its start (an insert
+// menu and grouping, gallery stand-ins), and the view toggles with an icon per state: the grid's from
+// `gridToggleIcons`, the host's overlays with `icon` and `pressedIcon` (the phone frame without one,
+// so it keeps its icon while shown).
+const BANDS = PARAMS.get("bands") === "1";
+function bandExtensions(format: SlideFormat): SlideExtensions {
+  const extensions = hostExtensions(format);
+  const [safe, phone] = extensions.overlays!;
+  return {
+    ...extensions,
+    overlays: [
+      { ...safe!, icon: <EyeOffIcon />, pressedIcon: <EyeIcon /> } as SlideOverlay,
+      { ...phone!, icon: <SmartphoneIcon /> } as SlideOverlay,
+    ],
+  };
+}
+const BAND_TOOLS = (
+  <>
+    <Button type="button" variant="outline" size="sm" data-testid="gallery-app-insert">
+      <PlusIcon aria-hidden="true" />
+      Insert
+    </Button>
+    <Button type="button" variant="ghost" size="sm" data-testid="gallery-app-group">
+      <GroupIcon aria-hidden="true" />
+      Group
+    </Button>
+  </>
+);
+
 const HOST_NAME = "Workshop deck";
 
 // The record's name as the host keeps it: a change, once the field is left, is a host step. Under
@@ -492,6 +530,7 @@ export function SlideEditorPage() {
       : SLIDE_EDITOR_DOC);
   const shownFormat = shown.format;
   const shownHostExtensions = useMemo(() => hostExtensions(shownFormat), [shownFormat]);
+  const shownBandExtensions = useMemo(() => bandExtensions(shownFormat), [shownFormat]);
   const [picking, setPicking] = useState(false);
   const [presenting, setPresenting] = useState(false);
   // The editor route is a full-screen editor's shell: its toasts start below the editor's header and
@@ -593,6 +632,13 @@ export function SlideEditorPage() {
                   // The renamed record is part of the draft (rev 5).
                   hostDirty: name !== savedName,
                   onReset: () => setName(savedName),
+                }
+              : {})}
+            {...(BANDS
+              ? {
+                  extensions: shownBandExtensions,
+                  toolbarStart: BAND_TOOLS,
+                  gridToggleIcons: { icon: <Grid3x3Icon />, pressedIcon: <Grid2x2CheckIcon /> },
                 }
               : {})}
             {...(HOST_DRAWERS

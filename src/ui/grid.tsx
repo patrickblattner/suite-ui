@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 
 import { cn } from "../lib/cn.js";
 import { PRESSED_FILL_CLASS } from "../lib/pressed-fill.js";
+import { toggleIcon } from "../lib/toggle-icon.js";
 import { useCompositionText } from "../lib/use-composition-text.js";
 import { Button } from "./button.js";
 import { formatDecimal, numpadDecimal, parseDecimal, takesDecimal } from "./decimal-number.js";
@@ -279,13 +280,25 @@ type GridToggleProps = {
   definition: GridDefinition | null;
   // While locked: where the grid is set (the app's text, e.g. "Set a grid in the brand kit").
   unavailableText: string;
+  // The button's icon, and the one while pressed (`SUI-FEATURE-196` §3): without `pressedIcon` the
+  // pressed button keeps `icon`, without `icon` the grid icon. Decorative: the label names it.
+  icon?: React.ReactNode;
+  pressedIcon?: React.ReactNode;
 };
 
 // The toolbar toggle of the grid (`SUI-FEATURE-087` rev 6): icon and label, `aria-pressed`, the primary
 // fill while on (`PRESSED_FILL_CLASS`, shared with the RowActions toggle). Separate, it is one joined
 // split button with a narrow arrow segment, which carries a primary dot while snapping is on. Without a
 // definition it is locked and its hint names where the grid is set.
-function GridToggle({ mode, value, onChange, definition, unavailableText }: GridToggleProps) {
+function GridToggle({
+  mode,
+  value,
+  onChange,
+  definition,
+  unavailableText,
+  icon,
+  pressedIcon,
+}: GridToggleProps) {
   const { t } = useTranslation("suite");
   const locked = definition === null;
   const pressed = !locked && value.guides;
@@ -317,7 +330,7 @@ function GridToggle({ mode, value, onChange, definition, unavailableText }: Grid
           }
           data-testid="grid-toggle-button"
         >
-          <Grid3x3Icon aria-hidden="true" />
+          {toggleIcon(pressed, icon ?? <Grid3x3Icon />, pressedIcon)}
           {t("grid.label")}
         </Button>
       </Hint>

@@ -245,6 +245,37 @@ for (const lng of LANGUAGES) {
       await expect(page).toHaveScreenshot(`slide-editor-menu-${lng}-${theme}.png`);
     });
 
+    // `SUI-FEATURE-196` AC5: the toolbar in bands with the app's tools at its start; the view
+    // toggles with an icon per state (the grid shown with its pressed icon, the safe zones hidden
+    // with their own); A's right handle let go 3 px before B's edge: the guide while held, A's
+    // edge snapped flush to B's in the capture (the pointer parked, so after the release).
+    test(`slide editor bands ${lng} ${theme}`, async ({ page }) => {
+      await page.goto(`/?page=slide-editor&bands=1&lng=${lng}&theme=${theme}`);
+      await expect(page.locator("html")).toHaveAttribute("lang", lng);
+      const { editor, select } = await openEditor(page, false);
+      await editor.getByTestId("grid-toggle-button").click();
+      await expect(editor.getByTestId("grid-toggle-button")).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
+      await editor.getByTestId("slide-editor-overlay-toggle-safe-zones").click();
+      await expect(editor.getByTestId("slide-editor-overlay-toggle-safe-zones")).toHaveAttribute(
+        "aria-pressed",
+        "false",
+      );
+      await select(140, 130);
+      const east = (await editor.getByTestId("slide-editor-handle-e").boundingBox())!;
+      const from = { x: east.x + east.width / 2, y: east.y + east.height / 2 };
+      await page.mouse.move(from.x, from.y);
+      await page.mouse.down();
+      await page.mouse.move(from.x + 117, from.y, { steps: 4 });
+      await expect(editor.getByTestId("slide-editor-guide-x")).toHaveAttribute("data-guide", "300");
+      await page.mouse.up();
+      await expect(editor.getByTestId("slide-editor-width")).toHaveValue("200");
+      await parkPointer(page);
+      await expect(page).toHaveScreenshot(`slide-editor-bands-${lng}-${theme}.png`);
+    });
+
     // `SUI-FEATURE-106` rev 7 (#552, #568): a paste waiting for the app's media, past 300 ms: no
     // selection, the busy canvas and the status in the head's status slot, nothing on the work area.
     test(`slide editor paste wait ${lng} ${theme}`, async ({ page }) => {
@@ -1060,6 +1091,13 @@ const AXE_PAGES: [
     (page) =>
       page.locator("[data-testid=slide-editor] [data-slot=slide-view][data-slide-ready=true]"),
     "&host=1",
+  ],
+  // `SUI-FEATURE-196`: the toolbar in bands with the app's tools, toggles with an icon per state.
+  [
+    "slide-editor",
+    (page) =>
+      page.locator("[data-testid=slide-editor] [data-slot=slide-view][data-slide-ready=true]"),
+    "&bands=1",
   ],
   // `SUI-FEATURE-384` AC6: the host's Stil drawer with a draft, and its Dokument section.
   [
@@ -18576,7 +18614,8 @@ for (const angle of [90, 37]) {
       const at = centreOfBox(
         (await editor.getByTestId(`slide-editor-handle-${handle}`).boundingBox())!,
       );
-      // 12 px outward, away from the child's centre: the handle ends under the pointer.
+      // 12 px outward, away from the child's centre: the handle ends under the pointer. Alt holds
+      // the snapping off (`SUI-FEATURE-196` §1): the group's and the sibling's edges lie near.
       const length = Math.hypot(at.x - centre.x, at.y - centre.y);
       const to = {
         x: at.x + ((at.x - centre.x) / length) * 12,
@@ -18584,9 +18623,11 @@ for (const angle of [90, 37]) {
       };
       await page.mouse.move(at.x, at.y);
       await page.mouse.down();
+      await page.keyboard.down("Alt");
       await page.mouse.move((at.x + to.x) / 2, (at.y + to.y) / 2, { steps: 2 });
       await page.mouse.move(to.x, to.y, { steps: 2 });
       await page.mouse.up();
+      await page.keyboard.up("Alt");
       const after = centreOfBox(
         (await editor.getByTestId(`slide-editor-handle-${handle}`).boundingBox())!,
       );

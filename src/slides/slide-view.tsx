@@ -179,12 +179,16 @@ export interface SlideOverlayProps {
 // in its place (`GL-UI-017`, rev 8). With `bleed` (format px, default 0) its box reaches that far beyond
 // each page edge, `bleed * zoom` screen px, with the page at that offset in it, e.g. for a device frame;
 // the bleed takes no pointer input and leaves the page as it is, and the editor's fit-to-view makes room
-// for the largest bleed shown.
+// for the largest bleed shown. A labelled one may bring an `icon` for its toggle, shown before the
+// label, and a `pressedIcon` while it is shown (without it `icon`; `SUI-FEATURE-196` §3).
 export type SlideOverlay = {
   id: string;
   bleed?: number;
   render: (props: SlideOverlayProps) => React.ReactNode;
-} & ({ label: string; hint: string } | { label?: undefined; hint?: undefined });
+} & (
+  | { label: string; hint: string; icon?: React.ReactNode; pressedIcon?: React.ReactNode }
+  | { label?: undefined; hint?: undefined; icon?: undefined; pressedIcon?: undefined }
+);
 
 // What an app contributes (`SUI-FEATURE-163`): its own element types by type id and add-ons to built-in
 // types, drawn the same by the view, editor, player and export; blocks for the editor's library; and

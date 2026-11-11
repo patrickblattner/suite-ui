@@ -133,7 +133,7 @@
     "./slides/document": { "recommended": 468733, "maximum": 492170 },
     "./slides/editor-adopt": { "recommended": 468323, "maximum": 491740 },
     "./slides/editor-color": { "recommended": 1072, "maximum": 1126 },
-    "./slides/editor-geometry": { "recommended": 3787, "maximum": 3977 },
+    "./slides/editor-geometry": { "recommended": 3787, "maximum": 4939 },
     "./slides/editor-layouts": { "recommended": 10848, "maximum": 11391 },
     "./slides/editor-ops": { "recommended": 489218, "maximum": 513679 },
     "./slides/editor-pages": { "recommended": 5087, "maximum": 5342 },
