@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — #881: RadioGroup `asChild` reaches the caller's element again (patch)
+## 0.233.1 — #881: RadioGroup `asChild` reaches the caller's element again (patch)
 
 - **Fixed (#881):** `RadioGroup` sets its field-group contexts around the radix root instead of inside it, so with `asChild` the caller's element itself becomes the radiogroup (role, name, attributes). No other change.
 
