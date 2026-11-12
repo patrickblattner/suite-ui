@@ -124,6 +124,7 @@ export function CropFields({
         <NumberInput
           id={`${id}-zoom-percent`}
           value={crop.zoom * 100}
+          fractionDigits={2}
           unit="%"
           size="sm"
           min={100}

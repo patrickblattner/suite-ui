@@ -45,6 +45,7 @@ export function NumberField({
   valueHint,
   disabled,
   placeholder,
+  fractionDigits,
   "aria-label": ariaLabel,
 }: {
   id: string;
@@ -80,6 +81,9 @@ export function NumberField({
   disabled?: boolean | undefined;
   // Shown only in the empty field, never its name (SUI-FEATURE-410).
   placeholder?: string | undefined;
+  // The most decimals shown, for a field that shows a computed value; never the stored value nor
+  // what is typed (SUI-FEATURE-411).
+  fractionDigits?: number | undefined;
   // The input's name when the label alone does not say it (a side in a named group).
   "aria-label"?: string | undefined;
 }) {
@@ -106,6 +110,7 @@ export function NumberField({
           readOnly={readOnly}
           disabled={disabled}
           placeholder={placeholder}
+          fractionDigits={fractionDigits}
           min={min}
           max={max}
           aria-label={ariaLabel}
@@ -130,14 +135,6 @@ export function NumberField({
   );
 }
 
-// The input of a `NumberField` with its unit, for a number that stands beside another control (the
-// crop zoom beside its slider, `SUI-FEATURE-230` rev 4): it applies as the person types and keeps
-// what is typed until it is left or `revision` changes. What is typed is read in the UI language
-// and the number shown with its decimal sign (`GL-UI-037`); while it is not a number, `onInvalid`
-// hears why. The arrow keys step the number by `step` within `min` and `max`, as a native number
-// field would. `onLeave` takes the number typed last when the field is left or Enter is pressed (to
-// clamp what typing did not apply); the field then shows `value`. Its value text is what it shows
-// with the unit, so a screen reader hears the typed text while it is not a number.
 // The typed text still pending for this revision. Disabled, there is none: the field shows the
 // stored value and leaving takes nothing typed before (SUI-FEATURE-410 AC1, #884).
 function pendingText(
@@ -156,6 +153,29 @@ function useDropWhenDisabled(disabled: boolean | undefined, setTyped: (next: nul
   }, [disabled, setTyped]);
 }
 
+// The stored number without the noise of float arithmetic (at most 6 decimals: 0.1 + 0.2 is 0.3),
+// as the field's `aria-valuenow` (SUI-FEATURE-411).
+export function storedNumber(value: number): number {
+  return Number(value.toFixed(6));
+}
+
+// The number the field shows: the stored one with every decimal it carries, or at most
+// `fractionDigits` of them for a field that shows a computed value (SUI-FEATURE-411).
+function shownNumber(stored: number, fractionDigits: number | undefined): number {
+  if (fractionDigits === undefined) return stored;
+  const factor = 10 ** fractionDigits;
+  return Math.round(stored * factor) / factor;
+}
+
+// The input of a `NumberField` with its unit, for a number that stands beside another control (the
+// crop zoom beside its slider, `SUI-FEATURE-230` rev 4): it applies as the person types and keeps
+// what is typed until it is left or `revision` changes. What is typed is read in the UI language
+// and the number shown with its decimal sign (`GL-UI-037`); while it is not a number, `onInvalid`
+// hears why. The arrow keys step the number by `step` within `min` and `max`, as a native number
+// field would. `onLeave` takes the number typed last when the field is left or Enter is pressed (to
+// clamp what typing did not apply); the field then shows `value`. Its value text is what it shows
+// with the unit, so a screen reader hears the typed text while it is not a number. `fractionDigits`
+// caps the decimals shown, never the stored value nor what is typed (SUI-FEATURE-411).
 export function NumberInput({
   id,
   value,
@@ -173,6 +193,7 @@ export function NumberInput({
   min,
   max,
   step,
+  fractionDigits,
   size,
   className,
   "aria-label": ariaLabel,
@@ -195,6 +216,7 @@ export function NumberInput({
   min?: number | undefined;
   max?: number | undefined;
   step?: number | undefined;
+  fractionDigits?: number | undefined;
   size?: "sm" | "default";
   className?: string;
   "aria-label"?: string;
@@ -202,8 +224,9 @@ export function NumberInput({
 }) {
   const { i18n } = useTranslation("suite");
   const language = i18n.resolvedLanguage;
-  const rounded = value === undefined ? undefined : Math.round(value * 100) / 100;
-  const shown = rounded === undefined ? "" : formatDecimal(rounded, language);
+  const stored = value === undefined ? undefined : storedNumber(value);
+  const shown =
+    stored === undefined ? "" : formatDecimal(shownNumber(stored, fractionDigits), language);
   const [typed, setTyped] = React.useState<{ text: string; revision: number | string } | null>(
     null,
   );
@@ -245,7 +268,7 @@ export function NumberInput({
   };
   const stepBy = (direction: 1 | -1) => {
     const from = parsed?.value ?? value ?? 0;
-    const next = Math.round((from + direction * (step ?? 1)) * 100) / 100;
+    const next = storedNumber(from + direction * (step ?? 1));
     setText(null);
     onValue(Math.min(max ?? Infinity, Math.max(min ?? -Infinity, next)));
   };
@@ -255,7 +278,7 @@ export function NumberInput({
         id={id}
         inputMode="decimal"
         role="spinbutton"
-        aria-valuenow={rounded}
+        aria-valuenow={stored}
         aria-valuetext={(text ?? shown) === "" ? undefined : `${text ?? shown} ${unit}`}
         aria-valuemin={min}
         aria-valuemax={max}

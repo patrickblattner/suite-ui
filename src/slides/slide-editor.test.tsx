@@ -1,5 +1,6 @@
 import * as React from "react";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import i18n from "i18next";
 import { Link, MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -1541,5 +1542,36 @@ describe("SlideEditor: numbered list properties", () => {
       "transparent",
       "transparent",
     ]);
+  });
+});
+
+// SUI-FEATURE-411 rev 3 AC4: the X field shows the stored value itself and sets no `fractionDigits`;
+// left, it shows what the editor stored with all its digits, never fewer.
+describe("SlideEditor: the X field shows the stored value with all its digits", () => {
+  afterEach(async () => {
+    await i18n.changeLanguage("en");
+  });
+
+  it.each([
+    ["de", "0,125"],
+    ["en", "0.125"],
+  ])("in %s, typing %s and leaving shows it unshortened", async (lng, typed) => {
+    await i18n.changeLanguage(lng);
+    const brand = SLIDE_BRAND;
+    render(
+      <SlideEditor
+        {...{ document: SLIDE_EDITOR_DOC, title: "Deck", brand }}
+        onSave={() => true}
+        onBack={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByTestId("drawer-layers"));
+    fireEvent.click(screen.getAllByTestId("slide-editor-layer-select")[0]!);
+    fireEvent.mouseDown(screen.getByTestId("property-tab-layout"), { button: 0 });
+    const x = screen.getByTestId("slide-editor-x");
+    fireEvent.change(x, { target: { value: typed } });
+    fireEvent.blur(x);
+    expect(screen.getByTestId("slide-editor-x")).toHaveValue(typed);
+    expect(screen.getByTestId("slide-editor-x")).toHaveAttribute("aria-valuenow", "0.125");
   });
 });

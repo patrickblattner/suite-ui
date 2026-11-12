@@ -528,3 +528,19 @@ describe("SlideEditor table cell field across rows and columns", () => {
     expect(field.textContent).toBe("Slides");
   });
 });
+
+// SUI-FEATURE-411 rev 3: the column width is converted (the column's share of the table width), so
+// its field caps the shown decimals at 2; `aria-valuenow` stays the unrounded width.
+describe("SlideEditor table column width digits", () => {
+  it("shows a fractional column width with 2 decimals and aria-valuenow unrounded", () => {
+    const thirds: SlideDocumentInput = structuredClone(SLIDE_EDITOR_DOC);
+    const facts = thirds.pages[1]!.elements!.find((element) => element.id === "facts")!;
+    if (facts.type === "table") facts.columnWidths = [1, 2];
+    const { press } = renderEditor(thirds);
+    press(500, 30);
+    fireEvent.mouseDown(screen.getByTestId("property-tab-content"), { button: 0 });
+    const width = screen.getByTestId("slide-editor-table-column-width");
+    expect(width).toHaveValue("113.33");
+    expect(width).toHaveAttribute("aria-valuenow", "113.333333");
+  });
+});

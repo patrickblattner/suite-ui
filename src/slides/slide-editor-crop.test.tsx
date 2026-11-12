@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { resolveSlideMedia, SLIDE_BRAND } from "../../gallery/slide-showcase.js";
+import { CropFields } from "./crop-fields.js";
 import { FORMAT_16_9 } from "./schema.js";
 import { SlideEditor } from "./slide-editor.js";
 
@@ -187,7 +188,7 @@ describe("SlideEditor crop mode (SUI-FEATURE-230 rev 4)", () => {
     }
     expect(slider()).toHaveAttribute("aria-valuetext", "250%");
     // The shift scales with the zoom: 100 × 250 / 300.
-    expect(offsetX).toHaveValue("83.33");
+    expect(offsetX).toHaveValue("83.333");
   });
 
   // The typed text goes once the zoom changes elsewhere: Undo ends cropping, the wheel zooms.
@@ -248,7 +249,7 @@ describe("SlideEditor crop mode (SUI-FEATURE-230 rev 4)", () => {
     fireEvent.blur(percent(), { relatedTarget: slider() });
     expect(slider()).toHaveAttribute("aria-valuetext", "500%");
     // 100 × 500 / 300.
-    expect(offsetX).toHaveValue("166.67");
+    expect(offsetX).toHaveValue("166.667");
   });
 
   // #495 review: a press on the canvas takes the focus from the % field, which clamps what was typed;
@@ -301,7 +302,7 @@ describe("SlideEditor crop mode (SUI-FEATURE-230 rev 4)", () => {
     pressCanvas(20);
     fireEvent.keyDown(canvas(), { key: "Enter" });
     expect(slider()).toHaveAttribute("aria-valuetext", "500%");
-    expect(screen.getByTestId("slide-editor-crop-offsetX")).toHaveValue("166.67");
+    expect(screen.getByTestId("slide-editor-crop-offsetX")).toHaveValue("166.667");
   });
 
   // #495 review: Enter and an arrow step end the typing, so a later typing never zooms from the crop
@@ -368,7 +369,7 @@ describe("SlideEditor crop mode (SUI-FEATURE-230 rev 4)", () => {
     fireEvent.change(percent(), { target: { value: "200" } });
     expect(slider()).toHaveAttribute("aria-valuetext", "200%");
     // 100 × 299 / 300 × 200 / 299.
-    expect(offsetX).toHaveValue("66.67");
+    expect(offsetX).toHaveValue("66.667");
   });
 
   // #451 review (GL-UI-037, GL-UI-060): text that is not a number stays in the % field once it is
@@ -771,5 +772,26 @@ describe("SlideEditor crop mode of a vertically flipped image (SUI-FEATURE-135)"
     startCrop();
     loadRest(tall);
     expect(rest().querySelector("img")!.style.transform).toBe("scale(-1, -1)");
+  });
+});
+
+// SUI-FEATURE-411 rev 3: the % field shows the zoom converted (zoom × 100), so it caps the shown
+// decimals at 2; `aria-valuenow` stays the converted value with its digits. The editor stores the zoom
+// to 3 decimals, so `CropFields` is given a finer one directly.
+describe("CropFields zoom % digits", () => {
+  it("shows a fractional zoom with 2 decimals and aria-valuenow with its digits", () => {
+    const hints = { zoom: "z", zoomValue: "z", offsetX: "x", offsetY: "y", offsetValue: "o" };
+    render(
+      <CropFields
+        {...{ id: "crop", testId: "crop", width: 400, height: 300, natural: null, hints }}
+        crop={{ zoom: 1.23456, offsetX: 0, offsetY: 0 }}
+        zoomRevision={0}
+        offsetRevision={0}
+        onCrop={vi.fn()}
+      />,
+    );
+    const field = screen.getByTestId("crop-zoom-input");
+    expect(field).toHaveValue("123.46");
+    expect(field).toHaveAttribute("aria-valuenow", "123.456");
   });
 });

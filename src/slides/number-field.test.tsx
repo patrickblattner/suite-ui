@@ -1,5 +1,6 @@
 import { createEvent, fireEvent, render, screen } from "@testing-library/react";
 import i18n from "i18next";
+import * as React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { NumberField, NumberInput } from "./number-field.js";
@@ -114,8 +115,9 @@ describe("NumberField", () => {
     await i18n.changeLanguage("de");
     renderField(2.505);
     const input = screen.getByRole("spinbutton", { name: "Size" });
-    expect(input).toHaveAttribute("aria-valuenow", "2.51");
-    expect(input).toHaveAttribute("aria-valuetext", "2,51 px");
+    // SUI-FEATURE-411: the stored number with every decimal it carries, no longer cut to 2.
+    expect(input).toHaveAttribute("aria-valuenow", "2.505");
+    expect(input).toHaveAttribute("aria-valuetext", "2,505 px");
     fireEvent.change(input, { target: { value: "1.000,5" } });
     expect(input).toHaveAttribute("aria-valuetext", "1.000,5 px");
   });
@@ -481,5 +483,144 @@ describe("NumberField and NumberInput disabled and placeholder", () => {
     expect(screen.getByRole("spinbutton", { name: "Size" })).toBe(both[0]);
     expect(screen.getByRole("spinbutton", { name: "Zoom" })).toBe(both[1]);
     expect(screen.queryByRole("spinbutton", { name: "0,00" })).toBeNull();
+  });
+});
+
+// SUI-FEATURE-411: the field shows the stored number with every decimal it carries (only float
+// noise removed); `fractionDigits` caps the decimals shown, never the stored value nor what is typed.
+describe("NumberInput and NumberField display digits", () => {
+  function renderInput(value: number, fractionDigits?: number) {
+    const onValue = vi.fn<(value: number) => void>();
+    render(
+      <NumberInput
+        value={value}
+        unit="px"
+        fractionDigits={fractionDigits}
+        onValue={onValue}
+        revision={0}
+        testId="n"
+      />,
+    );
+    return { input: screen.getByTestId("n"), onValue };
+  }
+
+  it.each([
+    ["de", "0,125"],
+    ["en", "0.125"],
+  ])(
+    "AC1: in %s, a stored 0.125 shows %s after leaving, aria-valuenow 0.125",
+    async (lng, text) => {
+      await i18n.changeLanguage(lng);
+      const { input } = renderInput(0.125);
+      fireEvent.blur(input);
+      expect(input).toHaveValue(text);
+      expect(input).toHaveAttribute("aria-valuenow", "0.125");
+      expect(input).toHaveAttribute("aria-valuetext", `${text} px`);
+    },
+  );
+
+  it.each([
+    ["de", 1.125, "1,125", "1.125"],
+    ["en", 1.125, "1.125", "1.125"],
+    ["de", 0.1 + 0.2, "0,3", "0.3"],
+    ["en", 0.1 + 0.2, "0.3", "0.3"],
+    ["en", 1.23456789, "1.234568", "1.234568"],
+  ])("AC2: in %s, a stored %d shows %s, aria-valuenow %s", async (lng, value, text, now) => {
+    await i18n.changeLanguage(lng);
+    const { input } = renderInput(value);
+    expect(input).toHaveValue(text);
+    expect(input).toHaveAttribute("aria-valuenow", now);
+  });
+
+  it.each([
+    ["de", "33,33"],
+    ["en", "33.33"],
+  ])(
+    "AC3: in %s, fractionDigits 2 shows a stored 33.3333 as %s; aria-valuenow and the stored value stay",
+    async (lng, text) => {
+      await i18n.changeLanguage(lng);
+      const { input, onValue } = renderInput(33.3333, 2);
+      expect(input).toHaveValue(text);
+      expect(input).toHaveAttribute("aria-valuenow", "33.3333");
+      fireEvent.blur(input);
+      expect(input).toHaveValue(text);
+      expect(onValue).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    ["de", "2,125"],
+    ["en", "2.125"],
+  ])("AC2 rev 3: in %s, 1.125 + ArrowUp (step 1) stores and shows %s", async (lng, text) => {
+    await i18n.changeLanguage(lng);
+    const onValue = vi.fn<(value: number) => void>();
+    const props = { unit: "px", step: 1, onValue, revision: 0, testId: "n" };
+    const { rerender } = render(<NumberInput {...props} value={1.125} />);
+    fireEvent.keyDown(screen.getByTestId("n"), { key: "ArrowUp" });
+    expect(onValue).toHaveBeenLastCalledWith(2.125);
+    rerender(<NumberInput {...props} value={onValue.mock.lastCall![0]} />);
+    expect(screen.getByTestId("n")).toHaveValue(text);
+    expect(screen.getByTestId("n")).toHaveAttribute("aria-valuenow", "2.125");
+  });
+
+  it.each([
+    ["de", "12,34567", 12.34567],
+    ["en", "12.34567", 12.34567],
+  ])("AC3: in %s, fractionDigits 2 never cuts what is typed (%s)", async (lng, typed, number) => {
+    await i18n.changeLanguage(lng);
+    const { input, onValue } = renderInput(1, 2);
+    fireEvent.change(input, { target: { value: typed } });
+    expect(input).toHaveValue(typed);
+    expect(onValue).toHaveBeenLastCalledWith(number);
+  });
+
+  it("NumberField passes fractionDigits to its input", () => {
+    render(
+      <NumberField
+        id="zoom"
+        label="Zoom"
+        value={33.3333}
+        unit="%"
+        readOnly={false}
+        fractionDigits={2}
+        onValue={vi.fn()}
+        revision={0}
+        testId="zoom"
+      />,
+    );
+    const input = screen.getByTestId("zoom");
+    expect(input).toHaveValue("33.33");
+    expect(input).toHaveAttribute("aria-valuenow", "33.3333");
+  });
+});
+
+// #490: the very render that disables the field shows the stored value, before the effect that drops
+// the typed text has run. A layout effect after the input reads the DOM before passive effects flush.
+describe("NumberInput disabled on the render itself", () => {
+  it("shows the stored value on the render that disables it, before effects flush", () => {
+    const seen: string[] = [];
+    function Probe() {
+      React.useLayoutEffect(() => {
+        const input = document.querySelector<HTMLInputElement>('[data-testid="n"]');
+        if (input !== null) seen.push(input.value);
+      });
+      return null;
+    }
+    const props = { value: 3, unit: "px", onValue: vi.fn(), revision: 0, testId: "n" };
+    const { rerender } = render(
+      <>
+        <NumberInput {...props} />
+        <Probe />
+      </>,
+    );
+    fireEvent.change(screen.getByTestId("n"), { target: { value: "8" } });
+    seen.length = 0;
+    rerender(
+      <>
+        <NumberInput {...props} disabled />
+        <Probe />
+      </>,
+    );
+    expect(seen[0]).toBe("3");
   });
 });

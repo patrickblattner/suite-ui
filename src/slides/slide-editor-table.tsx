@@ -271,7 +271,8 @@ export function TableFields({
             label={t("slides.editor.tableColumnWidth")}
             hint={t("slides.editor.tableColumnWidthHint")}
             valueHint={t("slides.editor.tableColumnWidthValueHint")}
-            value={Math.round(columnPx(table, cell.column) * 100) / 100}
+            value={columnPx(table, cell.column)}
+            fractionDigits={2}
             unit="px"
             // One column is as wide as the table: its width is the table's own field.
             readOnly={readOnly || columns <= 1}

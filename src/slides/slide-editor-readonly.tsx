@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { formatDecimal } from "../ui/decimal-number.js";
 import type { SlideBrandSet } from "./brand.js";
 import { ColorText } from "./brand-color-items-internal.js";
+import { storedNumber } from "./number-field.js";
 import { DEFAULT_TEXT_SIZE } from "./render-style.js";
 import type { Background, ColorValue, SlideElement, SlidePage } from "./schema.js";
 import { shownFormat, type TextBody } from "./slide-editor-text.js";
@@ -20,9 +21,10 @@ const cap = (word: string) => `${word[0]!.toUpperCase()}${word.slice(1)}`;
 
 function useNumber() {
   const { i18n } = useTranslation("suite");
-  // A unit stands apart from its number, a degree sign at it.
+  // A unit stands apart from its number, a degree sign at it. Shown as its field shows it: the stored
+  // number with all its digits, only float noise removed (SUI-FEATURE-411 rev 3).
   return (value: number, unit: string) => {
-    const shown = formatDecimal(Math.round(value * 100) / 100, i18n.resolvedLanguage);
+    const shown = formatDecimal(storedNumber(value), i18n.resolvedLanguage);
     return unit === "" ? shown : unit === "°" ? `${shown}°` : `${shown} ${unit}`;
   };
 }

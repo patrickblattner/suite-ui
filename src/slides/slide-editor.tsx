@@ -37,6 +37,7 @@ import {
   ContextMenuTrigger,
 } from "../ui/context-menu.js";
 import { CanvasOverlay, type CanvasTarget, CanvasZoom, type CanvasZoomMode } from "../ui/canvas.js";
+import { formatDecimal } from "../ui/decimal-number.js";
 import { type DrawerId, DrawerRail, type DrawerRailProps } from "../ui/drawer-rail.js";
 import { EditorHeader, type EditorHeaderLayout, useEditorLeaveGuard } from "../ui/editor-header.js";
 import { Field } from "../ui/field.js";
@@ -162,7 +163,7 @@ import {
   type SlidePage,
 } from "./schema.js";
 import { insertColor } from "./editor-color.js";
-import { NumberField } from "./number-field.js";
+import { NumberField, storedNumber } from "./number-field.js";
 import { ChartData } from "./slide-editor-chart.js";
 import {
   type AppLibraryEntry,
@@ -3852,9 +3853,9 @@ function Editor({
       ? {
           key: sizeLimit.key,
           text: t(`slides.editor.${sizeLimit.edge === "min" ? "sizeAtLeast" : "sizeAtMost"}`, {
-            value: new Intl.NumberFormat(i18n.language, { maximumFractionDigits: 2 }).format(
-              sizeLimit.limit,
-            ),
+            // The size as its field shows it: the stored value, only float noise removed
+            // (SUI-FEATURE-411 rev 3).
+            value: formatDecimal(storedNumber(single[sizeLimit.key]), i18n.resolvedLanguage),
           }),
         }
       : undefined;

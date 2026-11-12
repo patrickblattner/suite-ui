@@ -313,7 +313,7 @@ describe("SlideEditor readOnly (SUI-FEATURE-133)", () => {
     expect(onSave).not.toHaveBeenCalled();
     // Both elements stand as they were, the text not being edited.
     select("words");
-    expect(screen.getByTestId("slide-editor-readonly-x").textContent).toContain("300.46 px");
+    expect(screen.getByTestId("slide-editor-readonly-x").textContent).toContain("300.456 px");
     select("box");
     expect(screen.getByTestId("slide-editor-readonly-x").textContent).toContain("0 px");
     // No element came in: the placeholder stayed open, no text field filled it.

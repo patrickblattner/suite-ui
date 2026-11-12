@@ -16180,7 +16180,7 @@ test("slide editor: the crop zoom % field and the slider share one value", async
   await percent.fill("");
   await percent.pressSequentially("250");
   await expect(zoom).toHaveAttribute("aria-valuetext", "250%");
-  await expect(offsetX).toHaveValue("166.67");
+  await expect(offsetX).toHaveValue("166.667");
   // Undo ends cropping; cropping again, the field shows the zoom, not what was typed.
   await percent.fill("260");
   await editor.getByRole("button", { name: "Undo" }).first().click();
@@ -16877,7 +16877,7 @@ test("slide editor: an image comes from the app's media picker", async ({ page }
   await expect.poll(count).toBe(before + 1);
   // 20 % of the shorter side (450): 90 wide, 90 / (16/9) high, centred on the 800 × 450 page.
   await expect(field("width")).toHaveValue("90");
-  await expect(field("height")).toHaveValue("50.63");
+  await expect(field("height")).toHaveValue("50.625");
   await expect(field("x")).toHaveValue("355");
   await expect(editor.getByTestId("canvas-announcement")).toHaveText("Inserted: Hills under a sun");
   await expect(editor.locator("[data-slide-element=image-1] img")).toHaveAttribute(
@@ -18888,9 +18888,9 @@ test("slide editor: a group's width beyond what its turned child allows takes th
   const height = await field("height").inputValue();
   await typeInto(page, field("width"), "50");
   await page.keyboard.press("Tab");
-  await expect(field("width")).toHaveValue("70.71");
+  await expect(field("width")).toHaveValue("70.707");
   await expect(editor.getByTestId("slide-editor-width-limit")).toHaveText(
-    "The group's rotated elements keep it at least 70.71 px.",
+    "The group's rotated elements keep it at least 70.707 px.",
   );
   await expect(field("height")).toHaveValue(height);
   await typeInto(page, field("width"), "400");
@@ -18901,7 +18901,8 @@ test("slide editor: a group's width beyond what its turned child allows takes th
   // A width it reaches clears the note.
   await typeInto(page, field("width"), "200");
   await page.keyboard.press("Tab");
-  await expect(field("width")).toHaveValue("200");
+  // The stored width with all its digits (SUI-FEATURE-411 rev 3): the children's fit lands at 199.999.
+  await expect(field("width")).toHaveValue("199.999");
   await expect(editor.getByTestId("slide-editor-width-limit")).toHaveCount(0);
 });
 
