@@ -4,7 +4,19 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { Field } from "./field.js";
 import { FieldSubmitContext, useFieldSubmits } from "./field-error.js";
+import { Checkbox } from "./checkbox.js";
 import { Input } from "./input.js";
+import { Label } from "./label.js";
+import { RadioGroup, RadioGroupItem } from "./radio-group.js";
+
+// A package RadioGroup with one option "A".
+function oneRadio() {
+  return (
+    <RadioGroup>
+      <RadioGroupItem value="a" aria-label="A" />
+    </RadioGroup>
+  );
+}
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -113,7 +125,9 @@ describe("Field value hint on a group", () => {
         valueHint="Fast skips the checks."
         control={{ role: "radiogroup", "aria-describedby": "mode-help" }}
       >
-        <Input aria-label="Fast" />
+        <RadioGroup>
+          <RadioGroupItem value="fast" aria-label="Fast" />
+        </RadioGroup>
       </Field>,
     );
     const group = screen.getByRole("radiogroup");
@@ -145,6 +159,182 @@ describe("Field value hint on a group", () => {
       </Field>,
     );
     expect(document.getElementById("order-value-hint")).toBeNull();
+  });
+});
+
+// SUI-FEATURE-400: the option group itself is named by the label and described by the help text,
+// with the error while it shows; no other element of the field carries a group role.
+describe("Field names the group element itself", () => {
+  const groupRoles = ["group", "radiogroup"];
+
+  function rolesIn(container: HTMLElement): string[] {
+    return [...container.querySelectorAll("[role]")]
+      .map((element) => element.getAttribute("role") ?? "")
+      .filter((role) => groupRoles.includes(role));
+  }
+
+  it("a radiogroup control: the RadioGroup carries name and description (AC1)", () => {
+    const { container } = render(
+      <Field
+        label="Mode"
+        htmlFor="mode"
+        help="Applies on restart."
+        control={{ role: "radiogroup", id: "mode" }}
+      >
+        <RadioGroup>
+          <RadioGroupItem value="a" aria-label="A" />
+          <RadioGroupItem value="b" aria-label="B" />
+        </RadioGroup>
+      </Field>,
+    );
+    const group = screen.getByRole("radiogroup");
+    expect(group).toHaveAttribute("data-slot", "radio-group");
+    expect(group).toHaveAttribute("id", "mode");
+    expect(group).toHaveAttribute("aria-labelledby", "mode-label");
+    expect(group).toHaveAccessibleName("Mode");
+    expect(group).toHaveAccessibleDescription("Applies on restart.");
+    expect(rolesIn(container)).toEqual(["radiogroup"]);
+  });
+
+  it("a radiogroup control with a hint: the description is the hint, then the help text", () => {
+    render(
+      <Field
+        label="Mode"
+        htmlFor="mode"
+        hint="How it runs."
+        help="Applies on restart."
+        control={{ role: "radiogroup" }}
+      >
+        {oneRadio()}
+      </Field>,
+    );
+    const group = screen.getByRole("radiogroup", { name: "Mode" });
+    expect(group).toHaveAttribute("aria-describedby", "mode-help mode-description");
+    expect(group).toHaveAccessibleDescription("How it runs. Applies on restart.");
+  });
+
+  it("a checkbox group: the group element carries name and description (AC2)", () => {
+    const { container } = render(
+      <Field label="Days" htmlFor="days" help="Pick at least one." control={{ role: "group" }}>
+        <div className="flex items-center gap-2">
+          <Checkbox id="days-mon" />
+          <Label htmlFor="days-mon">Monday</Label>
+        </div>
+      </Field>,
+    );
+    const group = screen.getByRole("group");
+    expect(group).toHaveAccessibleName("Days");
+    expect(group).toHaveAccessibleDescription("Pick at least one.");
+    expect(group).toContainElement(screen.getByRole("checkbox", { name: "Monday" }));
+    expect(rolesIn(container)).toEqual(["group"]);
+  });
+
+  it.each(["group", "radiogroup"])(
+    "with an error the %s's description holds the error text (AC3)",
+    (role) => {
+      const { container } = render(
+        <Field
+          label="Mode"
+          htmlFor="mode"
+          hint="How it runs."
+          help="Applies on restart."
+          error="Choose a mode."
+          control={{ role }}
+        >
+          {role === "radiogroup" ? oneRadio() : <Checkbox aria-label="A" />}
+        </Field>,
+      );
+      const group = screen.getByRole(role, { name: "Mode" });
+      expect(group).toHaveAttribute("aria-describedby", "mode-help mode-error");
+      // The error text follows the hint, after the error's own prefix.
+      expect(group).toHaveAccessibleDescription(/^How it runs\. .*Choose a mode\.$/);
+      expect(group).toHaveAttribute("aria-invalid", "true");
+      expect(group).toHaveAttribute("aria-errormessage", "mode-error");
+      expect(rolesIn(container)).toEqual([role]);
+    },
+  );
+});
+
+// SUI-FEATURE-400 rev 3: a radiogroup control hands its attributes to the one package RadioGroup
+// inside; hand-built radios keep them on the element around them; a group named by the caller keeps
+// its name.
+describe("Field hands the group to the package RadioGroup", () => {
+  it("hand-built radios: the element around them keeps role, name and description", () => {
+    render(
+      <Field
+        label="Mode"
+        htmlFor="mode"
+        help="Applies on restart."
+        control={{ role: "radiogroup", id: "mode" }}
+      >
+        <div role="radio" aria-checked="true" aria-label="A" tabIndex={0} />
+      </Field>,
+    );
+    const group = screen.getByRole("radiogroup", { name: "Mode" });
+    expect(group).toHaveAttribute("id", "mode");
+    expect(group).toHaveAccessibleDescription("Applies on restart.");
+    expect(group).toContainElement(screen.getByRole("radio", { name: "A" }));
+  });
+
+  it("a package RadioGroup takes role and attributes; the element around it keeps none", () => {
+    render(
+      <Field label="Mode" htmlFor="mode" control={{ role: "radiogroup", id: "mode" }}>
+        {oneRadio()}
+      </Field>,
+    );
+    const group = screen.getByRole("radiogroup", { name: "Mode" });
+    expect(group).toHaveAttribute("data-slot", "radio-group");
+    const around = group.parentElement!;
+    for (const name of ["role", "id", "aria-labelledby", "aria-describedby"]) {
+      expect(around).not.toHaveAttribute(name);
+    }
+  });
+
+  it("a RadioGroup nested in the field's RadioGroup gets no field attributes", () => {
+    render(
+      <Field label="Mode" htmlFor="mode" control={{ role: "radiogroup", id: "mode" }}>
+        <RadioGroup>
+          <RadioGroupItem value="a" aria-label="A" />
+          <RadioGroup aria-label="Inner">
+            <RadioGroupItem value="b" aria-label="B" />
+          </RadioGroup>
+        </RadioGroup>
+      </Field>,
+    );
+    expect(document.querySelectorAll("#mode")).toHaveLength(1);
+    const inner = screen.getByRole("radiogroup", { name: "Inner" });
+    expect(inner).not.toHaveAttribute("id");
+    expect(inner).not.toHaveAttribute("aria-labelledby");
+  });
+
+  it("with an error the options keep aria-invalid but leave aria-errormessage to the group", () => {
+    render(
+      <Field label="Mode" htmlFor="mode" error="Choose a mode." control={{ role: "radiogroup" }}>
+        {oneRadio()}
+      </Field>,
+    );
+    expect(screen.getByRole("radiogroup")).toHaveAttribute("aria-errormessage", "mode-error");
+    const radio = screen.getByRole("radio", { name: "A" });
+    expect(radio).toHaveAttribute("aria-invalid", "true");
+    expect(radio).not.toHaveAttribute("aria-errormessage");
+  });
+
+  it("a group named by the caller keeps its own name", () => {
+    const { rerender } = render(
+      <Field label="Mode" htmlFor="mode" control={{ role: "group", "aria-label": "Own" }}>
+        <Checkbox aria-label="A" />
+      </Field>,
+    );
+    expect(screen.getByRole("group")).not.toHaveAttribute("aria-labelledby");
+    expect(screen.getByRole("group")).toHaveAccessibleName("Own");
+    rerender(
+      <Field label="Mode" htmlFor="mode" control={{ role: "group", "aria-labelledby": "other" }}>
+        <span id="other">Other</span>
+        <Checkbox aria-label="A" />
+      </Field>,
+    );
+    expect(screen.getByRole("group")).toHaveAttribute("aria-labelledby", "other");
+    expect(screen.getByRole("group")).toHaveAccessibleName("Other");
   });
 });
 
@@ -182,7 +372,13 @@ describe("Field group label hover", () => {
         valueHint="Fast skips the checks."
         control={{ role, "aria-describedby": "mode-help" }}
       >
-        <Input aria-label="Fast" />
+        {role === "radiogroup" ? (
+          <RadioGroup>
+            <RadioGroupItem value="fast" aria-label="Fast" />
+          </RadioGroup>
+        ) : (
+          <Input aria-label="Fast" />
+        )}
       </Field>,
     );
     expect(hover(screen.getByText("Mode"))).toBe("How it runs. Fast skips the checks.");

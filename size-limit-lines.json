@@ -59,7 +59,7 @@
     "./ui/preview-toolbar": { "recommended": 61380, "maximum": 64449 },
     "./ui/property-panel": { "recommended": 6175, "maximum": 6484 },
     "./ui/prose-link": { "recommended": 361, "maximum": 380 },
-    "./ui/radio-group": { "recommended": 2104, "maximum": 2210 },
+    "./ui/radio-group": { "recommended": 2104, "maximum": 2565 },
     "./ui/read-only-look-internal": { "recommended": 149, "maximum": 157 },
     "./ui/removable-chip": { "recommended": 798, "maximum": 838 },
     "./ui/restore-defaults-button": { "recommended": 33098, "maximum": 34753 },

@@ -16,6 +16,26 @@ function FieldError({ id, ...props }: FieldErrorProps) {
 // The error of the surrounding field (`SettingsField error`): the id of its `FieldError`, or null.
 const FieldErrorContext = React.createContext<string | null>(null);
 
+// The name, description and error state of the option group of the surrounding field, when the field's
+// control is a `radiogroup` (`SUI-FEATURE-400`): the package `RadioGroup` inside carries them itself, so
+// the radiogroup is the named group and no wrapper around it takes a group role. Null elsewhere.
+type FieldGroupAttributes = {
+  id?: string | undefined;
+  "aria-labelledby"?: string | undefined;
+  "aria-describedby"?: string | undefined;
+  "aria-invalid"?: true | undefined;
+  "aria-errormessage"?: string | undefined;
+};
+
+// `take` is called by the one package `RadioGroup` of the field when it mounts and returns the release;
+// while `taken`, the group spreads `attributes` and the element around it drops role and attributes.
+// Until then (hand-built radios, no package `RadioGroup`) that element keeps them.
+const FieldGroupContext = React.createContext<{
+  attributes: FieldGroupAttributes;
+  taken: boolean;
+  take: () => () => void;
+} | null>(null);
+
 // What a package control inside an invalid field carries: `aria-invalid` (and with it the red border)
 // and `aria-errormessage` on the field's error. Spread before the control's own props, so an explicit
 // value at the call site wins. Read on every render, so a control that mounts late or remounts while
@@ -85,6 +105,8 @@ function submitLocked(event: React.MouseEvent<HTMLButtonElement>) {
 export {
   FieldError,
   FieldErrorContext,
+  type FieldGroupAttributes,
+  FieldGroupContext,
   type FieldErrorProps,
   FieldSubmitContext,
   FieldSubmitEndContext,

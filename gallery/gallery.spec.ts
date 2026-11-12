@@ -8934,7 +8934,10 @@ for (const [column, text, short] of [
 // the WAI-ARIA radio group pattern has it; the disabled option is skipped.
 test("radio group: an arrow key moves the focus and checks the option", async ({ page }) => {
   await page.goto("/?page=components");
-  const group = page.getByRole("radiogroup", { name: "RadioGroup", exact: true });
+  // The demo group, not the invalid field's group of the same name (`SUI-FEATURE-400`).
+  const group = page
+    .getByRole("radiogroup", { name: "RadioGroup", exact: true })
+    .filter({ has: page.locator("#radio-a") });
   const [a, b] = [
     group.getByRole("radio", { name: "a", exact: true }),
     group.getByRole("radio", { name: "b", exact: true }),
@@ -8964,11 +8967,12 @@ test("settings field: option groups named by the label, options 8 px apart", asy
     ];
     return b.y - (a.y + a.height);
   };
-  for (const [name, prefix] of [
-    ["3", "field-3"],
-    ["4", "field-4"],
+  // A radio group is the named group itself, no group around it (`SUI-FEATURE-400`).
+  for (const [name, prefix, role] of [
+    ["3", "field-3", "radiogroup"],
+    ["4", "field-4", "group"],
   ] as const) {
-    const group = page.getByRole("group", { name: `Field ${name}`, exact: true });
+    const group = page.getByRole(role, { name: `Field ${name}`, exact: true });
     await expect(group).toBeVisible();
     await expect(group.getByTestId(`${prefix}-a`)).toBeVisible();
     expect(Math.abs((await gap(prefix)) - 8)).toBeLessThanOrEqual(1);

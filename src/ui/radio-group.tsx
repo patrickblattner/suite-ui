@@ -3,7 +3,7 @@ import { CircleIcon } from "lucide-react";
 import { RadioGroup as RadioGroupPrimitive } from "radix-ui";
 
 import { cn } from "../lib/cn.js";
-import { FieldUserEditContext, useFieldErrorAttributes } from "./field-error.js";
+import { FieldGroupContext, FieldUserEditContext, useFieldErrorAttributes } from "./field-error.js";
 
 // The keys that move the focus to another option in radix: the arrow keys, and Home/End and
 // PageUp/PageDown to the first or last one. Each checks the option it focuses, so focus and checked
@@ -19,13 +19,20 @@ const FOCUS_KEYS = [
   "PageDown",
 ];
 
+// The options of a group that carries its field's error itself (`SUI-FEATURE-400`).
+const GroupCarriesErrorContext = React.createContext(false);
+
 // A focus key moves the focus to another option and checks it (WAI-ARIA radio group pattern, #438).
 // radix checks on that focus only while the key is still down, but it moves the focus in a timeout:
 // a key released before the timeout ran (a quick tap, a synthesized key press) left the option
 // unchecked; Home/End and PageUp/PageDown it never checks. So the group checks an option focused
-// after a focus key that radix did not check.
+// after a focus key that radix did not check. In a `Field` whose control is a `radiogroup`, the group
+// takes the field's id, name, description and error state and carries them itself
+// (`SUI-FEATURE-400`); exactly one package RadioGroup per field. Its options and a RadioGroup nested in
+// it see no field group.
 function RadioGroup({
   className,
+  children,
   onKeyDown,
   onClick,
   onFocus,
@@ -33,6 +40,10 @@ function RadioGroup({
   ...props
 }: React.ComponentProps<typeof RadioGroupPrimitive.Root>) {
   const fieldError = useFieldErrorAttributes();
+  const fieldGroup = React.useContext(FieldGroupContext);
+  const take = fieldGroup?.take;
+  React.useLayoutEffect(() => take?.(), [take]);
+  const carried = fieldGroup?.taken === true ? fieldGroup.attributes : undefined;
   // "moved": a focus key moved the focus, which has not arrived yet; "checked": radix checked it.
   const focusKey = React.useRef<"none" | "moved" | "checked">("none");
   const presses = React.useRef(0);
@@ -42,6 +53,7 @@ function RadioGroup({
   return (
     <RadioGroupPrimitive.Root
       {...fieldError}
+      {...carried}
       data-slot="radio-group"
       className={cn("grid gap-2", className)}
       onKeyDown={(event) => {
@@ -75,17 +87,29 @@ function RadioGroup({
         userEdit?.();
         props.onValueChange?.(value);
       }}
-    />
+    >
+      <FieldGroupContext.Provider value={null}>
+        <GroupCarriesErrorContext.Provider value={carried?.["aria-errormessage"] !== undefined}>
+          {children}
+        </GroupCarriesErrorContext.Provider>
+      </FieldGroupContext.Provider>
+    </RadioGroupPrimitive.Root>
   );
 }
 
 // GL-UI-013: the hit area grows to at least 24 × 24 px around the unchanged control. In an invalid
-// field each option carries the red border too (`SUI-FEATURE-078`).
+// field each option carries the red border too (`SUI-FEATURE-078`); in a group that carries the
+// field's error itself the option keeps `aria-invalid` without `aria-errormessage`, so the error is
+// announced once (`SUI-FEATURE-400`).
 function RadioGroupItem({
   className,
   ...props
 }: React.ComponentProps<typeof RadioGroupPrimitive.Item>) {
-  const fieldError = useFieldErrorAttributes();
+  const marked = useFieldErrorAttributes();
+  const fieldError =
+    React.useContext(GroupCarriesErrorContext) && marked["aria-invalid"] === true
+      ? { "aria-invalid": true as const }
+      : marked;
   return (
     <RadioGroupPrimitive.Item
       {...fieldError}

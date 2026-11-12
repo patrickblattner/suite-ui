@@ -67,42 +67,65 @@ describe("SettingsField", () => {
   it.each([false, true])("with group names the options by the label (hint: %s)", (hinted) => {
     render(
       <SettingsField label="Mode" htmlFor="mode" group hint={hinted ? "How it runs." : undefined}>
+        <Checkbox aria-label="A" />
+        <Checkbox aria-label="B" />
+      </SettingsField>,
+    );
+    const group = screen.getByRole("group", { name: "Mode" });
+    expect(group).toContainElement(screen.getByRole("checkbox", { name: "A" }));
+  });
+
+  // SUI-FEATURE-400: with `group="radio"` the RadioGroup is the named group itself, no group around it.
+  it.each([false, true])("with a radio group names the RadioGroup itself (hint: %s)", (hinted) => {
+    render(
+      <SettingsField
+        label="Mode"
+        htmlFor="mode"
+        group="radio"
+        hint={hinted ? "How it runs." : undefined}
+      >
         <RadioGroup defaultValue="a">
           <RadioGroupItem value="a" aria-label="A" />
           <RadioGroupItem value="b" aria-label="B" />
         </RadioGroup>
       </SettingsField>,
     );
-    const group = screen.getByRole("group", { name: "Mode" });
+    const group = screen.getByRole("radiogroup", { name: "Mode" });
+    expect(group).toHaveAttribute("id", "mode");
     expect(group).toContainElement(screen.getByRole("radio", { name: "A" }));
+    expect(screen.queryByRole("group")).toBeNull();
+    expect(
+      document.querySelector("[data-slot=settings-field-group]")?.getAttribute("role"),
+    ).toBeNull();
   });
 
   // #505: the group carries the hint as its description, its options do not repeat it.
   it("with group and a hint describes the group by the hint, read once", () => {
     const { rerender } = render(
-      <SettingsField label="Mode" htmlFor="mode" group hint="How it runs.">
+      <SettingsField label="Mode" htmlFor="mode" group="radio" hint="How it runs.">
         <RadioGroup defaultValue="a">
           <RadioGroupItem value="a" aria-label="A" />
           <RadioGroupItem value="b" aria-label="B" />
         </RadioGroup>
       </SettingsField>,
     );
-    const group = screen.getByRole("group", { name: "Mode" });
+    const group = screen.getByRole("radiogroup", { name: "Mode" });
     expect(group).toHaveAttribute("aria-describedby", "mode-help");
     expect(group).toHaveAccessibleDescription("How it runs.");
     for (const radio of screen.getAllByRole("radio")) {
       expect(radio).not.toHaveAttribute("aria-describedby");
     }
-    expect(screen.getByRole("radiogroup")).not.toHaveAttribute("aria-describedby");
 
     rerender(
-      <SettingsField label="Mode" htmlFor="mode" group>
+      <SettingsField label="Mode" htmlFor="mode" group="radio">
         <RadioGroup defaultValue="a">
           <RadioGroupItem value="a" aria-label="A" />
         </RadioGroup>
       </SettingsField>,
     );
-    expect(screen.getByRole("group", { name: "Mode" })).not.toHaveAttribute("aria-describedby");
+    expect(screen.getByRole("radiogroup", { name: "Mode" })).not.toHaveAttribute(
+      "aria-describedby",
+    );
   });
 
   // #508: the group carries the help text too, after the hint, each read once.
@@ -111,7 +134,7 @@ describe("SettingsField", () => {
       <SettingsField
         label="Mode"
         htmlFor="mode"
-        group
+        group="radio"
         hint={hinted ? "How it runs." : undefined}
         help="Applies to new sessions."
       >
@@ -120,7 +143,7 @@ describe("SettingsField", () => {
         </RadioGroup>
       </SettingsField>,
     );
-    const group = screen.getByRole("group", { name: "Mode" });
+    const group = screen.getByRole("radiogroup", { name: "Mode" });
     expect(group).toHaveAttribute(
       "aria-describedby",
       hinted ? "mode-help mode-description" : "mode-description",
@@ -129,14 +152,13 @@ describe("SettingsField", () => {
       hinted ? "How it runs. Applies to new sessions." : "Applies to new sessions.",
     );
     expect(screen.getByRole("radio")).not.toHaveAttribute("aria-describedby");
-    expect(screen.getByRole("radiogroup")).not.toHaveAttribute("aria-describedby");
 
-    // The error replaces the help text: the group points to it by aria-errormessage only.
+    // The error replaces the help text in the description (SUI-FEATURE-400 AC3).
     rerender(
       <SettingsField
         label="Mode"
         htmlFor="mode"
-        group
+        group="radio"
         hint={hinted ? "How it runs." : undefined}
         help="Applies to new sessions."
         error="Choose a mode."
@@ -146,8 +168,13 @@ describe("SettingsField", () => {
         </RadioGroup>
       </SettingsField>,
     );
-    if (hinted) expect(group).toHaveAttribute("aria-describedby", "mode-help");
-    else expect(group).not.toHaveAttribute("aria-describedby");
+    expect(group).toHaveAttribute(
+      "aria-describedby",
+      hinted ? "mode-help mode-error" : "mode-error",
+    );
+    expect(group).toHaveAccessibleDescription(
+      hinted ? /^How it runs\. .*Choose a mode\.$/ : /Choose a mode\.$/,
+    );
     expect(group).toHaveAttribute("aria-errormessage", "mode-error");
   });
 

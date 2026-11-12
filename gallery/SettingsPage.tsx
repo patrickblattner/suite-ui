@@ -253,7 +253,7 @@ export function SettingsPage() {
                     onChange={(event) => setForm((f) => ({ ...f, "field-2": event.target.value }))}
                   />
                 </SettingsField>
-                <SettingsField label={`${labels.field} 3`} htmlFor="field-3" group>
+                <SettingsField label={`${labels.field} 3`} htmlFor="field-3" group="radio">
                   <RadioGroup defaultValue="a">{options("field-3")}</RadioGroup>
                 </SettingsField>
                 <SettingsField label={`${labels.field} 4`} htmlFor="field-4" group>

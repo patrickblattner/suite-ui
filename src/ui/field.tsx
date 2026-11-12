@@ -4,6 +4,8 @@ import { cn } from "../lib/cn.js";
 import {
   FieldError,
   FieldErrorContext,
+  type FieldGroupAttributes,
+  FieldGroupContext,
   FieldSubmitContext,
   FieldSubmitEndContext,
 } from "./field-error.js";
@@ -35,8 +37,13 @@ type FieldProps = Omit<React.ComponentProps<"div">, "children"> & {
   // same id `${htmlFor}-description`, as an `InlineMessage` (#382).
   warning?: string | undefined;
   labelClassName?: string | undefined;
-  // The props of the element around the control (width, `role="group"`, …).
-  control?: Omit<React.ComponentProps<"div">, "children"> & { "data-slot"?: string };
+  // The props of the element around the control (width, `role="group"`, …). An option group
+  // (`role="group"` or `"radiogroup"`) is named by the label and described by the field's texts
+  // (`SUI-FEATURE-400`); with `"radiogroup"` the package `RadioGroup` inside takes the role, id, name
+  // and description, and the element around it carries no role — exactly one package RadioGroup per
+  // field. Without one (hand-built radios) the element around them keeps role and attributes. A
+  // `role="group"` with its own `aria-label` or `aria-labelledby` keeps that name.
+  control?: FieldControl;
   // The class of the help or error text.
   messageClassName?: string | undefined;
   // The `data-testid` of the error text.
@@ -45,6 +52,60 @@ type FieldProps = Omit<React.ComponentProps<"div">, "children"> & {
   warningTestId?: string | undefined;
   children: React.ReactNode;
 };
+
+// The ids of a field's parts, spelled in one place for `Field` and the fields built on it
+// (`SUI-FEATURE-400`): label, the label's hint, a group's value hint, help text or warning, error.
+function fieldIdsFor(htmlFor: string) {
+  return {
+    label: `${htmlFor}-label`,
+    help: helpIdFor(htmlFor),
+    valueHint: `${htmlFor}-value-hint`,
+    description: `${htmlFor}-description`,
+    error: `${htmlFor}-error`,
+  };
+}
+
+type FieldControl = Omit<React.ComponentProps<"div">, "children"> & { "data-slot"?: string };
+
+// The option group of a field is named by the label (unless the caller names a `role="group"` itself)
+// and described by the label's hint, the value hint, then the help text or warning, or the error that
+// replaces them (`described`, ids absent left out); ids of the caller's own follow, each read once
+// (`SUI-FEATURE-400`). With `role="radiogroup"` the element around the options keeps role and
+// attributes (`groupControl`) until the package `RadioGroup` inside takes them (`handover`); then that
+// element carries no role. Any other control passes through.
+function groupWiring(
+  control: FieldControl | undefined,
+  ids: ReturnType<typeof fieldIdsFor>,
+  described: (string | undefined)[],
+  invalid: boolean,
+): {
+  groupControl: FieldControl | undefined;
+  handover: { control: FieldControl; attributes: FieldGroupAttributes } | null;
+} {
+  if (control?.role !== "group" && control?.role !== "radiogroup") {
+    return { groupControl: control, handover: null };
+  }
+  const known: string[] = Object.values(ids);
+  const own = (control["aria-describedby"] ?? "")
+    .split(" ")
+    .filter((id) => id !== "" && !known.includes(id));
+  const describedBy = [...described, ...own].filter((id) => id !== undefined).join(" ");
+  const named = control.role === "group" && control["aria-label"] !== undefined;
+  const attributes: FieldGroupAttributes = {
+    id: control.id,
+    "aria-labelledby": control["aria-labelledby"] ?? (named ? undefined : ids.label),
+    "aria-describedby": describedBy === "" ? undefined : describedBy,
+    "aria-invalid": invalid ? true : undefined,
+    "aria-errormessage": invalid ? ids.error : undefined,
+  };
+  const groupControl = { ...control, ...attributes };
+  if (control.role === "group") return { groupControl, handover: null };
+  const rest = { ...control };
+  for (const key of ["role", "id", "aria-labelledby", "aria-describedby"] as const) {
+    delete rest[key];
+  }
+  return { groupControl, handover: { control: rest, attributes } };
+}
 
 // One form field (`GL-UI-010`): the label above the control, the help or error text under it, 8 px
 // apart. The building block of `SettingsField` and `GridFields` (`SUI-FEATURE-087`). With `error`, the
@@ -67,8 +128,7 @@ function Field({
   children,
   ...props
 }: FieldProps) {
-  const labelId = `${htmlFor}-label`;
-  const errorId = `${htmlFor}-error`;
+  const ids = fieldIdsFor(htmlFor);
   // An empty text is no error.
   const current = error === "" ? undefined : error;
   // When the error shows (`GL-UI-038`): late, once the person has typed and left the control typed in,
@@ -105,38 +165,37 @@ function Field({
   const controlHint = group ? undefined : (valueHint ?? hint);
   // The group carries its value hint as its description, right after the label's hint, read once
   // (`GL-UI-017` §Label und Feld sind zwei Träger, #539).
-  const valueHintId = `${htmlFor}-value-hint`;
   // An empty text is no hint.
   const groupValueHint = group && valueHint !== undefined && valueHint !== "";
-  let groupControl = control;
-  if (groupValueHint) {
-    const ids = (control?.["aria-describedby"] ?? "").split(" ").filter((id) => id !== "");
-    if (!ids.includes(valueHintId)) ids.splice(ids.indexOf(helpIdFor(htmlFor)) + 1, 0, valueHintId);
-    groupControl = { ...control, "aria-describedby": ids.join(" ") };
-  }
-  // A group carries the error it shows itself, in place of the help text; its options are marked
-  // through the context.
-  if (group) {
-    const describedBy = invalid
-      ? groupControl?.["aria-describedby"]
-          ?.split(" ")
-          .filter((id) => id !== `${htmlFor}-description`)
-          .join(" ")
-      : groupControl?.["aria-describedby"];
-    groupControl = {
-      ...groupControl,
-      "aria-describedby": describedBy === "" ? undefined : describedBy,
-      "aria-invalid": invalid ? true : undefined,
-      "aria-errormessage": invalid ? errorId : undefined,
-    };
-  }
+  const warned = warning !== undefined && warning !== "";
+  // The package `RadioGroup` inside a radiogroup control that took the group's attributes.
+  const [taken, setTaken] = React.useState(false);
+  const take = React.useCallback(() => {
+    setTaken(true);
+    return () => setTaken(false);
+  }, []);
+  const wiring = groupWiring(
+    control,
+    ids,
+    [
+      hint !== undefined ? ids.help : undefined,
+      groupValueHint ? ids.valueHint : undefined,
+      !invalid && (warned || help !== undefined) ? ids.description : undefined,
+      invalid ? ids.error : undefined,
+    ],
+    invalid,
+  );
+  const groupControl =
+    taken && wiring.handover !== null ? wiring.handover.control : wiring.groupControl;
+  const fieldGroup =
+    wiring.handover === null ? null : { attributes: wiring.handover.attributes, taken, take };
   return (
     <div className={cn("flex flex-col gap-2", className)} data-slot="field" {...props}>
       {groupValueHint ? (
         // A group has no field surface: its label shows the value hint on hover, after the label's
         // own hint (`GL-UI-017` rev 9 §Gruppen, #539).
         <LabelWithHelp
-          id={labelId}
+          id={ids.label}
           htmlFor={htmlFor}
           help={hint === undefined ? valueHint : `${hint} ${valueHint}`}
           description={hint ?? null}
@@ -146,7 +205,7 @@ function Field({
         </LabelWithHelp>
       ) : hint !== undefined ? (
         <LabelWithHelp
-          id={labelId}
+          id={ids.label}
           htmlFor={htmlFor}
           help={hint}
           className={cn(labelClassName, "leading-none")}
@@ -154,12 +213,12 @@ function Field({
           {label}
         </LabelWithHelp>
       ) : (
-        <Label id={labelId} htmlFor={htmlFor} className={labelClassName}>
+        <Label id={ids.label} htmlFor={htmlFor} className={labelClassName}>
           {label}
         </Label>
       )}
       {groupValueHint ? (
-        <span id={valueHintId} hidden>
+        <span id={ids.valueHint} hidden>
           {valueHint}
         </span>
       ) : null}
@@ -187,30 +246,27 @@ function Field({
           if (event.code === "NumpadDecimal" && event.defaultPrevented) setTypedIn(event.target);
         }}
       >
-        <FieldErrorContext.Provider value={invalid ? errorId : null}>
+        <FieldErrorContext.Provider value={invalid ? ids.error : null}>
           <FieldValueHintContext.Provider value={controlHint}>
-            {children}
+            <FieldGroupContext.Provider value={fieldGroup}>{children}</FieldGroupContext.Provider>
           </FieldValueHintContext.Provider>
         </FieldErrorContext.Provider>
       </div>
       {invalid ? (
-        <FieldError id={errorId} className={messageClassName} data-testid={errorTestId}>
+        <FieldError id={ids.error} className={messageClassName} data-testid={errorTestId}>
           {shown}
         </FieldError>
       ) : warning !== undefined && warning !== "" ? (
         <InlineMessage
           tone="warn"
-          id={`${htmlFor}-description`}
+          id={ids.description}
           className={messageClassName}
           data-testid={warningTestId}
         >
           {warning}
         </InlineMessage>
       ) : help !== undefined ? (
-        <p
-          id={`${htmlFor}-description`}
-          className={cn("text-sm text-muted-foreground", messageClassName)}
-        >
+        <p id={ids.description} className={cn("text-sm text-muted-foreground", messageClassName)}>
           {help}
         </p>
       ) : null}

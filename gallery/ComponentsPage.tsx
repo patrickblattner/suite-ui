@@ -795,8 +795,13 @@ function FieldErrors() {
             <Label htmlFor="error-checkbox-terms">Terms</Label>
           </div>
         </SettingsField>
-        <SettingsField label="RadioGroup" htmlFor="error-radio" group error="Choose a mode.">
-          <RadioGroup aria-label="Mode" className="flex gap-4">
+        <SettingsField
+          label="RadioGroup"
+          htmlFor="error-radio"
+          group="radio"
+          error="Choose a mode."
+        >
+          <RadioGroup className="flex gap-4">
             {["a", "b"].map((value) => (
               <div key={value} className="flex items-center gap-2">
                 <RadioGroupItem id={`error-radio-${value}`} value={value} />

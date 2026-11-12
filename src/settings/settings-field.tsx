@@ -2,7 +2,6 @@ import type * as React from "react";
 
 import { cn } from "../lib/cn.js";
 import { Field } from "../ui/field.js";
-import { helpIdFor } from "../ui/label-with-help.js";
 
 type SettingsFieldProps = {
   label: string;
@@ -21,8 +20,9 @@ type SettingsFieldProps = {
   // What the value counts, its unit, the effect of a choice, as the input's own hint (`Field valueHint`);
   // with `group` what the options do, as the group's description after the hint (#539).
   valueHint?: string;
-  // The children are an option group (radios, several checkboxes), named by the label.
-  group?: boolean;
+  // The children are an option group, named by the label: `true` for several checkboxes, `"radio"` for
+  // a package `RadioGroup`, which then is the named group itself (`SUI-FEATURE-400`).
+  group?: boolean | "radio";
   // The input, or with `group` the options.
   children: React.ReactNode;
 };
@@ -32,7 +32,9 @@ type SettingsFieldProps = {
 // 36rem too. With `group` the options stand in a named group 8 px apart, as in a package RadioGroup.
 // With `error` the package controls inside (Input, Textarea, a Select's trigger, TimezoneCombobox,
 // Checkbox, RadioGroup and its options) and, with `group`, the group carry `aria-invalid` and
-// `aria-errormessage` on the `FieldError` that replaces the help text. Built on the package's `Field`.
+// `aria-errormessage` on the `FieldError` that replaces the help text. Built on the package's `Field`,
+// which names and describes the group (hint, value hint, help text or error, each read once; #505,
+// #508, #539, `SUI-FEATURE-400`).
 function SettingsField({
   label,
   htmlFor,
@@ -44,16 +46,6 @@ function SettingsField({
   group = false,
   children,
 }: SettingsFieldProps) {
-  // The group, not its options, carries the hint, the value hint (inserted by `Field`, #539) and then
-  // the help text as its description, each read once (#505, #508); the error replaces the help text and
-  // is reached by `aria-errormessage`, both while it shows (`Field`).
-  const groupDescribedBy =
-    [
-      hint !== undefined ? helpIdFor(htmlFor) : undefined,
-      help !== undefined ? `${htmlFor}-description` : undefined,
-    ]
-      .filter((id) => id !== undefined)
-      .join(" ") || undefined;
   return (
     <Field
       label={label}
@@ -69,9 +61,7 @@ function SettingsField({
         group
           ? {
               id: htmlFor,
-              role: "group",
-              "aria-labelledby": `${htmlFor}-label`,
-              "aria-describedby": groupDescribedBy,
+              role: group === "radio" ? "radiogroup" : "group",
               className: "flex w-full max-w-xl flex-col gap-2",
               "data-slot": "settings-field-group",
             }
