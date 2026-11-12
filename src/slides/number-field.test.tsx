@@ -365,3 +365,100 @@ describe("NumberInput composition", () => {
     expect(onValue).toHaveBeenLastCalledWith(5);
   });
 });
+
+// #883 (SUI-FEATURE-410): `disabled` makes the field inactive like the package's text fields,
+// apart from `readOnly`; `placeholder` shows only in the empty field and never names it.
+describe("NumberField and NumberInput disabled and placeholder", () => {
+  function renderBoth(props: { disabled?: boolean; readOnly?: boolean; placeholder?: string }) {
+    const field = { onValue: vi.fn(), onEmpty: vi.fn() };
+    const input = { onValue: vi.fn(), onEmpty: vi.fn(), onLeave: vi.fn() };
+    render(
+      <>
+        <NumberField
+          id="size"
+          label="Size"
+          value={undefined}
+          unit="px"
+          readOnly={props.readOnly ?? false}
+          disabled={props.disabled}
+          placeholder={props.placeholder}
+          onValue={field.onValue}
+          onEmpty={field.onEmpty}
+          revision={0}
+          testId="size"
+        />
+        <NumberInput
+          value={undefined}
+          unit="%"
+          readOnly={props.readOnly}
+          disabled={props.disabled}
+          placeholder={props.placeholder}
+          aria-label="Zoom"
+          onValue={input.onValue}
+          onEmpty={input.onEmpty}
+          onLeave={input.onLeave}
+          revision={0}
+          testId="zoom"
+        />
+      </>,
+    );
+    return { field, input, both: [screen.getByTestId("size"), screen.getByTestId("zoom")] };
+  }
+
+  it("disabled: the input is disabled, takes no focus and hears no typing, keys or leaving", () => {
+    const { field, input, both } = renderBoth({ disabled: true });
+    for (const element of both) {
+      expect(element).toBeDisabled();
+      element.focus();
+      expect(element).not.toHaveFocus();
+      fireEvent.change(element, { target: { value: "5" } });
+      fireEvent.keyDown(element, { key: "ArrowUp" });
+      fireEvent.keyDown(element, { key: ".", code: "NumpadDecimal" });
+      fireEvent.change(element, { target: { value: "" } });
+      fireEvent.keyDown(element, { key: "Enter" });
+      fireEvent.blur(element);
+    }
+    for (const spy of [field.onValue, field.onEmpty, input.onValue, input.onEmpty, input.onLeave])
+      expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("disabled: the unit dims with the field; enabled, it does not", () => {
+    const { unmount } = render(
+      <NumberInput value={1} unit="px" disabled onValue={vi.fn()} revision={0} testId="a" />,
+    );
+    expect(screen.getByTestId("a-unit")).toHaveClass("opacity-50");
+    unmount();
+    render(<NumberInput value={1} unit="px" onValue={vi.fn()} revision={0} testId="b" />);
+    expect(screen.getByTestId("b-unit")).not.toHaveClass("opacity-50");
+  });
+
+  it("read-only is not disabled: it stays focusable and readable", () => {
+    const { both } = renderBoth({ readOnly: true });
+    for (const element of both) {
+      expect(element).not.toBeDisabled();
+      expect(element).toHaveAttribute("readonly");
+      element.focus();
+      expect(element).toHaveFocus();
+    }
+  });
+
+  it("without disabled, it is enabled and takes typing as before", () => {
+    const { field, input, both } = renderBoth({});
+    for (const element of both) expect(element).toBeEnabled();
+    fireEvent.change(both[0]!, { target: { value: "5" } });
+    fireEvent.change(both[1]!, { target: { value: "7" } });
+    expect(field.onValue).toHaveBeenLastCalledWith(5);
+    expect(input.onValue).toHaveBeenLastCalledWith(7);
+  });
+
+  it("placeholder: an attribute on the input, never its accessible name", () => {
+    const { both } = renderBoth({ placeholder: "0,00" });
+    for (const element of both) {
+      expect(element).toHaveAttribute("placeholder", "0,00");
+      expect(element).toHaveValue("");
+    }
+    expect(screen.getByRole("spinbutton", { name: "Size" })).toBe(both[0]);
+    expect(screen.getByRole("spinbutton", { name: "Zoom" })).toBe(both[1]);
+    expect(screen.queryByRole("spinbutton", { name: "0,00" })).toBeNull();
+  });
+});

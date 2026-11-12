@@ -43,6 +43,8 @@ export function NumberField({
   warningTestId,
   hint,
   valueHint,
+  disabled,
+  placeholder,
   "aria-label": ariaLabel,
 }: {
   id: string;
@@ -73,6 +75,11 @@ export function NumberField({
   hint?: string | undefined;
   // What the number counts and its unit, as the input's own hint and description (`Field valueHint`).
   valueHint?: string | undefined;
+  // Inactive like the package's other fields: not focusable, dimmed, hears nothing; not `readOnly`
+  // (SUI-FEATURE-410).
+  disabled?: boolean | undefined;
+  // Shown only in the empty field, never its name (SUI-FEATURE-410).
+  placeholder?: string | undefined;
   // The input's name when the label alone does not say it (a side in a named group).
   "aria-label"?: string | undefined;
 }) {
@@ -97,6 +104,8 @@ export function NumberField({
           value={value}
           unit={unit}
           readOnly={readOnly}
+          disabled={disabled}
+          placeholder={placeholder}
           min={min}
           max={max}
           aria-label={ariaLabel}
@@ -134,6 +143,8 @@ export function NumberInput({
   value,
   unit,
   readOnly = false,
+  disabled = false,
+  placeholder,
   onValue,
   onEmpty,
   onLeave,
@@ -153,6 +164,8 @@ export function NumberInput({
   value: number | undefined;
   unit: string;
   readOnly?: boolean;
+  disabled?: boolean | undefined;
+  placeholder?: string | undefined;
   onValue: (value: number) => void;
   onEmpty?: (() => void) | undefined;
   onLeave?: (value: number) => void;
@@ -188,7 +201,7 @@ export function NumberInput({
   const setText = (next: string | null) =>
     setTyped(next === null ? null : { text: next, revision });
   const type = (next: string) => {
-    if (!takesDecimal(next)) return;
+    if (disabled || !takesDecimal(next)) return;
     setText(next);
     if (onEmpty !== undefined && next.trim() === "") {
       onEmpty();
@@ -229,6 +242,8 @@ export function NumberInput({
         aria-valuemax={max}
         size={size}
         readOnly={readOnly}
+        disabled={disabled}
+        placeholder={placeholder}
         aria-label={ariaLabel}
         aria-describedby={ariaDescribedBy}
         value={composition.composing() ?? text ?? shown}
@@ -239,7 +254,11 @@ export function NumberInput({
           const next = numpadDecimal(event, language);
           if (next !== null) type(next);
           else if (event.key === "Enter" && onLeave !== undefined) leave();
-          else if ((event.key === "ArrowUp" || event.key === "ArrowDown") && !readOnly) {
+          else if (
+            (event.key === "ArrowUp" || event.key === "ArrowDown") &&
+            !readOnly &&
+            !disabled
+          ) {
             event.preventDefault();
             stepBy(event.key === "ArrowUp" ? 1 : -1);
           }
@@ -251,7 +270,14 @@ export function NumberInput({
         className="pr-8"
         data-testid={testId}
       />
-      <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-muted-foreground">
+      <span
+        className={cn(
+          "pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-muted-foreground",
+          // The unit dims with the field, as the disabled `Input` does (SUI-FEATURE-410).
+          disabled && "opacity-50",
+        )}
+        data-testid={`${testId}-unit`}
+      >
         {unit}
       </span>
     </div>

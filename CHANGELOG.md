@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — #883: `NumberInput` and `NumberField` take `disabled` and `placeholder` (SUI-FEATURE-410 rev 2) (minor)
+
+- **Migration (#883):** new optional props only, no break. Apps that wrapped a number field in `fieldset[disabled]` or set `disabled`/`placeholder` on the DOM pass the props instead.
+- **Added (#883, SUI-FEATURE-410 AC1):** `disabled` on `NumberInput` and `NumberField` sets `<input disabled>`: not focusable, the disabled look of the package `Input` with its unit dimmed too, no `onValue`/`onEmpty`/`onLeave` and no arrow-key steps. `readOnly` stays separate (focusable, readable).
+- **Added (#883, SUI-FEATURE-410 AC3):** `placeholder` is passed to the `<input>`; the accessible name stays the label or `aria-label`. Parser and commit behaviour (`GL-UI-037`) unchanged.
+- **Tests (#883):** `src/slides/number-field.test.tsx` "NumberField and NumberInput disabled and placeholder" — disabled attribute, no focus, no callbacks, the unit dims only while disabled; read-only stays focusable; enabled unchanged; placeholder attribute without naming the field.
+
 ## 0.233.1 — #881: RadioGroup `asChild` reaches the caller's element again (patch)
 
 - **Fixed (#881):** `RadioGroup` sets its field-group contexts around the radix root instead of inside it, so with `asChild` the caller's element itself becomes the radiogroup (role, name, attributes). No other change.
