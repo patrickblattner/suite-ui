@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased — #881: RadioGroup `asChild` reaches the caller's element again (patch)
+
+- **Fixed (#881):** `RadioGroup` sets its field-group contexts around the radix root instead of inside it, so with `asChild` the caller's element itself becomes the radiogroup (role, name, attributes). No other change.
+
 ## 0.233.0 — #879: Field option groups named and described on the group element itself (SUI-FEATURE-400 rev 3) (minor)
 
 - **Migration (#879):** every `SettingsField group` that wraps a `RadioGroup` becomes `group="radio"` (`Field`: `control={{ role: "radiogroup" }}`); remove the hand-set `aria-label`, `aria-labelledby` and `aria-describedby` on that `RadioGroup` (an own `aria-describedby` overrides the field's); exactly one package `RadioGroup` per field. Apps remove their local replacement component (e.g. a `RadioGroupField`). `group` (`true`) stays the checkbox group.

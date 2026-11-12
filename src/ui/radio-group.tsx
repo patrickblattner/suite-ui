@@ -51,49 +51,50 @@ function RadioGroup({
   // through `onValueChange` (`GL-UI-038`, #739).
   const userEdit = React.useContext(FieldUserEditContext);
   return (
-    <RadioGroupPrimitive.Root
-      {...fieldError}
-      {...carried}
-      data-slot="radio-group"
-      className={cn("grid gap-2", className)}
-      onKeyDown={(event) => {
-        onKeyDown?.(event);
-        focusKey.current = FOCUS_KEYS.includes(event.key) ? "moved" : "none";
-        if (focusKey.current === "none") return;
-        // A focus key that moves no focus (a key across the group's orientation, its end without loop,
-        // a single option) leaves nothing pending: radix's own timeout, which moves the focus, runs
-        // first.
-        const press = ++presses.current;
-        setTimeout(() => {
-          if (presses.current === press && focusKey.current === "moved") focusKey.current = "none";
-        });
-      }}
-      onClick={(event) => {
-        onClick?.(event);
-        if (focusKey.current === "moved") focusKey.current = "checked";
-      }}
-      onFocus={(event) => {
-        onFocus?.(event);
-        const pending = focusKey.current === "moved";
-        focusKey.current = "none";
-        if (pending && event.target.getAttribute("role") === "radio") event.target.click();
-      }}
-      onBlur={(event) => {
-        onBlur?.(event);
-        if (!event.currentTarget.contains(event.relatedTarget)) focusKey.current = "none";
-      }}
-      {...props}
-      onValueChange={(value) => {
-        userEdit?.();
-        props.onValueChange?.(value);
-      }}
-    >
-      <FieldGroupContext.Provider value={null}>
-        <GroupCarriesErrorContext.Provider value={carried?.["aria-errormessage"] !== undefined}>
+    <FieldGroupContext.Provider value={null}>
+      <GroupCarriesErrorContext.Provider value={carried?.["aria-errormessage"] !== undefined}>
+        <RadioGroupPrimitive.Root
+          {...fieldError}
+          {...carried}
+          data-slot="radio-group"
+          className={cn("grid gap-2", className)}
+          onKeyDown={(event) => {
+            onKeyDown?.(event);
+            focusKey.current = FOCUS_KEYS.includes(event.key) ? "moved" : "none";
+            if (focusKey.current === "none") return;
+            // A focus key that moves no focus (a key across the group's orientation, its end without loop,
+            // a single option) leaves nothing pending: radix's own timeout, which moves the focus, runs
+            // first.
+            const press = ++presses.current;
+            setTimeout(() => {
+              if (presses.current === press && focusKey.current === "moved")
+                focusKey.current = "none";
+            });
+          }}
+          onClick={(event) => {
+            onClick?.(event);
+            if (focusKey.current === "moved") focusKey.current = "checked";
+          }}
+          onFocus={(event) => {
+            onFocus?.(event);
+            const pending = focusKey.current === "moved";
+            focusKey.current = "none";
+            if (pending && event.target.getAttribute("role") === "radio") event.target.click();
+          }}
+          onBlur={(event) => {
+            onBlur?.(event);
+            if (!event.currentTarget.contains(event.relatedTarget)) focusKey.current = "none";
+          }}
+          {...props}
+          onValueChange={(value) => {
+            userEdit?.();
+            props.onValueChange?.(value);
+          }}
+        >
           {children}
-        </GroupCarriesErrorContext.Provider>
-      </FieldGroupContext.Provider>
-    </RadioGroupPrimitive.Root>
+        </RadioGroupPrimitive.Root>
+      </GroupCarriesErrorContext.Provider>
+    </FieldGroupContext.Provider>
   );
 }
 

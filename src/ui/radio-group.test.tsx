@@ -113,3 +113,19 @@ describe("RadioGroup arrow keys", () => {
     expect(onValueChange).not.toHaveBeenCalled();
   });
 });
+
+describe("RadioGroup asChild (#881)", () => {
+  it("passes role and name to the caller's element", () => {
+    render(
+      <RadioGroup asChild aria-label="Mode">
+        <section>
+          <RadioGroupItem value="a" aria-label="a" />
+          <RadioGroupItem value="b" aria-label="b" />
+        </section>
+      </RadioGroup>,
+    );
+    const group = screen.getByRole("radiogroup", { name: "Mode" });
+    expect(group.tagName).toBe("SECTION");
+    expect(screen.getAllByRole("radio")).toHaveLength(2);
+  });
+});
