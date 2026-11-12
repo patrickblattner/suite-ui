@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — #886: `NumberInput` and `NumberField` show the stored value without the fixed 2-decimal rounding; `fractionDigits` caps the decimals of a converted display (SUI-FEATURE-411 rev 3) (minor)
+## 0.235.0 — #886: `NumberInput` and `NumberField` show the stored value without the fixed 2-decimal rounding; `fractionDigits` caps the decimals of a converted display (SUI-FEATURE-411 rev 3) (minor)
 
 - **Migration (#886):** a number field shows every decimal its stored value carries (float noise removed, at most 6 decimals) and `aria-valuenow` is that value; an arrow-key step keeps the digits too (1.125 + ArrowUp → 2.125, before cut to 2 decimals). Apps whose field shows a value converted from the stored one (a zoom or share as percent) pass `fractionDigits={2}` to keep a 2-decimal display; a field showing the stored value itself sets none.
 - **Added (#886, SUI-FEATURE-411 AC3):** optional `fractionDigits` on `NumberInput` and `NumberField` caps the decimals shown only: never the stored value, never what is typed, and `aria-valuenow` stays the stored value. Parser, commit and error behaviour (`GL-UI-037`, `GL-UI-060`) unchanged.
