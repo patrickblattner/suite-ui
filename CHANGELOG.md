@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — #883: `NumberInput` and `NumberField` take `disabled` and `placeholder` (SUI-FEATURE-410 rev 2) (minor)
+## 0.234.0 — #883: `NumberInput` and `NumberField` take `disabled` and `placeholder` (SUI-FEATURE-410 rev 2) (minor)
 
 - **Migration (#883):** new optional props only, no break. Apps that wrapped a number field in `fieldset[disabled]` or set `disabled`/`placeholder` on the DOM pass the props instead.
 - **Added (#883, SUI-FEATURE-410 AC1):** `disabled` on `NumberInput` and `NumberField` sets `<input disabled>`: not focusable, the disabled look of the package `Input` with its unit dimmed too, no `onValue`/`onEmpty`/`onLeave` and no arrow-key steps. `readOnly` stays separate (focusable, readable).
