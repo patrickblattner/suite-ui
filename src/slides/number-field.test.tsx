@@ -422,6 +422,27 @@ describe("NumberField and NumberInput disabled and placeholder", () => {
       expect(spy).not.toHaveBeenCalled();
   });
 
+  // #884: a field disabled after a valid value was typed does not take it on leaving.
+  it("disabled after typing: shows the stored value, with or without leaving and after enabling again, and calls no onLeave", () => {
+    const onValue = vi.fn<(value: number) => void>();
+    const onLeave = vi.fn<(value: number) => void>();
+    const props = { value: 3, unit: "px", onValue, onLeave, revision: 0, testId: "n" };
+    const { rerender } = render(<NumberInput {...props} />);
+    const input = screen.getByTestId("n");
+    fireEvent.change(input, { target: { value: "8" } });
+    expect(onValue).toHaveBeenCalledWith(8);
+    rerender(<NumberInput {...props} disabled />);
+    expect(input).toHaveValue("3");
+    fireEvent.blur(input);
+    expect(input).toHaveValue("3");
+    fireEvent.keyDown(input, { key: "Enter" });
+    rerender(<NumberInput {...props} />);
+    expect(input).toHaveValue("3");
+    fireEvent.blur(input);
+    expect(input).toHaveValue("3");
+    expect(onLeave).not.toHaveBeenCalled();
+  });
+
   it("disabled: the unit dims with the field; enabled, it does not", () => {
     const { unmount } = render(
       <NumberInput value={1} unit="px" disabled onValue={vi.fn()} revision={0} testId="a" />,

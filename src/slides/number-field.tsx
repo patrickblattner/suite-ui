@@ -138,6 +138,24 @@ export function NumberField({
 // field would. `onLeave` takes the number typed last when the field is left or Enter is pressed (to
 // clamp what typing did not apply); the field then shows `value`. Its value text is what it shows
 // with the unit, so a screen reader hears the typed text while it is not a number.
+// The typed text still pending for this revision. Disabled, there is none: the field shows the
+// stored value and leaving takes nothing typed before (SUI-FEATURE-410 AC1, #884).
+function pendingText(
+  typed: { text: string; revision: number | string } | null,
+  revision: number | string,
+  disabled: boolean | undefined,
+): string | null {
+  return !disabled && typed?.revision === revision ? typed.text : null;
+}
+
+// Disabled, the pending typed text is dropped, so enabling the field again does not bring it back
+// (#884).
+function useDropWhenDisabled(disabled: boolean | undefined, setTyped: (next: null) => void) {
+  React.useEffect(() => {
+    if (disabled) setTyped(null);
+  }, [disabled, setTyped]);
+}
+
 export function NumberInput({
   id,
   value,
@@ -189,7 +207,8 @@ export function NumberInput({
   const [typed, setTyped] = React.useState<{ text: string; revision: number | string } | null>(
     null,
   );
-  const text = typed?.revision === revision ? typed.text : null;
+  const text = pendingText(typed, revision, disabled);
+  useDropWhenDisabled(disabled, setTyped);
   const emptied = text !== null && onEmpty !== undefined && text.trim() === "";
   const parsed = text === null || emptied ? null : parseDecimal(text, language);
   const why = parsed?.invalid ?? null;

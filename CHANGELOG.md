@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — #884: a disabled `NumberInput` shows its stored value and calls no `onLeave` for text typed before it was disabled (patch)
+
+- **Fixed (#884, SUI-FEATURE-410 AC1):** `NumberInput` disabled after a valid value was typed no longer calls `onLeave` on blur or Enter, and shows the stored `value` instead of the pending typed text (also when disabled without a blur); the pending text is dropped, so enabling the field again does not bring it back.
+- **Tests (#884):** `src/slides/number-field.test.tsx` "disabled after typing: shows the stored value, with or without leaving and after enabling again, and calls no onLeave".
+
 ## 0.234.0 — #883: `NumberInput` and `NumberField` take `disabled` and `placeholder` (SUI-FEATURE-410 rev 2) (minor)
 
 - **Migration (#883):** new optional props only, no break. Apps that wrapped a number field in `fieldset[disabled]` or set `disabled`/`placeholder` on the DOM pass the props instead.
