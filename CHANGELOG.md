@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — #888: number fields cut float noise at 15 significant digits and never show exponent notation (SUI-FEATURE-411 rev 4) (patch)
+## 0.235.1 — #888: number fields cut float noise at 15 significant digits and never show exponent notation (SUI-FEATURE-411 rev 4) (patch)
 
 - **Fixed (#888, SUI-FEATURE-411 AC5):** the one float-noise normalisation (`storedNumber`) keeps 15 significant digits instead of at most 6 decimals: a stored 0.123456789 shows "0,123456789" (de) and `aria-valuenow` 0.123456789. It serves the display, `aria-valuenow`, the arrow-key step, the read-only inspector and the slide editor's size-limit note alike.
 - **Fixed (#888, SUI-FEATURE-411 AC6):** `formatDecimal` writes every number out, never in exponent notation and never grouped: a stored 0.0000001 shows "0,0000001" (de) / "0.0000001" (en), never "0" or "1e-7", and `parseDecimal` reads the shown text back as the same value.
