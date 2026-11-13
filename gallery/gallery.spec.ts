@@ -3928,6 +3928,28 @@ test("placement buttons locked: reached by Tab, inert, described by the reason",
   await expect(page.getByTestId("crop-editor")).toHaveCount(0);
 });
 
+// `SUI-FEATURE-311` rev 5 AC 4: only the crop button locked; it carries its own reason and does
+// nothing, while Flip keeps its hint and toggles.
+test("placement buttons with only crop locked: crop inert with its reason, flip toggles", async ({
+  page,
+}) => {
+  await page.goto("/?page=components&lng=en&placementHints=on&placementLocked=crop");
+  const flip = page.getByTestId("image-flip");
+  const crop = page.getByTestId("image-crop");
+  await expect(crop).toHaveAttribute("aria-disabled", "true");
+  await expect(crop).toHaveAccessibleDescription("This layout keeps the whole image");
+  await expect(flip).not.toHaveAttribute("aria-disabled");
+  await expect(flip).toHaveAccessibleDescription("Mirrors the image left to right");
+  await flip.focus();
+  await page.keyboard.press("Tab");
+  await expect(crop).toBeFocused();
+  await page.keyboard.press("Enter");
+  await crop.click({ force: true });
+  await expect(page.getByTestId("crop-editor")).toHaveCount(0);
+  await flip.click();
+  await expect(flip).toHaveAttribute("aria-pressed", "true");
+});
+
 test("placement buttons without hints: no tooltip, no description", async ({ page }) => {
   await page.goto("/?page=components&lng=en");
   for (const id of ["image-flip", "image-crop"]) {

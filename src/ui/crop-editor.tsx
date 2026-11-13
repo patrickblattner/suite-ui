@@ -274,6 +274,16 @@ type ImagePlacementButtonsProps = {
   (
     | { disabled: boolean; disabledReason: string }
     | { disabled?: undefined; disabledReason?: undefined }
+  ) &
+  // The same per button (`SUI-FEATURE-311` rev 5): a locked button carries its own reason, the other
+  // stays usable; `disabled` above is the shorthand for both.
+  (
+    | { flipDisabled: boolean; flipDisabledReason: string }
+    | { flipDisabled?: undefined; flipDisabledReason?: undefined }
+  ) &
+  (
+    | { cropDisabled: boolean; cropDisabledReason: string }
+    | { cropDisabled?: undefined; cropDisabledReason?: undefined }
   );
 
 // Flip and Crop for the place next to the image's change button (`GL-UI-035`), two buttons of one
@@ -290,21 +300,32 @@ function ImagePlacementButtons({
   onCropChange,
   disabled = false,
   disabledReason,
+  flipDisabled = false,
+  flipDisabledReason,
+  cropDisabled = false,
+  cropDisabledReason,
   flipHint,
   cropHint,
 }: ImagePlacementButtonsProps) {
   const { t } = useTranslation("suite");
   const [editing, setEditing] = React.useState(false);
+  // A button's own lock names its own reason; otherwise the shared lock's reason stands
+  // (`SUI-FEATURE-311` rev 5). Unlocked, any given reason still keeps its `Hint` in place.
+  const reasonOf = (own: boolean, ownReason: string | undefined) =>
+    own ? ownReason : disabled ? disabledReason : (ownReason ?? disabledReason);
+  const flipReason = reasonOf(flipDisabled, flipDisabledReason);
+  const cropReason = reasonOf(cropDisabled, cropDisabledReason);
   // Locked, each button carries the reason through its `Hint`, which turns `disabled` into the
   // focusable `aria-disabled` lock (`SUI-FEATURE-250`). With a reason the `Hint` stands unlocked too
   // (without a hint of its own it stays silent then), so toggling the lock never remounts a button.
   const hinted = (
     button: React.ReactElement<React.ComponentProps<typeof Button>>,
     hint: string | undefined,
+    reason: string | undefined,
   ) => {
-    if (disabledReason !== undefined) {
+    if (reason !== undefined) {
       return (
-        <Hint text={hint ?? ""} disabledText={disabledReason}>
+        <Hint text={hint ?? ""} disabledText={reason}>
           {button}
         </Hint>
       );
@@ -315,7 +336,7 @@ function ImagePlacementButtons({
     "data-[active=true]:border-ring data-[active=true]:bg-accent data-[active=true]:text-accent-foreground dark:data-[active=true]:border-ring dark:data-[active=true]:bg-accent";
   const flip = (
     <FlipToggle
-      disabled={disabled}
+      disabled={disabled || flipDisabled}
       flipped={flipped}
       onFlippedChange={onFlippedChange}
       data-testid="image-flip"
@@ -326,7 +347,7 @@ function ImagePlacementButtons({
       type="button"
       variant="outline"
       size="sm"
-      disabled={disabled}
+      disabled={disabled || cropDisabled}
       data-active={crop !== null}
       className={active}
       onClick={() => setEditing(true)}
@@ -338,8 +359,8 @@ function ImagePlacementButtons({
   );
   return (
     <>
-      {hinted(flip, flipHint)}
-      {hinted(cropButton, cropHint)}
+      {hinted(flip, flipHint, flipReason)}
+      {hinted(cropButton, cropHint, cropReason)}
       <CropEditor
         open={editing}
         onOpenChange={setEditing}
