@@ -987,3 +987,8 @@
 {"ts":"2026-11-12T15:52:06.017Z","key":"SUI-FEATURE-411","from":null,"to":2,"disposition":"ticket","ref":"886"}
 {"ts":"2026-11-12T17:58:26.461Z","key":"SUI-FEATURE-411","from":2,"to":3,"disposition":"ticket","ref":"886"}
 {"ts":"2026-11-13T08:23:24.254Z","key":"SUI-FEATURE-411","from":3,"to":4,"disposition":"ticket","ref":"888"}
+{"ts":"2026-11-13T20:03:24.141Z","key":"PROC-CC-010","from":6,"to":7,"disposition":"editorial","ref":"harness/Overmind/architect process change (Fable pin, event-only watcher, inbox watcher not a background task) — no code impact on suite-ui"}
+{"ts":"2026-11-13T20:03:24.141Z","key":"PROC-CC-012","from":13,"to":14,"disposition":"editorial","ref":"harness/Overmind/architect process change (Fable pin, event-only watcher, inbox watcher not a background task) — no code impact on suite-ui"}
+{"ts":"2026-11-13T20:03:24.141Z","key":"PROC-DEV-020","from":11,"to":12,"disposition":"editorial","ref":"harness/Overmind/architect process change (Fable pin, event-only watcher, inbox watcher not a background task) — no code impact on suite-ui"}
+{"ts":"2026-11-13T20:03:24.141Z","key":"PROC-DEV-031","from":20,"to":21,"disposition":"editorial","ref":"harness/Overmind/architect process change (Fable pin, event-only watcher, inbox watcher not a background task) — no code impact on suite-ui"}
+{"ts":"2026-11-13T20:03:40.216Z","key":"SUI-FEATURE-311","from":4,"to":5,"disposition":"ticket","ref":"890"}
