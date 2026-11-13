@@ -48,9 +48,27 @@ export function takesDecimal(text: string): boolean {
   return /^[\d\s+\-.,e]*$/i.test(text);
 }
 
-// A number as a field shows it: with the UI language's decimal sign.
+// A number as a field shows it: written out with the UI language's decimal sign, never in exponent
+// notation and never grouped ("0,0000001", not "1e-7"; SUI-FEATURE-411 rev 4), so `parseDecimal`
+// reads it back as the same number.
 export function formatDecimal(value: number, language: string | undefined): string {
-  return String(value).replace(".", decimalSign(language));
+  return plainDecimal(value).replace(".", decimalSign(language));
+}
+
+// `String(value)` with an exponent ("1e-7", "1.5e+21") written out ("0.0000001",
+// "1500000000000000000000"); its digits are the shortest that read back as the same number.
+function plainDecimal(value: number): string {
+  const text = String(value);
+  const [mantissa = "", power] = text.split("e");
+  if (power === undefined) return text;
+  const sign = mantissa.startsWith("-") ? "-" : "";
+  const digits = mantissa.replace("-", "").replace(".", "");
+  // Where the decimal point falls in `digits`: below 1 (point <= 0) or at 1e21 and above, where
+  // `String` writes an exponent, so it never falls inside them.
+  const point = 1 + Number(power);
+  return point <= 0
+    ? `${sign}0.${"0".repeat(-point)}${digits}`
+    : `${sign}${digits}${"0".repeat(point - digits.length)}`;
 }
 
 // The numpad's decimal key types the UI language's decimal sign, whatever the keyboard layout

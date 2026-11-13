@@ -3,6 +3,7 @@ import i18n from "i18next";
 import * as React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { parseDecimal } from "../ui/decimal-number.js";
 import { NumberField, NumberInput } from "./number-field.js";
 
 afterEach(async () => {
@@ -524,12 +525,48 @@ describe("NumberInput and NumberField display digits", () => {
     ["en", 1.125, "1.125", "1.125"],
     ["de", 0.1 + 0.2, "0,3", "0.3"],
     ["en", 0.1 + 0.2, "0.3", "0.3"],
-    ["en", 1.23456789, "1.234568", "1.234568"],
+    ["en", 1.23456789, "1.23456789", "1.23456789"],
   ])("AC2: in %s, a stored %d shows %s, aria-valuenow %s", async (lng, value, text, now) => {
     await i18n.changeLanguage(lng);
     const { input } = renderInput(value);
     expect(input).toHaveValue(text);
     expect(input).toHaveAttribute("aria-valuenow", now);
+  });
+
+  // rev 4: float noise is cut at 15 significant digits, no fixed decimal limit, no exponent.
+  it.each([
+    ["de", 0.123456789, "0,123456789", "0.123456789"],
+    ["en", 0.123456789, "0.123456789", "0.123456789"],
+    ["de", 0.0000001, "0,0000001", "1e-7"],
+    ["en", 0.0000001, "0.0000001", "1e-7"],
+  ])(
+    "AC5/AC6: in %s, a stored %d shows %s after leaving, aria-valuenow %s",
+    async (lng, value, text, now) => {
+      await i18n.changeLanguage(lng);
+      const { input } = renderInput(value);
+      fireEvent.blur(input);
+      expect(input).toHaveValue(text);
+      expect(Number(input.getAttribute("aria-valuenow"))).toBe(value);
+      expect(input).toHaveAttribute("aria-valuenow", now);
+      expect(parseDecimal(text, lng)).toEqual({ value });
+    },
+  );
+
+  it("AC5/AC6: the arrow step keeps a value's small digits (0.0000001 + 1 → 1.0000001)", async () => {
+    await i18n.changeLanguage("de");
+    const onValue = vi.fn<(value: number) => void>();
+    render(
+      <NumberInput
+        value={0.0000001}
+        unit="px"
+        step={1}
+        onValue={onValue}
+        revision={0}
+        testId="n"
+      />,
+    );
+    fireEvent.keyDown(screen.getByTestId("n"), { key: "ArrowUp" });
+    expect(onValue).toHaveBeenLastCalledWith(1.0000001);
   });
 
   it.each([

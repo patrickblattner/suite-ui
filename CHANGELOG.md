@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — #888: number fields cut float noise at 15 significant digits and never show exponent notation (SUI-FEATURE-411 rev 4) (patch)
+
+- **Fixed (#888, SUI-FEATURE-411 AC5):** the one float-noise normalisation (`storedNumber`) keeps 15 significant digits instead of at most 6 decimals: a stored 0.123456789 shows "0,123456789" (de) and `aria-valuenow` 0.123456789. It serves the display, `aria-valuenow`, the arrow-key step, the read-only inspector and the slide editor's size-limit note alike.
+- **Fixed (#888, SUI-FEATURE-411 AC6):** `formatDecimal` writes every number out, never in exponent notation and never grouped: a stored 0.0000001 shows "0,0000001" (de) / "0.0000001" (en), never "0" or "1e-7", and `parseDecimal` reads the shown text back as the same value.
+- **Size (#888, GL-CODE-021):** `./ui/decimal-number` maximum 899 → 1139 B and `./slides/slide-editor-background` 53608 → 56383 B (measured + 5 %); cause: `formatDecimal` writes exponent notation out (the new `plainDecimal`).
+- **Tests (#888):** `src/slides/number-field.test.tsx` "AC5/AC6" (display, `aria-valuenow`, parser round-trip, de and en; arrow step keeps small digits) and the AC2 row for 1.23456789 (now unshortened); `src/ui/decimal-number.test.ts` "writes … out … and reads it back" (small, negative and ≥ 1e21 values). `src/slides/slide-editor-table.test.tsx` column width `aria-valuenow` now 113.333333333333 (before cut to 6 decimals).
+
 ## 0.235.0 — #886: `NumberInput` and `NumberField` show the stored value without the fixed 2-decimal rounding; `fractionDigits` caps the decimals of a converted display (SUI-FEATURE-411 rev 3) (minor)
 
 - **Migration (#886):** a number field shows every decimal its stored value carries (float noise removed, at most 6 decimals) and `aria-valuenow` is that value; an arrow-key step keeps the digits too (1.125 + ArrowUp → 2.125, before cut to 2 decimals). Apps whose field shows a value converted from the stored one (a zoom or share as percent) pass `fractionDigits={2}` to keep a 2-decimal display; a field showing the stored value itself sets none.

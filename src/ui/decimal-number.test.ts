@@ -45,6 +45,22 @@ describe("parseDecimal", () => {
     expect(formatDecimal(1.5, "en")).toBe("1.5");
   });
 
+  // SUI-FEATURE-411 rev 4 AC5/AC6: written out, never in exponent notation and never grouped, and
+  // read back by the parser as the same number.
+  it.each([
+    ["de", 0.123456789, "0,123456789"],
+    ["en", 0.123456789, "0.123456789"],
+    ["de", 0.0000001, "0,0000001"],
+    ["en", 0.0000001, "0.0000001"],
+    ["de", -0.0000001, "-0,0000001"],
+    ["en", 1.5e-10, "0.00000000015"],
+    ["en", 1.5e21, "1500000000000000000000"],
+    ["de", 1234567.5, "1234567,5"],
+  ])("in %s writes %d out as %s and reads it back", (language, value, text) => {
+    expect(formatDecimal(value, language)).toBe(text);
+    expect(parseDecimal(text, language)).toEqual({ value });
+  });
+
   // #451 review: a region subtag takes its language's rules.
   it.each([
     ["de-CH", "1.5", 1.5],

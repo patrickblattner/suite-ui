@@ -153,10 +153,11 @@ function useDropWhenDisabled(disabled: boolean | undefined, setTyped: (next: nul
   }, [disabled, setTyped]);
 }
 
-// The stored number without the noise of float arithmetic (at most 6 decimals: 0.1 + 0.2 is 0.3),
-// as the field's `aria-valuenow` (SUI-FEATURE-411).
+// The stored number without the noise of float arithmetic (15 significant digits: 0.1 + 0.2 is 0.3;
+// no limit on decimals, 0.0000001 stays), as the field shows it, as its `aria-valuenow` and as an
+// arrow-key step stores it. The package's one float-noise normalisation (SUI-FEATURE-411 rev 4).
 export function storedNumber(value: number): number {
-  return Number(value.toFixed(6));
+  return Number(value.toPrecision(15));
 }
 
 // The number the field shows: the stored one with every decimal it carries, or at most
