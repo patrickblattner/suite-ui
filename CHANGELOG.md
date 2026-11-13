@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — #890: `ImagePlacementButtons` locks Flip or Crop alone, each with its own reason (SUI-FEATURE-311 rev 5) (minor)
+## 0.236.0 — #890: `ImagePlacementButtons` locks Flip or Crop alone, each with its own reason (SUI-FEATURE-311 rev 5) (minor)
 
 - **Added (#890, SUI-FEATURE-311 rev 5 AC 4):** per-button lock props `flipDisabled` + `flipDisabledReason` and `cropDisabled` + `cropDisabledReason`, each pair only together (either without its reason is a type error). A locked button gets `aria-disabled="true"` through its `Hint`'s `disabledText`, stays focusable, does nothing on click or Enter and is described by its own reason; the other button stays usable. The shared `disabled` + `disabledReason` still locks both; where a button also has its own lock, its own reason is the one it carries.
 - **Gallery (#890, AC 5):** `?placementLocked=crop` shows the placement buttons with only Crop locked; no screenshot baseline changes (the default page is unchanged).
