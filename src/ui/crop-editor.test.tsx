@@ -165,6 +165,14 @@ function Placement({
   (
     | { disabled?: undefined; disabledReason?: undefined }
     | { disabled: boolean; disabledReason: string }
+  ) &
+  (
+    | { flipDisabled?: undefined; flipDisabledReason?: undefined }
+    | { flipDisabled: boolean; flipDisabledReason: string }
+  ) &
+  (
+    | { cropDisabled?: undefined; cropDisabledReason?: undefined }
+    | { cropDisabled: boolean; cropDisabledReason: string }
   )) {
   const [flipped, setFlipped] = useState(false);
   const [crop, setCrop] = useState<Crop | null>(null);
@@ -327,6 +335,95 @@ describe("ImagePlacementButtons", () => {
     // @ts-expect-error a reason without a lock
     const reasonOnly: ImagePlacementButtonsProps = { ...props, disabledReason: "Published" };
     expect([locked, reasonOnly]).toHaveLength(2);
+  });
+
+  // SUI-FEATURE-311 rev 5 AC 4: a per-button lock locks that button alone, described by its own
+  // reason; the other button keeps working.
+  it.each([
+    ["crop", "image-crop", "image-flip"],
+    ["flip", "image-flip", "image-crop"],
+  ] as const)("%sDisabled locks only its own button", (which, own, other) => {
+    const onFlip = vi.fn();
+    const lock =
+      which === "crop"
+        ? { cropDisabled: true, cropDisabledReason: "Cropping is off here" }
+        : { flipDisabled: true, flipDisabledReason: "Cropping is off here" };
+    render(
+      <Placement
+        onCrop={() => {}}
+        onFlip={onFlip}
+        flipHint="Mirrors it"
+        cropHint="Frames it"
+        {...lock}
+      />,
+    );
+    const locked = screen.getByTestId(own);
+    expect(locked).toHaveAttribute("aria-disabled", "true");
+    expect(locked).not.toBeDisabled();
+    expect(locked.tabIndex).toBe(0);
+    expect(locked).toHaveAccessibleDescription("Cropping is off here");
+    act(() => locked.focus());
+    expect(locked).toHaveFocus();
+    fireEvent.keyDown(locked, { key: "Enter" });
+    fireEvent.click(locked);
+    expect(screen.queryByTestId("crop-editor")).toBeNull();
+
+    const usable = screen.getByTestId(other);
+    expect(usable).not.toHaveAttribute("aria-disabled");
+    expect(usable).toHaveAccessibleDescription(which === "crop" ? "Mirrors it" : "Frames it");
+    if (which === "crop") {
+      fireEvent.click(usable);
+      expect(onFlip).toHaveBeenCalledWith(true);
+      expect(usable).toHaveAttribute("aria-pressed", "true");
+    } else {
+      expect(onFlip).not.toHaveBeenCalled();
+      expect(locked).toHaveAttribute("aria-pressed", "false");
+      fireEvent.click(usable);
+      expect(screen.getByTestId("crop-editor")).toBeInTheDocument();
+    }
+  });
+
+  // SUI-FEATURE-311 rev 5 AC 3: the shared lock locks both; a button with its own lock carries its
+  // own reason, the other the shared one.
+  it("shared and own lock together: the own reason wins on its button", () => {
+    render(
+      <Placement
+        onCrop={() => {}}
+        disabled
+        disabledReason="The page is published"
+        cropDisabled
+        cropDisabledReason="Cropping is off here"
+      />,
+    );
+    const flip = screen.getByTestId("image-flip");
+    const crop = screen.getByTestId("image-crop");
+    for (const button of [flip, crop]) expect(button).toHaveAttribute("aria-disabled", "true");
+    expect(flip).toHaveAccessibleDescription("The page is published");
+    expect(crop).toHaveAccessibleDescription("Cropping is off here");
+  });
+
+  it("a per-button lock without its reason is a type error", () => {
+    const props = {
+      src: "photo.jpg",
+      flipped: false,
+      onFlippedChange: () => {},
+      crop: null,
+      onCropChange: () => {},
+    };
+    // @ts-expect-error a lock always names its reason (SUI-FEATURE-311 rev 5)
+    const flipLocked: ImagePlacementButtonsProps = { ...props, flipDisabled: true };
+    // @ts-expect-error a reason without a lock
+    const flipReason: ImagePlacementButtonsProps = { ...props, flipDisabledReason: "Off" };
+    // @ts-expect-error a lock always names its reason (SUI-FEATURE-311 rev 5)
+    const cropLocked: ImagePlacementButtonsProps = { ...props, cropDisabled: true };
+    // @ts-expect-error a reason without a lock
+    const cropReason: ImagePlacementButtonsProps = { ...props, cropDisabledReason: "Off" };
+    const both: ImagePlacementButtonsProps = {
+      ...props,
+      cropDisabled: true,
+      cropDisabledReason: "Off",
+    };
+    expect([flipLocked, flipReason, cropLocked, cropReason, both]).toHaveLength(5);
   });
 
   // Review #649: with a reason, the tree stands across the lock, so a focused button keeps its focus;

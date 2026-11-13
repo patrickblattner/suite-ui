@@ -1446,12 +1446,16 @@ const PLACEMENT_HINTS =
     ? { flipHint: "Mirrors the image left to right", cropHint: "Opens the crop editor" }
     : {};
 
-// `?placementLocked=on` (`SUI-FEATURE-311` rev 4): the placement buttons locked with a reason; the
-// default page keeps them usable, so the captures stay unchanged.
+// `?placementLocked=on` (`SUI-FEATURE-311` rev 4): the placement buttons locked with a reason;
+// `=crop` (rev 5) locks the crop button alone. The default page keeps them usable, so the captures
+// stay unchanged.
+const PLACEMENT_LOCKED = new URLSearchParams(window.location.search).get("placementLocked");
 const PLACEMENT_LOCK =
-  new URLSearchParams(window.location.search).get("placementLocked") === "on"
+  PLACEMENT_LOCKED === "on"
     ? { disabled: true, disabledReason: "The page is published" }
-    : {};
+    : PLACEMENT_LOCKED === "crop"
+      ? { cropDisabled: true, cropDisabledReason: "This layout keeps the whole image" }
+      : {};
 
 // `?placementFlipped=on` (`SUI-FEATURE-311` rev 4): the placement starts flipped, so Flip shows its
 // pressed fill without a click; with `placementLocked=on` it shows pressed and locked at once.

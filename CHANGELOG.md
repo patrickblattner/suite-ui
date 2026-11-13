@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — #890: `ImagePlacementButtons` locks Flip or Crop alone, each with its own reason (SUI-FEATURE-311 rev 5) (minor)
+
+- **Added (#890, SUI-FEATURE-311 rev 5 AC 4):** per-button lock props `flipDisabled` + `flipDisabledReason` and `cropDisabled` + `cropDisabledReason`, each pair only together (either without its reason is a type error). A locked button gets `aria-disabled="true"` through its `Hint`'s `disabledText`, stays focusable, does nothing on click or Enter and is described by its own reason; the other button stays usable. The shared `disabled` + `disabledReason` still locks both; where a button also has its own lock, its own reason is the one it carries.
+- **Gallery (#890, AC 5):** `?placementLocked=crop` shows the placement buttons with only Crop locked; no screenshot baseline changes (the default page is unchanged).
+- **Tests (#890):** `src/ui/crop-editor.test.tsx` "%sDisabled locks only its own button" (crop and flip), "shared and own lock together: the own reason wins on its button", "a per-button lock without its reason is a type error"; `gallery/gallery.spec.ts` "placement buttons with only crop locked: crop inert with its reason, flip toggles".
+
 ## 0.235.1 — #888: number fields cut float noise at 15 significant digits and never show exponent notation (SUI-FEATURE-411 rev 4) (patch)
 
 - **Fixed (#888, SUI-FEATURE-411 AC5):** the one float-noise normalisation (`storedNumber`) keeps 15 significant digits instead of at most 6 decimals: a stored 0.123456789 shows "0,123456789" (de) and `aria-valuenow` 0.123456789. It serves the display, `aria-valuenow`, the arrow-key step, the read-only inspector and the slide editor's size-limit note alike.
