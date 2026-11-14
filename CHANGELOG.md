@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — #895: dependencies sweep — override removal trigger, git-dep prepare scripts in allowScripts (patch)
+## 0.238.1 — #895: dependencies sweep — override removal trigger, git-dep prepare scripts in allowScripts (patch)
 
 - **Tests (#895, finding #14):** `scripts/overrides.test.ts` is the removal trigger for the scoped `overrides` (#835): it fails once a parent (`@typescript-eslint/typescript-estree`, `eslint-plugin-sonarjs`, `type-coverage-core`) itself declares a range whose lowest version meets the override's (redundant, or silently pinning an older major) — then drop the override and re-run `npm audit`.
 - **Changed (#895, finding #60, GL-CODE-004):** npm runs a git dependency's `prepare` on install, yet the lockfile records no `hasInstallScript` for it. `allowScripts` now lists `github:patrickblattner/spec-sync-toolkit: true` (its `prepare` builds the `spec-sync` bin), and `scripts/allow-scripts.test.ts` checks git dependencies against hosted keys in both directions.
