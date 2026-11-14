@@ -1,4 +1,4 @@
-import { act, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import i18n from "i18next";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -9,7 +9,7 @@ import {
   OperationStatusProvider,
   useOperationStatus,
 } from "./operation-status.js";
-import { toast } from "./toaster.js";
+import { toast, Toaster } from "./toaster.js";
 
 afterEach(async () => {
   vi.restoreAllMocks();
@@ -234,6 +234,75 @@ describe("useOperationStatus and the PageHeader status slot", () => {
     expect(screen.queryByTestId("page-header")).toBeNull();
     act(() => handle.succeed("Website updated"));
     expect(success).toHaveBeenCalledWith("Website updated");
+  });
+
+  // SUI-FEATURE-141: an action on the end toast, drawn by the real `Toaster`.
+  describe("an action on the end toast (SUI-FEATURE-141)", () => {
+    afterEach(() => {
+      act(() => {
+        toast.dismiss();
+      });
+    });
+
+    function setupWithToaster() {
+      render(<Toaster />);
+      return setup("brand-kit");
+    }
+
+    it.each([
+      ["AC1", false],
+      ["AC2", true],
+    ] as const)(
+      "%s: succeed with an action empties the slot and toasts the action, its click calls onClick once (header removed: %s)",
+      async (_ac, removeHeader) => {
+        const onClick = vi.fn();
+        const { api, hideHeader } = setupWithToaster();
+        let handle!: OperationHandle;
+        act(() => {
+          handle = api().start({ scope: "brand-kit", label: "Importing" });
+        });
+        if (removeHeader) {
+          hideHeader();
+          expect(screen.queryByTestId("page-header")).toBeNull();
+        }
+        act(() => handle.succeed("Slides imported", { action: { label: "Open", onClick } }));
+        if (!removeHeader) {
+          expect(screen.getByTestId("page-operation-live")).toBeEmptyDOMElement();
+        }
+        expect(screen.queryByTestId("operation-spinner")).toBeNull();
+        const item = (await screen.findByText("Slides imported")).closest("[data-sonner-toast]");
+        expect(item).toHaveAttribute("data-type", "success");
+        fireEvent.click(within(item as HTMLElement).getByRole("button", { name: "Open" }));
+        expect(onClick).toHaveBeenCalledTimes(1);
+      },
+    );
+
+    it("AC3: fail with an action toasts the error with the action", async () => {
+      const onClick = vi.fn();
+      const { api } = setupWithToaster();
+      let handle!: OperationHandle;
+      act(() => {
+        handle = api().start({ scope: "brand-kit", label: "Importing" });
+      });
+      act(() => handle.fail("Import failed", { action: { label: "Retry", onClick } }));
+      expect(screen.getByTestId("page-operation-live")).toBeEmptyDOMElement();
+      const item = (await screen.findByText("Import failed")).closest("[data-sonner-toast]");
+      expect(item).toHaveAttribute("data-type", "error");
+      fireEvent.click(within(item as HTMLElement).getByRole("button", { name: "Retry" }));
+      expect(onClick).toHaveBeenCalledTimes(1);
+    });
+
+    it("AC4: without a second argument succeed and fail toast as before, with no options", () => {
+      const success = vi.spyOn(toast, "success").mockReturnValue(1);
+      const error = vi.spyOn(toast, "error").mockReturnValue(1);
+      const { api } = setup("brand-kit");
+      act(() => api().start({ scope: "brand-kit", label: "A" }).succeed("Done"));
+      act(() => api().start({ scope: "brand-kit", label: "B" }).fail("Broken"));
+      act(() => api().start({ scope: "brand-kit", label: "C" }).succeed("Done too", {}));
+      expect(success.mock.calls).toEqual([["Done"], ["Done too"]]);
+      expect(error.mock.calls).toEqual([["Broken"]]);
+      expect(screen.getByTestId("page-operation-live")).toBeEmptyDOMElement();
+    });
   });
 
   it("refuses to run without the provider", () => {
