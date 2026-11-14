@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — #894: `EditPanel` takes a record's decision actions in its head, `headActions` (SUI-FEATURE-420 rev 3) (minor)
+## 0.238.0 — #894: `EditPanel` takes a record's decision actions in its head, `headActions` (SUI-FEATURE-420 rev 3) (minor)
 
 - **Added (#894, SUI-FEATURE-420 AC 1–2, 4–6):** optional `headActions?: { primary?: RowAction; secondary?: RowAction[] }` on `EditPanel`, in every mode (`add`, `edit`, `view`). The group stands right in the head, after the title block (the pager stays left of the title): `secondary` as `outline` in array order, then `primary` as `success` rightmost; each labelled (icon + `label`), size `sm`, never folded. Where it does not fit beside the title it wraps onto its own line below it, right-aligned; labels never truncate. `busy`, `disabledText` and `shortcut` behave as on any `RowAction` (`SUI-FEATURE-072`), `busy` locking only that button. Head actions are plain clicks: they neither submit nor reset the form and bypass no guard (a route change the app starts from one is held by the leave guard). The accessible name of a head action is its `label` alone.
 - **Changed (#894, AC 3):** with `headActions.primary` set, the footer's Save (any `submitKind`) renders `outline` — one primary per surface (`GL-UX-001`); without it Save stays `success`. Reset, Cancel/Close and view-mode `actions` are unchanged.
