@@ -1,4 +1,4 @@
-import { PencilIcon, SendIcon } from "lucide-react";
+import { CheckIcon, PencilIcon, RefreshCwIcon, SendIcon, XIcon } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation } from "react-router-dom";
@@ -110,6 +110,9 @@ const LABELS = {
     nameFirst: "Fill in the name first",
     messageFirst: "Write a message first",
     noSlash: "Remove the slash: a name can't contain “/”.",
+    take: "Take",
+    drop: "Drop",
+    regenerate: "Regenerate",
   },
   de: {
     saveCloseHint: "Speichert die Eingaben und schließt das Panel.",
@@ -117,6 +120,9 @@ const LABELS = {
     nameFirst: "Zuerst den Namen ausfüllen",
     messageFirst: "Zuerst eine Nachricht schreiben",
     noSlash: "Schrägstrich entfernen: Ein Name darf kein „/“ enthalten.",
+    take: "Übernehmen",
+    drop: "Verwerfen",
+    regenerate: "Neu erzeugen",
   },
   es: {
     saveCloseHint: "Guarda los datos y cierra el panel.",
@@ -124,6 +130,9 @@ const LABELS = {
     nameFirst: "Primero rellena el nombre",
     messageFirst: "Primero escribe un mensaje",
     noSlash: "Quita la barra: un nombre no puede contener «/».",
+    take: "Aceptar",
+    drop: "Descartar",
+    regenerate: "Regenerar",
   },
 };
 // `?step=1` gives the media detail shell its next lifecycle step (`SUI-FEATURE-330`), outside pick
@@ -135,6 +144,9 @@ const MEDIA_VIEW = new URLSearchParams(window.location.search).get("mediaView") 
 // `?mediaReason=1` gives the media detail shell `showDisabledReason` (`SUI-FEATURE-125`): nothing
 // changed shows the package reason, an emptied name the app's own lock and hint (`SUI-FEATURE-131`).
 const MEDIA_REASON = new URLSearchParams(window.location.search).get("mediaReason") === "1";
+// `?headActions=1` gives the media panel (edit, with pager) and the view-mode panel a record's
+// decision actions in the head (`SUI-FEATURE-420`): Drop and Regenerate `outline`, Take `success`.
+const HEAD_ACTIONS = new URLSearchParams(window.location.search).get("headActions") === "1";
 const FIELDS = Array.from({ length: 24 }, (_, index) => `Field ${index + 1}`);
 
 // `SUI-FEATURE-093` (#264): a record picker in a panel creates a missing contact in the compact
@@ -395,6 +407,28 @@ function Demo() {
   const shellMedia: readonly ShellMedium[] = SHELL_SETS[shellSet];
   const savedNames = allSavedNames[shellSet];
   const shellMedium = shell === null ? undefined : shellMedia[shell];
+  const headActions = (close: () => void) =>
+    HEAD_ACTIONS
+      ? {
+          headActions: {
+            primary: {
+              label: labels.take,
+              icon: CheckIcon,
+              onClick: close,
+              "data-testid": "head-take",
+            },
+            secondary: [
+              { label: labels.drop, icon: XIcon, onClick: close, "data-testid": "head-drop" },
+              {
+                label: labels.regenerate,
+                icon: RefreshCwIcon,
+                onClick: () => {},
+                "data-testid": "head-regenerate",
+              },
+            ],
+          },
+        }
+      : {};
 
   if (pathname !== start) {
     return (
@@ -681,6 +715,7 @@ function Demo() {
         description="Uploaded on 3 March by Ana."
         mode="view"
         testIdPrefix="view-mode-panel"
+        {...headActions(() => setViewModeOpen(false))}
         preview={<img src={PICTURE} alt="team-photo.jpg" data-testid="view-mode-panel-picture" />}
         actions={
           <Hint text="Opens the record in the edit panel.">
@@ -734,6 +769,7 @@ function Demo() {
         title={media !== null ? MEDIA[media] : ""}
         mode="edit"
         testIdPrefix="media-panel"
+        {...headActions(() => setMedia(null))}
         pager={
           media !== null
             ? {

@@ -1,9 +1,10 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import i18n from "i18next";
-import { type FormEvent, type ReactNode, useState } from "react";
-import { Link, MemoryRouter, useLocation } from "react-router-dom";
+import { type FormEvent, type ReactNode, type SVGProps, useState } from "react";
+import { Link, MemoryRouter, useLocation, useNavigate } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { type RowAction } from "../list/row-actions.js";
 import { SidebarProvider, useSidebar } from "../shell/sidebar-provider.js";
 import { Button } from "./button.js";
 import { EditPanel, type EditPanelProps } from "./edit-panel.js";
@@ -1943,5 +1944,239 @@ describe("EditPanel composition", () => {
     expect(onOpenChange).not.toHaveBeenCalled();
     fireEvent.keyDown(name, { key: "Escape" });
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+});
+
+// #894 (SUI-FEATURE-420): a record's decision actions in the panel head, in every mode.
+const headIcon = (props: SVGProps<SVGSVGElement>) => <svg {...props} />;
+const header = () => document.querySelector<HTMLElement>("[data-slot=edit-panel-header]")!;
+function headActions(over: { take?: Partial<RowAction>; drop?: Partial<RowAction> } = {}) {
+  const take = vi.fn();
+  const drop = vi.fn();
+  const regenerate = vi.fn();
+  return {
+    take,
+    drop,
+    regenerate,
+    value: {
+      primary: {
+        label: "Take",
+        icon: headIcon,
+        onClick: take,
+        "data-testid": "head-take",
+        ...over.take,
+      },
+      secondary: [
+        { label: "Drop", icon: headIcon, onClick: drop, "data-testid": "head-drop", ...over.drop },
+        {
+          label: "Regenerate",
+          icon: headIcon,
+          onClick: regenerate,
+          "data-testid": "head-regenerate",
+        },
+      ],
+    },
+  };
+}
+
+describe("EditPanel headActions", () => {
+  // AC 1, AC 2
+  it.each(["edit", "view"] as const)(
+    "mode=%s: two outline secondaries in order, then the success primary, labelled, size sm",
+    (mode) => {
+      const { value } = headActions();
+      renderPanel(mode === "view" ? { mode, headActions: value } : { mode, headActions: value });
+      const group = screen.getByTestId("edit-panel-head-actions");
+      expect(header()).toContainElement(group);
+      const buttons = Array.from(group.querySelectorAll("button"));
+      expect(buttons.map((button) => button.textContent)).toEqual(["Drop", "Regenerate", "Take"]);
+      expect(buttons.map((button) => button.dataset.variant)).toEqual([
+        "outline",
+        "outline",
+        "success",
+      ]);
+      for (const button of buttons) {
+        expect(button).toHaveAttribute("data-size", "sm");
+        expect(button).toHaveAttribute("type", "button");
+        expect(button.querySelector("svg")).not.toBeNull();
+      }
+      expect(screen.getByRole("button", { name: "Take" })).toBe(buttons[2]);
+      // Never folded: the head has no ⋯ menu.
+      expect(group.querySelector("[data-testid=row-menu]")).toBeNull();
+      // After the title block.
+      const title = screen.getByRole("heading", { name: "Channel" });
+      expect(title.compareDocumentPosition(group) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      if (mode === "edit") {
+        expect(screen.getByTestId("edit-panel-submit")).toBeInTheDocument();
+        expect(screen.getByTestId("edit-panel-cancel")).toBeInTheDocument();
+      } else {
+        expect(screen.queryByTestId("edit-panel-submit")).toBeNull();
+      }
+    },
+  );
+
+  it("works in add mode too, and with a pager the pager stays left of the title", () => {
+    const { value } = headActions();
+    renderPanel({
+      mode: "add",
+      headActions: value,
+      pager: { position: "1/3", onPrevious: () => {}, onNext: () => {} },
+    });
+    const group = screen.getByTestId("edit-panel-head-actions");
+    const next = screen.getByTestId("edit-panel-next");
+    const title = screen.getByRole("heading", { name: "Channel" });
+    // AC 1 (rev 3): the pager stays left of the title, inside the title block; the group is right of it.
+    expect(next.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(group.previousElementSibling).toContainElement(next);
+    expect(group.previousElementSibling).toContainElement(title);
+    expect(group).not.toContainElement(next);
+  });
+
+  // AC 3
+  it("with a primary, Save is outline; with secondaries alone or without headActions, success", () => {
+    const { value } = headActions();
+    const { unmount } = render(
+      <EditPanel
+        open
+        onOpenChange={() => {}}
+        title="Channel"
+        onSubmit={() => {}}
+        headActions={value}
+      >
+        x
+      </EditPanel>,
+    );
+    expect(screen.getByTestId("edit-panel-submit")).toHaveAttribute("data-variant", "outline");
+    unmount();
+    const { unmount: unmount2 } = render(
+      <EditPanel
+        open
+        onOpenChange={() => {}}
+        title="Channel"
+        onSubmit={() => {}}
+        headActions={{ secondary: value.secondary }}
+      >
+        x
+      </EditPanel>,
+    );
+    expect(screen.getByTestId("edit-panel-submit")).toHaveAttribute("data-variant", "success");
+    unmount2();
+    renderPanel();
+    expect(screen.getByTestId("edit-panel-submit")).toHaveAttribute("data-variant", "success");
+  });
+
+  // AC 4
+  it("busy locks only its own button; disabledText gives the reason", () => {
+    const { value, take, drop, regenerate } = headActions({
+      take: { busy: true },
+      drop: { disabledText: "Already dropped." },
+    });
+    renderPanel({ headActions: value });
+    const takeButton = screen.getByTestId("head-take");
+    expect(takeButton).toHaveAttribute("aria-busy", "true");
+    fireEvent.click(takeButton);
+    takeButton.click();
+    expect(take).not.toHaveBeenCalled();
+    const dropButton = screen.getByTestId("head-drop");
+    expect(dropButton).toHaveAttribute("aria-disabled", "true");
+    expect(dropButton).toHaveAccessibleDescription("Already dropped.");
+    fireEvent.click(dropButton);
+    expect(drop).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId("head-regenerate"));
+    expect(regenerate).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("edit-panel-submit")).not.toHaveAttribute("aria-busy");
+  });
+});
+
+describe("EditPanel headActions: guard, layout, unchanged without", () => {
+  // AC 5
+  it("a head action on a dirty panel neither saves nor resets, and asks nothing", () => {
+    const { value, take } = headActions();
+    const onSubmit = vi.fn();
+    const onOpenChange = vi.fn();
+    render(
+      <EditPanel
+        open
+        onOpenChange={onOpenChange}
+        title="Channel"
+        dirty
+        onSubmit={onSubmit}
+        headActions={value}
+      >
+        <Input aria-label="Name" defaultValue="Main" />
+      </EditPanel>,
+    );
+    const field = screen.getByLabelText("Name");
+    fireEvent.change(field, { target: { value: "Changed" } });
+    fireEvent.click(screen.getByTestId("head-take"));
+    expect(take).toHaveBeenCalledTimes(1);
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(onOpenChange).not.toHaveBeenCalled();
+    expect(field).toHaveValue("Changed");
+    expect(screen.queryByTestId("leave-guard")).toBeNull();
+  });
+
+  it("a route change the app starts from a head action shows the leave guard", async () => {
+    function App() {
+      const navigate = useNavigate();
+      const location = useLocation();
+      return (
+        <>
+          <span data-testid="path">{location.pathname}</span>
+          <EditPanel
+            open
+            onOpenChange={() => {}}
+            title="Channel"
+            dirty
+            onSubmit={() => {}}
+            headActions={{
+              primary: { label: "Take", icon: headIcon, onClick: () => void navigate("/next") },
+            }}
+          >
+            <Input aria-label="Name" defaultValue="Main" />
+          </EditPanel>
+        </>
+      );
+    }
+    render(
+      <MemoryRouter initialEntries={["/list"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Take" }));
+    expect(await screen.findByTestId("leave-guard")).toBeInTheDocument();
+    expect(screen.getByTestId("path")).toHaveTextContent("/list");
+  });
+
+  // AC 6: the layout that wraps the group below the title, right-aligned; nothing truncates.
+  it("the head wraps the group below the title, right-aligned, labels never truncate", () => {
+    const { value } = headActions();
+    renderPanel({ headActions: value });
+    expect(header()).toHaveClass("flex-wrap", "justify-end");
+    const group = screen.getByTestId("edit-panel-head-actions");
+    expect(group).toHaveClass("shrink-0");
+    expect(group.parentElement).toBe(header());
+    expect(group.previousElementSibling).toHaveClass("min-w-0", "flex-[1_1_auto]");
+    expect(header().innerHTML).not.toMatch(/truncate|text-ellipsis/);
+  });
+
+  // AC 7: without headActions the head is byte for byte what it was before (snapshot recorded
+  // against the panel before #894).
+  it.each([
+    ["edit", {}],
+    ["with pager", { pager: { position: "1/3", onPrevious: () => {}, onNext: () => {} } }],
+    ["view", { mode: "view", onSubmit: undefined }],
+  ] as [string, PanelOverrides][])("panel without headActions unchanged: %s", (_, props) => {
+    renderPanel(props);
+    expect(
+      stableIds(document.querySelector('[data-slot="edit-panel"]')!.outerHTML),
+    ).toMatchSnapshot();
+  });
+
+  // AC 7: without headActions the head is the one before (the snapshot above stays unchanged).
+  it("without headActions the head has no group and its classes are as before", () => {
+    renderPanel();
+    expect(screen.queryByTestId("edit-panel-head-actions")).toBeNull();
+    expect(header()).toHaveClass("flex shrink-0 flex-col gap-1.5 border-b p-6");
   });
 });

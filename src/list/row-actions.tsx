@@ -117,7 +117,8 @@ function RowActionButton({
   const locked = action.disabledText !== undefined;
   return (
     <IconButtonTooltip
-      label={`${action.label} ${rowName}`}
+      // Without a row name (a panel's head action, `SUI-FEATURE-420`) the name is the label alone.
+      label={rowName === "" ? action.label : `${action.label} ${rowName}`}
       disabledText={action.disabledText}
       shortcut={action.shortcut}
     >
@@ -564,6 +565,7 @@ function RowActions({
 
 export {
   foldRowAction,
+  RowActionButton,
   RowActionMenu,
   RowActions,
   RowActionsHead,

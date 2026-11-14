@@ -11,6 +11,7 @@ import * as React from "react";
 import { useTranslation } from "react-i18next";
 
 import { cn } from "../lib/cn.js";
+import { type RowAction, RowActionButton } from "../list/row-actions.js";
 import { isCompositionKey } from "./composition.js";
 import { PANEL_SURFACE_CLASS, usePanelGeometry } from "../lib/panel-geometry.js";
 import { Button } from "./button.js";
@@ -33,6 +34,10 @@ import { IconButtonTooltip } from "./tooltip.js";
 // The return target a closing panel hands to the panel it handed over to (a view's Edit opening an
 // edit panel): that panel's own target, the view's Edit, is gone once the view has closed.
 const handedOver = new WeakMap<HTMLElement, HTMLElement>();
+
+// A record's decision actions in the panel head (`SUI-FEATURE-420`): `secondary` as `outline` in array
+// order, then the one `primary` as `success` rightmost; each labelled, size `sm`, never folded.
+type EditPanelHeadActions = { primary?: RowAction; secondary?: readonly RowAction[] };
 
 // Paging through a set of records in one panel (`SUI-FEATURE-051`); `position` is e.g. "1/3".
 type EditPanelPager = {
@@ -111,6 +116,12 @@ type EditPanelProps = {
   // With `pager` the header carries ‹ and › left of the title, the position beside them. A locked
   // button is `aria-disabled`, not `disabled`: paging to the end keeps the focus on it.
   pager?: EditPanelPager;
+  // The record's decision actions, in every mode (`SUI-FEATURE-420`): the head's right group, wrapping
+  // below the title (still right-aligned) where it does not fit beside it. Plain clicks: they neither
+  // submit nor reset the form. A route change started from one is held by the leave guard; an app
+  // that sets `open=false` closes without asking (unsaved edits are dropped). With a `primary`, the
+  // footer's Save is `outline`.
+  headActions?: EditPanelHeadActions;
   // Replaces `edit-panel` in `edit-panel`, `-body`, `-preview`, `-back`, `-cancel`, `-submit`,
   // `-previous` and `-next`.
   testIdPrefix?: string;
@@ -173,6 +184,7 @@ function EditPanel({
   onBack,
   backDisabled = false,
   pager,
+  headActions,
   mode,
   actions,
   testIdPrefix = "edit-panel",
@@ -284,6 +296,8 @@ function EditPanel({
     </FieldSubmitContext.Provider>
   );
 
+  // One primary per surface (`GL-UX-001`): a head primary takes the colour (`SUI-FEATURE-420`).
+  const saveVariant = headActions?.primary === undefined ? "success" : "outline";
   // `reasonId`: the visible lock reason, the primary action's one description (`SUI-FEATURE-125`).
   const footerActions = (reasonId?: string) => (
     <>
@@ -323,7 +337,7 @@ function EditPanel({
         >
           <Button
             type="submit"
-            variant="success"
+            variant={saveVariant}
             size="default"
             ref={submit}
             busy={busy}
@@ -342,6 +356,55 @@ function EditPanel({
           </Button>
         </Hint>
       )}
+    </>
+  );
+
+  const head = (
+    <>
+      {pager === undefined ? (
+        <SheetTitle className="text-lg leading-none">{title}</SheetTitle>
+      ) : (
+        <div data-slot="edit-panel-pager" data-tooltip-row="" className="flex items-center gap-1">
+          <IconButtonTooltip label={t("pager.previous")}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-disabled={pager.previousDisabled === true || undefined}
+              onClick={() => {
+                if (pager.previousDisabled !== true) guard(pager.onPrevious);
+              }}
+              data-testid={`${testIdPrefix}-previous`}
+            >
+              <ChevronLeftIcon aria-hidden="true" />
+            </Button>
+          </IconButtonTooltip>
+          <IconButtonTooltip label={t("pager.next")}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-disabled={pager.nextDisabled === true || undefined}
+              onClick={() => {
+                if (pager.nextDisabled !== true) guard(pager.onNext);
+              }}
+              data-testid={`${testIdPrefix}-next`}
+            >
+              <ChevronRightIcon aria-hidden="true" />
+            </Button>
+          </IconButtonTooltip>
+          {/* A change of position is announced politely (`SUI-FEATURE-052`). */}
+          <span
+            role="status"
+            className="mr-2 text-sm text-muted-foreground tabular-nums"
+            data-testid={`${testIdPrefix}-position`}
+          >
+            {pager.position}
+          </span>
+          <SheetTitle className="text-lg leading-none">{title}</SheetTitle>
+        </div>
+      )}
+      {description !== undefined && <SheetDescription>{description}</SheetDescription>}
     </>
   );
 
@@ -400,59 +463,49 @@ function EditPanel({
           }}
         >
           <CompositionTabBoundary>
-            <div
-              data-slot="edit-panel-header"
-              className="flex shrink-0 flex-col gap-1.5 border-b p-6"
-            >
-              {pager === undefined ? (
-                <SheetTitle className="text-lg leading-none">{title}</SheetTitle>
-              ) : (
+            {headActions === undefined ? (
+              <div
+                data-slot="edit-panel-header"
+                className="flex shrink-0 flex-col gap-1.5 border-b p-6"
+              >
+                {head}
+              </div>
+            ) : (
+              <div
+                data-slot="edit-panel-header"
+                className="flex shrink-0 flex-wrap items-start justify-end gap-x-4 gap-y-3 border-b p-6"
+              >
+                {/* The title block takes its own width, so the group wraps below once it does not
+                  fit beside it (`SUI-FEATURE-420`). */}
+                <div className="flex min-w-0 flex-[1_1_auto] flex-col gap-1.5">{head}</div>
                 <div
-                  data-slot="edit-panel-pager"
+                  data-slot="edit-panel-head-actions"
                   data-tooltip-row=""
-                  className="flex items-center gap-1"
+                  className="flex shrink-0 flex-wrap items-center justify-end gap-2"
+                  data-testid={`${testIdPrefix}-head-actions`}
                 >
-                  <IconButtonTooltip label={t("pager.previous")}>
-                    <Button
-                      type="button"
-                      variant="ghost"
+                  {headActions.secondary?.map((action, index) => (
+                    <RowActionButton
+                      key={index}
+                      action={action}
+                      rowName=""
+                      variant="outline"
                       size="icon-sm"
-                      aria-disabled={pager.previousDisabled === true || undefined}
-                      onClick={() => {
-                        if (pager.previousDisabled !== true) guard(pager.onPrevious);
-                      }}
-                      data-testid={`${testIdPrefix}-previous`}
-                    >
-                      <ChevronLeftIcon aria-hidden="true" />
-                    </Button>
-                  </IconButtonTooltip>
-                  <IconButtonTooltip label={t("pager.next")}>
-                    <Button
-                      type="button"
-                      variant="ghost"
+                      labelled
+                    />
+                  ))}
+                  {headActions.primary !== undefined && (
+                    <RowActionButton
+                      action={headActions.primary}
+                      rowName=""
+                      variant="success"
                       size="icon-sm"
-                      aria-disabled={pager.nextDisabled === true || undefined}
-                      onClick={() => {
-                        if (pager.nextDisabled !== true) guard(pager.onNext);
-                      }}
-                      data-testid={`${testIdPrefix}-next`}
-                    >
-                      <ChevronRightIcon aria-hidden="true" />
-                    </Button>
-                  </IconButtonTooltip>
-                  {/* A change of position is announced politely (`SUI-FEATURE-052`). */}
-                  <span
-                    role="status"
-                    className="mr-2 text-sm text-muted-foreground tabular-nums"
-                    data-testid={`${testIdPrefix}-position`}
-                  >
-                    {pager.position}
-                  </span>
-                  <SheetTitle className="text-lg leading-none">{title}</SheetTitle>
+                      labelled
+                    />
+                  )}
                 </div>
-              )}
-              {description !== undefined && <SheetDescription>{description}</SheetDescription>}
-            </div>
+              </div>
+            )}
             {/* Validation belongs to the call site (Zod, `GL-UI-027`): no browser bubble blocks submit.
               A `view` panel has nothing to submit and so no form. */}
             <Body

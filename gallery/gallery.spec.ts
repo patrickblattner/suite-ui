@@ -227,6 +227,27 @@ for (const lng of LANGUAGES) {
       });
     });
 
+    // `SUI-FEATURE-420`: a record's decision actions in the head, Save `outline` beside the head's
+    // `success` Take. The view panel at 600 px wraps the group below the title only in de (en and
+    // es fit beside it); the unit test covers the wrap class.
+    for (const [mode, width] of [
+      ["edit", 1920],
+      ["view", 600],
+    ] as const) {
+      test(`edit panel head actions ${mode} ${lng} ${theme}`, async ({ page }) => {
+        await page.setViewportSize({ width, height: 1080 });
+        const query = `&headActions=1&lng=${lng}&theme=${theme}`;
+        if (mode === "edit") await openMediaPanel(page, query);
+        else await openViewModePanel(page, query);
+        await expect(page.locator("html")).toHaveAttribute("lang", lng);
+        await expect(page.getByTestId("head-take")).toBeVisible();
+        await parkPointer(page);
+        await expect(page).toHaveScreenshot(`edit-panel-head-actions-${mode}-${lng}-${theme}.png`, {
+          fullPage: true,
+        });
+      });
+    }
+
     // `SUI-FEATURE-191`: the canvas menu on an element, Paste locked while nothing was copied; every
     // entry one full-width row (#388).
     test(`slide editor menu ${lng} ${theme}`, async ({ page }) => {
