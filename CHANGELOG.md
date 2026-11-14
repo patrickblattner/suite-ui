@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — #896: `release.test.ts` tells a spawn timeout from a wrong exit status (patch)
+## 0.238.3 — #896: `release.test.ts` tells a spawn timeout from a wrong exit status (patch)
 
 - **Tests (#896):** every `scripts/release.ts` spawn in `scripts/release.test.ts` goes through one helper; a child killed at the 45 s spawn timeout now fails with `spawn timeout — the child was killed (SIGTERM) …` instead of `expected null to be 4`. A child that exited keeps its status, so a wrong exit status fails as before (new "spawn helper" tests cover both). Timeouts unchanged.
 
