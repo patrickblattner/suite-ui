@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { execFileSync, spawnSync } from "node:child_process";
+import { execFileSync, spawnSync, type SpawnSyncReturns } from "node:child_process";
 import {
   chmodSync,
   copyFileSync,
@@ -29,12 +29,31 @@ const gitIn = (cwd: string, ...args: string[]) =>
   }).trim();
 const git = (...args: string[]) => gitIn(repo, ...args);
 
+// A child killed at its spawn timeout reads status null, which an exit-status assertion reported as
+// "expected null to be 4" — indistinguishable from a wrong exit (#896). A killed or unstarted child
+// fails here instead, naming the cause; a child that exited is returned as is, so a wrong status still
+// fails its assertion.
+const exited = <T extends SpawnSyncReturns<string>>(run: T, what: string): T => {
+  if (run.signal)
+    throw new Error(
+      `${what}: spawn timeout — the child was killed (${run.signal}) before it exited; host load, not a wrong exit status`,
+    );
+  if (run.error) throw run.error;
+  return run;
+};
+const release = (args: string[], env?: NodeJS.ProcessEnv) =>
+  exited(
+    spawnSync(process.execPath, ["scripts/release.ts", ...args], {
+      cwd: repo,
+      encoding: "utf8",
+      env,
+      timeout: SPAWN_TIMEOUT,
+    }),
+    `release.ts ${args.join(" ")}`,
+  );
+
 const tag = (...args: string[]) => {
-  const run = spawnSync(process.execPath, ["scripts/release.ts", "tag", ...args], {
-    cwd: repo,
-    encoding: "utf8",
-    timeout: SPAWN_TIMEOUT,
-  });
+  const run = release(["tag", ...args]);
   return { status: run.status, out: run.stdout + run.stderr };
 };
 
@@ -243,12 +262,7 @@ describe("release:tag review", () => {
     execFileSync("git", ["init", "-q", "--bare", origin], { timeout: SPAWN_TIMEOUT });
     gitIn(origin, "config", "maintenance.auto", "false");
     git("remote", "add", "origin", origin);
-    const run = spawnSync(process.execPath, ["scripts/release.ts", "tag"], {
-      cwd: repo,
-      encoding: "utf8",
-      env: { ...process.env, PATH: `${bin}:${process.env.PATH}` },
-      timeout: SPAWN_TIMEOUT,
-    });
+    const run = release(["tag"], { ...process.env, PATH: `${bin}:${process.env.PATH}` });
     const args = existsSync(join(repo, "npx-args"))
       ? readFileSync(join(repo, "npx-args"), "utf8").trim()
       : "";
@@ -424,22 +438,14 @@ describe("gate:record", () => {
   };
 
   const record = () => {
-    const run = spawnSync(process.execPath, ["scripts/release.ts", "record", "--issue", "1"], {
-      cwd: repo,
-      encoding: "utf8",
-      timeout: SPAWN_TIMEOUT,
-    });
+    const run = release(["record", "--issue", "1"]);
     return { status: run.status, err: run.stderr };
   };
 
   // #138: only the ledger arguments go to the gate; a second `--profile` would record another
   // profile's run as the merge gate. Refused before anything else runs.
   it("refuses --profile local with exit 1 and records nothing", () => {
-    const run = spawnSync(
-      process.execPath,
-      ["scripts/release.ts", "record", "--profile", "local"],
-      { cwd: repo, encoding: "utf8", timeout: SPAWN_TIMEOUT },
-    );
+    const run = release(["record", "--profile", "local"]);
     expect(run.status).toBe(1);
     expect(run.stderr).toContain(
       'only --issue <value> and --run <value> go to the gate, not "--profile"',
@@ -706,11 +712,9 @@ describe("gate:record docs-only", () => {
       `#!/bin/sh\necho "$@" > "${join(bin, "args")}"\ncat "${join(bin, "out")}"\n`,
     );
     chmodSync(join(bin, "npx"), 0o755);
-    const run = spawnSync(process.execPath, ["scripts/release.ts", "record", "--issue", "1"], {
-      cwd: repo,
-      encoding: "utf8",
-      env: { ...process.env, PATH: `${bin}:${process.env.PATH}` },
-      timeout: SPAWN_TIMEOUT,
+    const run = release(["record", "--issue", "1"], {
+      ...process.env,
+      PATH: `${bin}:${process.env.PATH}`,
     });
     const file = join(
       repo,
@@ -886,5 +890,23 @@ describe("gallery inputs", () => {
     expect(declared).not.toBeNull();
     const scanned = [...declared![1]!.matchAll(/"([^"]+)"/g)].map((m) => m[1]!);
     expect([...new Set(dirs.map((dir) => `${dir}/`))].sort()).toEqual([...scanned].sort());
+  });
+});
+
+// #896: a spawn timeout fails with a message naming it; a child that exited keeps its status.
+describe("spawn helper", () => {
+  const node = (code: string, timeout: number) =>
+    spawnSync(process.execPath, ["-e", code], { encoding: "utf8", timeout });
+
+  it("fails a child killed at its timeout with a message naming the spawn timeout", () => {
+    expect(() => exited(node("setTimeout(() => {}, 30_000)", 200), "sleeper")).toThrow(
+      /^sleeper: spawn timeout — the child was killed \(SIGTERM\)/,
+    );
+  });
+
+  it("returns a child that exited with its status, so a wrong status still fails the assertion", () => {
+    const run = exited(node("process.exit(3)", SPAWN_TIMEOUT), "exit 3");
+    expect(run.status).toBe(3);
+    expect(() => expect(run.status).toBe(4)).toThrow(/expected 3 to be 4/);
   });
 });
