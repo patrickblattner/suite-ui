@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased — #898: commit-pinned allowScripts key for the spec-sync-toolkit git dependency (GL-CODE-004 rev 3) (patch)
+
+- **Changed (#898, GL-CODE-004 rev 3, finding #568):** the `allowScripts` key for spec-sync-toolkit is now `github:patrickblattner/spec-sync-toolkit#<full resolved SHA from package-lock.json>` instead of the name-only key (now forbidden). `scripts/allow-scripts.test.ts` keeps the committish, compares keys against the lockfile in both directions and rejects name-only hosted keys; its doc comment no longer claims name-only is the only form npm matches. **A toolkit pin bump must update the key in the same PR** — the test fails otherwise.
+
 ## 0.238.1 — #895: dependencies sweep — override removal trigger, git-dep prepare scripts in allowScripts (patch)
 
 - **Tests (#895, finding #14):** `scripts/overrides.test.ts` is the removal trigger for the scoped `overrides` (#835): it fails once a parent (`@typescript-eslint/typescript-estree`, `eslint-plugin-sonarjs`, `type-coverage-core`) itself declares a range whose lowest version meets the override's (redundant, or silently pinning an older major) — then drop the override and re-run `npm audit`.

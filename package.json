@@ -179,7 +179,7 @@
     "esbuild@0.28.2": true,
     "fsevents@2.3.2": false,
     "fsevents@2.3.3": false,
-    "github:patrickblattner/spec-sync-toolkit": true,
+    "github:patrickblattner/spec-sync-toolkit#902a1995d0e3a9f5a009bd072c6ac255b38caf6e": true,
     "simple-git-hooks@2.14.0": false
   },
   "simple-git-hooks": {

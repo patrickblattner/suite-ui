@@ -12,13 +12,15 @@ const manifest = JSON.parse(readFileSync("package.json", "utf8")) as {
 
 /**
  * #895 (finding #60): npm runs a git dependency's `prepare` on install, but the lockfile records no
- * `hasInstallScript` for it. Every git dependency is therefore listed under its hosted key without
- * committish (`github:owner/repo`), the name-only key npm's strict-allow-scripts matches git nodes by.
+ * `hasInstallScript` for it. Every git dependency is therefore listed under its hosted key.
+ * #898, GL-CODE-004 rev 3: the key carries the full resolved SHA from the lockfile
+ * (`github:owner/repo#<sha>`); npm 11.19 matches `#<sha>` keys by prefix of the resolved SHA.
+ * Name-only keys (`github:owner/repo`) are forbidden, so a toolkit pin bump must update the key.
  */
 const hostedKey = (resolved: string) =>
   resolved.replace(
-    /^git\+(?:ssh:\/\/git@|https:\/\/)github\.com[/:]([^/]+)\/(.+?)(?:\.git)?#.*$/,
-    "github:$1/$2",
+    /^git\+(?:ssh:\/\/git@|https:\/\/)github\.com[/:]([^/]+)\/(.+?)(?:\.git)?#([0-9a-f]{40})$/,
+    "github:$1/$2#$3",
   );
 const isHosted = (key: string) => /^[a-z]+:/.test(key);
 
@@ -45,6 +47,10 @@ describe("allowScripts covers the lockfile in both directions (GL-CODE-004)", ()
 
   it("lists every git dependency of the lockfile under its hosted key (prepare scripts)", () => {
     expect([...gitDeps].filter((key) => !listed.includes(key))).toEqual([]);
+  });
+
+  it("lists no name-only hosted key (GL-CODE-004 rev 3)", () => {
+    expect(listed.filter((key) => isHosted(key) && !/#[0-9a-f]{40}$/.test(key))).toEqual([]);
   });
 
   it("lists no hosted key that is not a git dependency of the lockfile", () => {
