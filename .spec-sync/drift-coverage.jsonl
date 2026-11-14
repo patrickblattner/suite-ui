@@ -993,3 +993,10 @@
 {"ts":"2026-11-13T20:03:24.141Z","key":"PROC-DEV-031","from":20,"to":21,"disposition":"editorial","ref":"harness/Overmind/architect process change (Fable pin, event-only watcher, inbox watcher not a background task) — no code impact on suite-ui"}
 {"ts":"2026-11-13T20:03:40.216Z","key":"SUI-FEATURE-311","from":4,"to":5,"disposition":"ticket","ref":"890"}
 {"ts":"2026-11-14T08:24:47.437Z","key":"SUI-FEATURE-141","from":null,"to":2,"disposition":"ticket","ref":"892"}
+{"ts":"2026-11-14T11:06:56.560Z","key":"GL-UI-004","from":13,"to":14,"disposition":"editorial","ref":"governance only: carrier leaf ordered via ask_question to suite-ui architect; architect is architect-suite-ui — no package code impact"}
+{"ts":"2026-11-14T11:07:03.369Z","key":"GL-UX-001","from":5,"to":6,"disposition":"editorial","ref":"taste questions routed to project foundation instead of suite-ui — process routing, no code impact"}
+{"ts":"2026-11-14T11:07:09.392Z","key":"PROC-CC-012","from":14,"to":15,"disposition":"editorial","ref":"Overmind role: suite-ui gets own architect session, taste reports go to foundation — process only, no code impact"}
+{"ts":"2026-11-14T11:07:15.064Z","key":"PROC-DEV-002","from":5,"to":6,"disposition":"editorial","ref":"taste reports routed to foundation — review process only, no code impact"}
+{"ts":"2026-11-14T11:07:20.029Z","key":"PROC-DEV-013","from":6,"to":7,"disposition":"editorial","ref":"taste reports routed to foundation — architect role process only, no code impact"}
+{"ts":"2026-11-14T11:07:25.930Z","key":"PROC-DEV-070","from":4,"to":5,"disposition":"editorial","ref":"taste reports routed to foundation — process only, no code impact"}
+{"ts":"2026-11-14T11:07:33.597Z","key":"PROC-FLOW-003","from":12,"to":13,"disposition":"editorial","ref":"flow diagram: taste-report step targets foundation — process only, no code impact"}
