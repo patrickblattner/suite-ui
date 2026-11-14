@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — #892: the operation handle's `succeed`/`fail` take an optional action for the end toast (SUI-FEATURE-141 rev 2) (minor)
+## 0.237.0 — #892: the operation handle's `succeed`/`fail` take an optional action for the end toast (SUI-FEATURE-141 rev 2) (minor)
 
 - **Added (#892, SUI-FEATURE-141 AC 1–3):** `succeed(message, { action })` and `fail(message, { action })` on the handle from `useOperationStatus`; `action` is `{ label, onClick }` and is passed as `action` to the package `toast.success` / `toast.error`, so the end toast behaves like any toast with an action (`SUI-FEATURE-101`). It also appears after the operation's `PageHeader` is gone; the app keeps `onClick` working without the page. New types `OperationEnd` and `OperationEndAction` from `@suite/ui/operation-status/provider` and `@suite/ui/ui/operation-status`. No new package strings: the label comes from the app.
 - **Unchanged (#892, AC 4):** without a second argument (or without `action`) `succeed`/`fail` toast exactly as before (`SUI-FEATURE-050` AC 3 and 6).
