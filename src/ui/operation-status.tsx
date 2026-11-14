@@ -5,6 +5,8 @@ import { useTranslation } from "react-i18next";
 import { cn } from "../lib/cn.js";
 import { OperationsContext } from "../operation-status/context.js";
 import {
+  type OperationEnd,
+  type OperationEndAction,
   type OperationHandle,
   type OperationStart,
   type OperationStatusApi,
@@ -182,6 +184,8 @@ export {
   OperationStatusProvider,
   OperationStatusSlot,
   useOperationStatus,
+  type OperationEnd,
+  type OperationEndAction,
   type OperationHandle,
   type OperationStart,
   type OperationStatusApi,

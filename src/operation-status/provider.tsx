@@ -10,11 +10,15 @@ import { type Operation, OperationsContext } from "./context.js";
 // `progress` is a share from 0 to 1; without it the operation only runs.
 type OperationStart = { scope: string; label: string; progress?: number };
 type OperationUpdate = { label?: string; progress?: number };
+// An action on the end toast (`SUI-FEATURE-141`): the app supplies the label in its language, and
+// `onClick` must still work once the page that started the operation is gone.
+type OperationEndAction = { label: string; onClick: () => void };
+type OperationEnd = { action?: OperationEndAction };
 
 type OperationHandle = {
   update: (patch: OperationUpdate) => void;
-  succeed: (message: string) => void;
-  fail: (message: string) => void;
+  succeed: (message: string, end?: OperationEnd) => void;
+  fail: (message: string, end?: OperationEnd) => void;
 };
 
 type OperationStatusApi = { start: (operation: OperationStart) => OperationHandle };
@@ -37,13 +41,15 @@ function OperationStatusProvider({ children }: { children: React.ReactNode }) {
         return {
           update: (patch) =>
             setOperations((prev) => prev.map((op) => (op.id === id ? { ...op, ...patch } : op))),
-          succeed: (message) => {
+          succeed: (message, end) => {
             remove(id);
-            toast.success(message);
+            if (end?.action === undefined) toast.success(message);
+            else toast.success(message, { action: end.action });
           },
-          fail: (message) => {
+          fail: (message, end) => {
             remove(id);
-            toast.error(message);
+            if (end?.action === undefined) toast.error(message);
+            else toast.error(message, { action: end.action });
           },
         };
       },
@@ -66,6 +72,8 @@ function useOperationStatus(): OperationStatusApi {
 export {
   OperationStatusProvider,
   useOperationStatus,
+  type OperationEnd,
+  type OperationEndAction,
   type OperationHandle,
   type OperationStart,
   type OperationStatusApi,
