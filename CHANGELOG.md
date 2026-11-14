@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — #898: commit-pinned allowScripts key for the spec-sync-toolkit git dependency (GL-CODE-004 rev 3) (patch)
+## 0.238.2 — #898: commit-pinned allowScripts key for the spec-sync-toolkit git dependency (GL-CODE-004 rev 3) (patch)
 
 - **Changed (#898, GL-CODE-004 rev 3, finding #568):** the `allowScripts` key for spec-sync-toolkit is now `github:patrickblattner/spec-sync-toolkit#<full resolved SHA from package-lock.json>` instead of the name-only key (now forbidden). `scripts/allow-scripts.test.ts` keeps the committish, compares keys against the lockfile in both directions and rejects name-only hosted keys; its doc comment no longer claims name-only is the only form npm matches. **A toolkit pin bump must update the key in the same PR** — the test fails otherwise.
 
