@@ -1004,3 +1004,7 @@
 {"ts":"2026-11-14T17:37:25.873Z","key":"SUI-FEATURE-420","from":2,"to":3,"disposition":"ticket","ref":"894"}
 {"ts":"2026-11-15T10:56:35.958Z","key":"PROC-DEV-039","from":6,"to":7,"disposition":"editorial","ref":"worker queue-start semantics (continuation is no start, queue before every start); toolkit-carried, no code in suite-ui"}
 {"ts":"2026-11-15T10:56:36.440Z","key":"PROC-REL-012","from":24,"to":25,"disposition":"editorial","ref":"iris PR-check budget 6->8 min; suite-ui is local mode without PR checks/workflows"}
+{"ts":"2026-11-15T11:44:21.572Z","key":"PROC-DEV-043","from":6,"to":7,"disposition":"ticket","ref":"904"}
+{"ts":"2026-11-15T11:44:21.572Z","key":"PROC-DEV-002","from":6,"to":7,"disposition":"ticket","ref":"904"}
+{"ts":"2026-11-15T11:44:22.122Z","key":"GL-CODE-004","from":2,"to":3,"disposition":"editorial","ref":"rev 3 already built in #898 (full-SHA git key + gate test)"}
+{"ts":"2026-11-15T11:44:22.659Z","key":"PROC-DEV-005","from":9,"to":10,"disposition":"editorial","ref":"process-only: same-cause bundling rule for the worker, no code impact"}
