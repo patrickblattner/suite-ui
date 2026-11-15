@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.241.1 — #910, #911: reset confirmations name their own consequence (patch)
 
 - **Fixed (#910, SUI-FEATURE-064 rev 8):** the `EditorHeader` reset confirmation shows the editor hint `editor.resetHint` instead of `settings.resetHint` (patch).
 - **Fixed (#911, SUI-FEATURE-370 rev 6):** the style-drawer reset confirmation has its own title `editor.styleResetTitle` and question `editor.styleResetConfirm` (de/en/es) instead of `actions.reset` / `editor.resetConfirm`; the drawer reset tooltip shows `editor.styleResetHint` instead of `editor.resetHint`, and `editor.styleResetHint` gets the rev 5 wording; the locked drawer reset tooltip shows the new `editor.styleResetCleanHint` / `editor.styleResetSavingHint` (de/en/es) instead of `editor.resetCleanHint` / `editor.resetSavingHint` (patch).
