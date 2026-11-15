@@ -211,6 +211,14 @@ describe("GridFields (SUI-FEATURE-087)", () => {
     expect(count).not.toHaveAttribute("aria-invalid");
   });
 
+  // #902 (collector row 518): a value with float noise shows as the number it stands for.
+  it("shows a value without the noise of float arithmetic", () => {
+    render(<GridFields value={{ ...COLUMNS, gap: 0.1 + 0.2 }} onChange={() => {}} />);
+    const gutter = screen.getByRole("spinbutton", { name: "Gutter" });
+    expect(gutter).toHaveValue("0.3");
+    expect(gutter).toHaveAttribute("aria-valuenow", "0.3");
+  });
+
   it("hides the fields the app does not lead", () => {
     render(<Fields hidden={["kind", "margin", "rowStep"]} />);
     expect(screen.queryByRole("combobox")).toBeNull();

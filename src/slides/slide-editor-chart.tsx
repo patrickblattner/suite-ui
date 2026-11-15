@@ -10,6 +10,7 @@ import {
   formatDecimal,
   numpadDecimal,
   parseDecimal,
+  storedNumber,
 } from "../ui/decimal-number.js";
 import { FieldError } from "../ui/field-error.js";
 import { Hint } from "../ui/hint.js";
@@ -94,7 +95,7 @@ function ValueField({
         aria-errormessage={invalid ? error : undefined}
         aria-describedby={describedBy}
         readOnly={readOnly}
-        value={composition.composing() ?? text ?? formatDecimal(value, language)}
+        value={composition.composing() ?? text ?? formatDecimal(storedNumber(value), language)}
         {...composition.bind()}
         onKeyDown={(event) => {
           // A key of a composition is its own, its Tab moves no focus (`GL-UI-039` rev 3, #760).

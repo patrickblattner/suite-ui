@@ -21,7 +21,7 @@
     "./ui/create-and-select-dialog": { "recommended": 63926, "maximum": 67123 },
     "./ui/crop-editor": { "recommended": 49453, "maximum": 51926 },
     "./ui/cropped-image": { "recommended": 3849, "maximum": 4042 },
-    "./ui/decimal-number": { "recommended": 1085, "maximum": 1139 },
+    "./ui/decimal-number": { "recommended": 1150, "maximum": 1207 },
     "./ui/dialog": { "recommended": 17866, "maximum": 18760 },
     "./ui/drawer-rail": { "recommended": 39203, "maximum": 54000 },
     "./ui/dropdown-menu": { "recommended": 3876, "maximum": 4070 },

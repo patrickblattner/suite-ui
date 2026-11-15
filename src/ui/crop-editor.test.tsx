@@ -337,17 +337,26 @@ describe("ImagePlacementButtons", () => {
     expect([locked, reasonOnly]).toHaveLength(2);
   });
 
-  // SUI-FEATURE-311 rev 5 AC 4: a per-button lock locks that button alone, described by its own
-  // reason; the other button keeps working.
-  it.each([
+  // The per-button locks (SUI-FEATURE-311 rev 5): which button, its test id, the other's, and the
+  // lock with its own reason.
+  const OWN_LOCKS = [
     ["crop", "image-crop", "image-flip"],
     ["flip", "image-flip", "image-crop"],
-  ] as const)("%sDisabled locks only its own button", (which, own, other) => {
-    const onFlip = vi.fn();
+  ] as const;
+  const ownLock = (which: "crop" | "flip") => {
+    const reason = which === "crop" ? "Cropping is off here" : "Mirroring is off here";
     const lock =
       which === "crop"
-        ? { cropDisabled: true, cropDisabledReason: "Cropping is off here" }
-        : { flipDisabled: true, flipDisabledReason: "Cropping is off here" };
+        ? { cropDisabled: true, cropDisabledReason: reason }
+        : { flipDisabled: true, flipDisabledReason: reason };
+    return { reason, lock };
+  };
+
+  // SUI-FEATURE-311 rev 5 AC 4: a per-button lock locks that button alone, described by its own
+  // reason; the other button keeps working.
+  it.each(OWN_LOCKS)("%sDisabled locks only its own button", (which, own, other) => {
+    const onFlip = vi.fn();
+    const { reason, lock } = ownLock(which);
     render(
       <Placement
         onCrop={() => {}}
@@ -361,7 +370,7 @@ describe("ImagePlacementButtons", () => {
     expect(locked).toHaveAttribute("aria-disabled", "true");
     expect(locked).not.toBeDisabled();
     expect(locked.tabIndex).toBe(0);
-    expect(locked).toHaveAccessibleDescription("Cropping is off here");
+    expect(locked).toHaveAccessibleDescription(reason);
     act(() => locked.focus());
     expect(locked).toHaveFocus();
     fireEvent.keyDown(locked, { key: "Enter" });
@@ -385,22 +394,19 @@ describe("ImagePlacementButtons", () => {
 
   // SUI-FEATURE-311 rev 5 AC 3: the shared lock locks both; a button with its own lock carries its
   // own reason, the other the shared one.
-  it("shared and own lock together: the own reason wins on its button", () => {
-    render(
-      <Placement
-        onCrop={() => {}}
-        disabled
-        disabledReason="The page is published"
-        cropDisabled
-        cropDisabledReason="Cropping is off here"
-      />,
-    );
-    const flip = screen.getByTestId("image-flip");
-    const crop = screen.getByTestId("image-crop");
-    for (const button of [flip, crop]) expect(button).toHaveAttribute("aria-disabled", "true");
-    expect(flip).toHaveAccessibleDescription("The page is published");
-    expect(crop).toHaveAccessibleDescription("Cropping is off here");
-  });
+  it.each(OWN_LOCKS)(
+    "shared and own %s lock together: the own reason wins on its button",
+    (which, own, other) => {
+      const { reason, lock } = ownLock(which);
+      render(
+        <Placement onCrop={() => {}} disabled disabledReason="The page is published" {...lock} />,
+      );
+      for (const id of [own, other])
+        expect(screen.getByTestId(id)).toHaveAttribute("aria-disabled", "true");
+      expect(screen.getByTestId(other)).toHaveAccessibleDescription("The page is published");
+      expect(screen.getByTestId(own)).toHaveAccessibleDescription(reason);
+    },
+  );
 
   it("a per-button lock without its reason is a type error", () => {
     const props = {

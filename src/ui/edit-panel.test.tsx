@@ -2148,13 +2148,15 @@ describe("EditPanel headActions: guard, layout, unchanged without", () => {
     expect(screen.getByTestId("path")).toHaveTextContent("/list");
   });
 
-  // AC 6: the layout that wraps the group below the title, right-aligned; nothing truncates.
+  // AC 6: the layout that wraps the group below the title, right-aligned; nothing truncates. On its
+  // own line the group is at most the header's width, so its buttons wrap instead of overflowing.
   it("the head wraps the group below the title, right-aligned, labels never truncate", () => {
     const { value } = headActions();
     renderPanel({ headActions: value });
     expect(header()).toHaveClass("flex-wrap", "justify-end");
     const group = screen.getByTestId("edit-panel-head-actions");
-    expect(group).toHaveClass("shrink-0");
+    expect(group).toHaveClass("max-w-full", "flex-wrap", "justify-end");
+    expect(group).not.toHaveClass("shrink-0");
     expect(group.parentElement).toBe(header());
     expect(group.previousElementSibling).toHaveClass("min-w-0", "flex-[1_1_auto]");
     expect(header().innerHTML).not.toMatch(/truncate|text-ellipsis/);
@@ -2178,5 +2180,15 @@ describe("EditPanel headActions: guard, layout, unchanged without", () => {
     renderPanel();
     expect(screen.queryByTestId("edit-panel-head-actions")).toBeNull();
     expect(header()).toHaveClass("flex shrink-0 flex-col gap-1.5 border-b p-6");
+  });
+
+  // #902 (collector row 565): headActions with nothing in them is no headActions.
+  it.each([{}, { secondary: [] }])("headActions=%j renders the head as without", (empty) => {
+    renderPanel();
+    const without = stableIds(header().outerHTML);
+    cleanup();
+    renderPanel({ headActions: empty });
+    expect(screen.queryByTestId("edit-panel-head-actions")).toBeNull();
+    expect(stableIds(header().outerHTML)).toBe(without);
   });
 });

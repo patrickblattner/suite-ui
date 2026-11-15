@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { Field } from "./field.js";
 import { RadioGroup, RadioGroupItem } from "./radio-group.js";
 
 afterEach(cleanup);
@@ -127,5 +128,45 @@ describe("RadioGroup asChild (#881)", () => {
     const group = screen.getByRole("radiogroup", { name: "Mode" });
     expect(group.tagName).toBe("SECTION");
     expect(screen.getAllByRole("radio")).toHaveLength(2);
+  });
+
+  it("keeps its classes and the caller's className and handlers on the caller's element", () => {
+    const onClick = vi.fn();
+    render(
+      <RadioGroup asChild aria-label="Mode" className="caller" onClick={onClick}>
+        <section>
+          <RadioGroupItem value="a" aria-label="a" />
+        </section>
+      </RadioGroup>,
+    );
+    const group = screen.getByRole("radiogroup", { name: "Mode" });
+    expect(group).toHaveClass("grid", "caller");
+    fireEvent.click(group);
+    expect(onClick).toHaveBeenCalledTimes(1);
+  });
+
+  it("inside a Field with a radiogroup control, carries the field's id and description", () => {
+    render(
+      <>
+        <Field
+          label="Mode"
+          htmlFor="mode"
+          hint="How it runs."
+          control={{ role: "radiogroup", id: "mode", "aria-describedby": "caller-note" }}
+        >
+          <RadioGroup asChild>
+            <section>
+              <RadioGroupItem value="a" aria-label="a" />
+            </section>
+          </RadioGroup>
+        </Field>
+        <p id="caller-note">Applies to new runs.</p>
+      </>,
+    );
+    const group = screen.getByRole("radiogroup");
+    expect(group.tagName).toBe("SECTION");
+    expect(group).toHaveAttribute("id", "mode");
+    expect(group).toHaveAttribute("aria-describedby", "mode-help caller-note");
+    expect(group).toHaveAccessibleDescription("How it runs. Applies to new runs.");
   });
 });

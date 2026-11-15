@@ -120,10 +120,11 @@ type EditPanelProps = {
   // below the title (still right-aligned) where it does not fit beside it. Plain clicks: they neither
   // submit nor reset the form. A route change started from one is held by the leave guard; an app
   // that sets `open=false` closes without asking (unsaved edits are dropped). With a `primary`, the
-  // footer's Save is `outline`.
+  // footer's Save is `outline`. Without a `primary` and without `secondary` entries the head is the
+  // one without `headActions`.
   headActions?: EditPanelHeadActions;
   // Replaces `edit-panel` in `edit-panel`, `-body`, `-preview`, `-back`, `-cancel`, `-submit`,
-  // `-previous` and `-next`.
+  // `-previous`, `-next` and `-head-actions`.
   testIdPrefix?: string;
   className?: string;
   style?: React.CSSProperties;
@@ -463,7 +464,8 @@ function EditPanel({
           }}
         >
           <CompositionTabBoundary>
-            {headActions === undefined ? (
+            {headActions === undefined ||
+            (headActions.primary === undefined && !headActions.secondary?.length) ? (
               <div
                 data-slot="edit-panel-header"
                 className="flex shrink-0 flex-col gap-1.5 border-b p-6"
@@ -481,12 +483,12 @@ function EditPanel({
                 <div
                   data-slot="edit-panel-head-actions"
                   data-tooltip-row=""
-                  className="flex shrink-0 flex-wrap items-center justify-end gap-2"
+                  className="flex max-w-full flex-wrap items-center justify-end gap-2"
                   data-testid={`${testIdPrefix}-head-actions`}
                 >
-                  {headActions.secondary?.map((action, index) => (
+                  {headActions.secondary?.map((action) => (
                     <RowActionButton
-                      key={index}
+                      key={action.label}
                       action={action}
                       rowName=""
                       variant="outline"

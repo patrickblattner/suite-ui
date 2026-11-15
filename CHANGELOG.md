@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased — #902: ui sweep — EditPanel head-action fixes, float-noise-free grid and chart values, test gaps (minor)
+
+- **Fixed (#902, finding #518):** `GridFields` and the slide editor's chart value fields show a value (and the grid its `aria-valuenow`) through the one float-noise normalisation before `formatDecimal`: 0.1 + 0.2 shows "0.3", not "0.30000000000000004". `storedNumber` now lives in (and is exported from) `./ui/decimal-number`; `./slides/number-field` still exports it.
+- **Size (#902, GL-CODE-021, register #1998):** `./ui/decimal-number` maximum 1139 → 1207 B (measured 1150 B + 5 %); cause: `storedNumber` moved into the entry so the ui fields share it.
+- **Fixed (#902, finding #565):** `EditPanel` with `headActions` that hold neither a `primary` nor any `secondary` (`{}`, `{ secondary: [] }`) renders the head exactly as without `headActions`.
+- **Fixed (#902, finding #567):** the `EditPanel` head-action group is at most the header's width (`max-w-full` instead of `shrink-0`): on its own line below the title, buttons wider than the panel wrap, right-aligned, instead of overflowing. Labels still never truncate.
+- **Changed (#902, findings #564, #566):** secondary head actions are keyed by their `label`; the `testIdPrefix` doc comment names `-head-actions`.
+- **Docs (#902, finding #563):** #894 (0.238.0) also made `RowActionButton` a public export of `./list/row-actions`; it renders one `RowAction` as a button (the `EditPanel` head uses it).
+- **Tests (#902, findings #65, #465, #524, #525, #542):** the record/draft fold-order test in `editor-header.test.tsx` compares the ⋯ position too (skipping only the draft's fold steps 1–2) and starts its width loop at 900 px; `radio-group.test.tsx` covers `asChild` classes, `className`, handlers and the id/`aria-describedby` a `Field` radiogroup control carries; the crop-editor precedence test runs for flip and crop, the flip-lock row has its own reason text; the end-toast AC1 case asserts the `suite-toast-action` class.
+
 ## 0.238.3 — #896: `release.test.ts` tells a spawn timeout from a wrong exit status (patch)
 
 - **Tests (#896):** every `scripts/release.ts` spawn in `scripts/release.test.ts` goes through one helper; a child killed at the 45 s spawn timeout now fails with `spawn timeout — the child was killed (SIGTERM) …` instead of `expected null to be 4`. A child that exited keeps its status, so a wrong exit status fails as before (new "spawn helper" tests cover both). Timeouts unchanged.

@@ -272,6 +272,8 @@ describe("useOperationStatus and the PageHeader status slot", () => {
         expect(screen.queryByTestId("operation-spinner")).toBeNull();
         const item = (await screen.findByText("Slides imported")).closest("[data-sonner-toast]");
         expect(item).toHaveAttribute("data-type", "success");
+        // The action-toast traits (SUI-FEATURE-101): the package toast, not sonner's bare one.
+        expect(item).toHaveClass("suite-toast-action");
         fireEvent.click(within(item as HTMLElement).getByRole("button", { name: "Open" }));
         expect(onClick).toHaveBeenCalledTimes(1);
       },

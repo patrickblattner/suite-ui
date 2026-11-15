@@ -7,7 +7,13 @@ import { PRESSED_FILL_CLASS } from "../lib/pressed-fill.js";
 import { toggleIcon } from "../lib/toggle-icon.js";
 import { useCompositionText } from "../lib/use-composition-text.js";
 import { Button } from "./button.js";
-import { formatDecimal, numpadDecimal, parseDecimal, takesDecimal } from "./decimal-number.js";
+import {
+  formatDecimal,
+  numpadDecimal,
+  parseDecimal,
+  storedNumber,
+  takesDecimal,
+} from "./decimal-number.js";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -188,7 +194,8 @@ function GridFields({
           const fieldId = `${id}-${field}`;
           const current = (value as Partial<Record<GridNumberField, number>> | null)?.[field];
           const text =
-            drafts[field] ?? (current === undefined ? "" : formatDecimal(current, language));
+            drafts[field] ??
+            (current === undefined ? "" : formatDecimal(storedNumber(current), language));
           const draft = drafts[field];
           // `Field` shows it once the field is left, and takes it back once the entry is valid
           // (`GL-UI-038`).
@@ -211,7 +218,9 @@ function GridFields({
                 inputMode="numeric"
                 role="spinbutton"
                 aria-valuenow={
-                  draft === undefined || error(field, draft) === null ? current : undefined
+                  (draft === undefined || error(field, draft) === null) && current !== undefined
+                    ? storedNumber(current)
+                    : undefined
                 }
                 aria-valuemin={BOUNDS[field].min}
                 aria-valuemax={BOUNDS[field].max}

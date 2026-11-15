@@ -34,6 +34,15 @@ function value(column: number, row: number) {
   return screen.getByTestId(`slide-editor-chart-value-${column}-${row}`);
 }
 
+// #902 (collector row 518): a value with float noise shows as the number it stands for.
+describe("ChartData value display", () => {
+  it("shows a value without the noise of float arithmetic", () => {
+    const noisy = { ...chart, series: [{ ...chart.series[0]!, values: [0.1 + 0.2, 5] }] };
+    render(<ChartData chart={noisy} revision={0} readOnly={false} onChange={() => {}} />);
+    expect(value(0, 0)).toHaveValue("0.3");
+  });
+});
+
 // #368: a row's values that are not numbers are named in one message below the table, by category
 // and series, and each such field points to it.
 describe("ChartData", () => {

@@ -48,6 +48,13 @@ export function takesDecimal(text: string): boolean {
   return /^[\d\s+\-.,e]*$/i.test(text);
 }
 
+// The stored number without the noise of float arithmetic (15 significant digits: 0.1 + 0.2 is 0.3;
+// no limit on decimals, 0.0000001 stays), as a field shows it, as its `aria-valuenow` and as an
+// arrow-key step stores it. The package's one float-noise normalisation (SUI-FEATURE-411 rev 4).
+export function storedNumber(value: number): number {
+  return Number(value.toPrecision(15));
+}
+
 // A number as a field shows it: written out with the UI language's decimal sign, never in exponent
 // notation and never grouped ("0,0000001", not "1e-7"; SUI-FEATURE-411 rev 4), so `parseDecimal`
 // reads it back as the same number.

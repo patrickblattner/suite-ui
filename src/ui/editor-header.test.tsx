@@ -1909,10 +1909,8 @@ describe("EditorHeader at narrow width", () => {
       "editor-reset",
       "editor-save",
       "editor-reset-confirm",
-      // The divider before the save cluster; and where the ⋯ stands, which moves to the front once
-      // the draft's Undo/Redo fold — its entries are compared below.
+      // The divider before the save cluster.
       "editor-lifecycle-separator",
-      "editor-menu",
     ]);
     const draftEntries = new Set(["Undo", "Redo", "Reset"]);
     const snapshot = () =>
@@ -1924,13 +1922,19 @@ describe("EditorHeader at narrow width", () => {
         back: screen.getByTestId("editor-back").getAttribute("data-size"),
         next: screen.getByTestId("editor-next").getAttribute("data-size"),
       });
-    const sequence = (head: () => void) => {
+    // The ⋯ keeps its place in the comparison. Only at fold steps 1 and 2 does the draft head differ
+    // by more than its save cluster: its Undo/Redo fold there, so its ⋯ moves to the front, where the
+    // record head (without them) has not folded yet. From 900 px down every step is reached.
+    const sequence = (head: () => void, skipShrink: readonly string[] = []) => {
       const states: string[] = [];
-      for (let width = 2000; width >= 100; width -= 10) {
+      for (let width = 900; width >= 100; width -= 10) {
         available = width;
         head();
+        const shrink = document
+          .querySelector("[data-slot=editor-header]")!
+          .getAttribute("data-shrink");
         const state = snapshot();
-        if (states.at(-1) !== state) states.push(state);
+        if (!skipShrink.includes(shrink ?? "") && states.at(-1) !== state) states.push(state);
         cleanup();
       }
       return states;
@@ -1939,7 +1943,7 @@ describe("EditorHeader at narrow width", () => {
       tools: headerTools(),
       lifecycle: lifecycle({ icon: <EyeIcon aria-hidden="true" /> }),
     };
-    const draft = sequence(() => renderHeader(props));
+    const draft = sequence(() => renderHeader(props), ["1", "2"]);
     const record = sequence(() =>
       render(<EditorHeader kind="record" title="Spring newsletter" onBack={vi.fn()} {...props} />),
     );
