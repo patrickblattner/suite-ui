@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — #902: ui sweep — EditPanel head-action fixes, float-noise-free grid and chart values, test gaps (minor)
+## 0.239.0 — #902: ui sweep — EditPanel head-action fixes, float-noise-free grid and chart values, test gaps (minor)
 
 - **Fixed (#902, finding #518):** `GridFields` and the slide editor's chart value fields show a value (and the grid its `aria-valuenow`) through the one float-noise normalisation before `formatDecimal`: 0.1 + 0.2 shows "0.3", not "0.30000000000000004". `storedNumber` now lives in (and is exported from) `./ui/decimal-number`; `./slides/number-field` still exports it.
 - **Size (#902, GL-CODE-021, register #1998):** `./ui/decimal-number` maximum 1139 → 1207 B (measured 1150 B + 5 %); cause: `storedNumber` moved into the entry so the ui fields share it.
