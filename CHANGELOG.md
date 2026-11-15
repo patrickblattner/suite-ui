@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — #909: style drawer reset confirmation with its own hint `editor.styleResetHint` (patch)
+## 0.240.1 — #909: style drawer reset confirmation with its own hint `editor.styleResetHint` (patch)
 
 - **Fixed (#909, SUI-FEATURE-370 rev 3):** the style-drawer reset confirmation names its own consequence via the new package text `editor.styleResetHint` (de/en/es) instead of `settings.resetHint`.
 - Size (#909, GL-CODE-021, register #1998): ./strings, ./parity, ./testing maxima raised to measured +5 %; cause: three new editor.styleResetHint strings (de/en/es).
