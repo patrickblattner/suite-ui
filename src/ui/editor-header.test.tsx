@@ -13,8 +13,10 @@ import {
   type EditorHeaderTool,
   type EditorLeaveGuardOptions,
   type EditorLifecycle,
+  type EditorRestoreDefaults,
   useEditorLeaveGuard,
 } from "./editor-header.js";
+import { FieldUserEditContext } from "./field-error.js";
 import { Input } from "./input.js";
 
 // #759 (Q&A #5174): `onReset` is `() => void | boolean | Promise<void | boolean>`. Checked by the
@@ -542,6 +544,26 @@ describe("EditorHeader tools, status and read-only", () => {
       expect(screen.getByTestId("editor-tool-mode")).toBeInTheDocument();
     },
   );
+
+  // SUI-FEATURE-430 rev 4, AC 2: free, `hint` shows via `Hint`; locked, `disabledText` wins over it.
+  it("restoreDefaults: hint describes the free action; disabledText wins while locked", () => {
+    const onClick = vi.fn();
+    const hinted: EditorRestoreDefaults = { onClick, hint: "Puts the brand colours back" };
+    renderHeader({ tools: headerTools(), restoreDefaults: hinted });
+    const free = screen.getByTestId("restore-defaults");
+    expect(free).toHaveAccessibleDescription("Puts the brand colours back");
+    fireEvent.click(free);
+    expect(onClick).toHaveBeenCalledTimes(1);
+    cleanup();
+
+    renderHeader({
+      tools: headerTools(),
+      restoreDefaults: { ...hinted, disabled: true, disabledText: "Already the defaults" },
+    });
+    expect(screen.getByTestId("restore-defaults")).toHaveAccessibleDescription(
+      "Already the defaults",
+    );
+  });
 
   // AC 2
   it("a tool is an icon-sm button named by its label; pressed, a toggle with the pressed fill", () => {
@@ -2932,6 +2954,83 @@ describe("EditorHeader at narrow width", () => {
     entry.focus();
     fireEvent.keyDown(entry, { key: "Enter" });
     expect(onClick).not.toHaveBeenCalled();
+  });
+
+  // SUI-FEATURE-430 rev 4: the folded entry carries the hint as the wide button does.
+  it("folded, a free Restore defaults describes itself by its hint", () => {
+    available = 390;
+    renderHeader({
+      tools: headerTools(),
+      restoreDefaults: { onClick: vi.fn(), hint: "Puts the brand colours back" },
+      lifecycle: lifecycle(),
+    });
+    const entry = within(openMenu()).getByRole("menuitem", { name: "Restore defaults" });
+    expect(entry).not.toHaveAttribute("aria-disabled");
+    expect(entry).toHaveAccessibleDescription("Puts the brand colours back");
+  });
+
+  // SUI-FEATURE-045 rev 5: wide and folded agree — the hint only while free, else the lock's reason.
+  const reason = "Already the defaults";
+  const action = "Puts the brand colours back";
+  it.each<[string, Omit<EditorRestoreDefaults, "onClick">, string | null]>([
+    ["free", { hint: action }, action],
+    ["disabled with its reason", { hint: action, disabled: true, disabledText: reason }, reason],
+    ["disabled without a reason", { hint: action, disabled: true }, null],
+    ["busy", { hint: action, busy: true }, null],
+    ["busy with a reason, not disabled", { hint: action, busy: true, disabledText: reason }, null],
+  ])("with a hint, %s: wide and folded describe it alike", (_, state, shown) => {
+    const restoreDefaults = { onClick: vi.fn(), ...state };
+    const describedAs = (node: HTMLElement) =>
+      shown === null
+        ? expect(node).not.toHaveAccessibleDescription()
+        : expect(node).toHaveAccessibleDescription(shown);
+    renderHeader({ tools: headerTools(), restoreDefaults, lifecycle: lifecycle() });
+    describedAs(screen.getByTestId("restore-defaults"));
+    cleanup();
+    available = 390;
+    renderHeader({ tools: headerTools(), restoreDefaults, lifecycle: lifecycle() });
+    describedAs(within(openMenu()).getByRole("menuitem", { name: "Restore defaults" }));
+  });
+
+  // #588 (GL-UI-038): the folded entry is the person's edit, as the wide button's click is.
+  it("folded, Restore defaults calls the form's userEdit before onClick", () => {
+    available = 390;
+    const calls: string[] = [];
+    const props: EditorHeaderProps = {
+      title: "Brand kit",
+      ...{ canUndo: false, canRedo: false, dirty: false, saving: false },
+      ...{ onBack: vi.fn(), onUndo: vi.fn(), onRedo: vi.fn(), onSave: vi.fn(), onReset: vi.fn() },
+      tools: headerTools(),
+      restoreDefaults: { onClick: () => calls.push("onClick") },
+      lifecycle: lifecycle(),
+    };
+    render(
+      <FieldUserEditContext.Provider value={() => calls.push("userEdit")}>
+        <EditorHeader {...props} />
+      </FieldUserEditContext.Provider>,
+    );
+    const entry = within(openMenu()).getByRole("menuitem", { name: "Restore defaults" });
+    entry.focus();
+    fireEvent.keyDown(entry, { key: "Enter" });
+    expect(calls).toEqual(["userEdit", "onClick"]);
+  });
+
+  // #584: a busy folded tool marks the ⋯ as working, as a busy record entry does.
+  it("folded, a busy Restore defaults shows the ⋯ working; free, it does not", () => {
+    available = 390;
+    renderHeader({
+      tools: headerTools(),
+      restoreDefaults: { onClick: vi.fn(), busy: true },
+      lifecycle: lifecycle(),
+    });
+    expect(screen.getByTestId("editor-menu")).toHaveAttribute("aria-busy", "true");
+    cleanup();
+    renderHeader({
+      tools: headerTools(),
+      restoreDefaults: { onClick: vi.fn() },
+      lifecycle: lifecycle(),
+    });
+    expect(screen.getByTestId("editor-menu")).not.toHaveAttribute("aria-busy");
   });
 
   // SUI-FEATURE-104 rev 3, AC 8: read-only, the text in the state's place folds as step 4 — to an

@@ -301,8 +301,9 @@ function RowActionMenu({
           <Button
             variant={variant}
             size={size}
-            // The working state without the lock: the menu still opens to its other entries.
-            loading={[...menu.items, ...shownGroups.flatMap((group) => group.items)].some(
+            // The working state without the lock: the menu still opens to its other entries. A busy
+            // folded header tool counts as a record entry does (#584).
+            loading={[...tools, ...menu.items, ...shownGroups.flatMap((group) => group.items)].some(
               (item) => item.busy === true,
             )}
             data-testid={testId}

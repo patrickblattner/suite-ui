@@ -16,6 +16,7 @@ import { PRESSED_FILL_CLASS } from "../lib/pressed-fill.js";
 import { Button } from "./button.js";
 import { ConfirmDeleteDialog } from "./confirm-delete-dialog.js";
 import { FieldDraftsContext, useHasFieldDrafts } from "./field-drafts-internal.js";
+import { FieldUserEditContext } from "./field-error.js";
 import { captureOpener, fallbackTarget, type Opener, returnFocus } from "./focus-return.js";
 import { Hint } from "./hint.js";
 import { type LeaveSave, useLeaveGuard } from "./leave-guard.js";
@@ -134,6 +135,8 @@ type EditorRestoreDefaults = {
   disabled?: boolean;
   disabledText?: string;
   busy?: boolean;
+  // What a press does, via `Hint` while free; a lock's `disabledText` wins over it.
+  hint?: string;
 };
 
 // Structured, so the header can fold Preview and the menu's entries into its one ⋯ (`SUI-FEATURE-090`).
@@ -315,6 +318,8 @@ function EditorHeader({
   // record head folds the same, without a state unless it is read-only.
   // "Restore defaults" is a write handle: read-only, it is gone (`SUI-FEATURE-430`).
   const restore = readOnly ? undefined : restoreDefaults;
+  // The folded entry is the person's edit as the wide button's click is (`GL-UI-038`, #588).
+  const userEdit = React.useContext(FieldUserEditContext);
   const foldsPreview =
     lifecycle?.preview !== undefined || headerTools.length > 0 || restore !== undefined;
   const foldsNext = lifecycle?.next?.icon !== undefined && !roleReadOnly;
@@ -591,18 +596,28 @@ function EditorHeader({
         "data-testid": `editor-menu-tool-${tool.id}`,
       });
     }
-    // "Restore defaults" ends the tools group, with its icon, text and lock reason; `busy` locks it.
+    // "Restore defaults" ends the tools group, with its icon, text and lock reason or hint; `busy`
+    // locks it.
     if (restore !== undefined) {
       const locked = restore.disabled === true || restore.busy === true;
+      const onRestore = restore.onClick;
+      // The lock's reason first; the hint only for the free entry, as on the wide button.
+      const hint =
+        restore.disabled === true && restore.disabledText !== undefined
+          ? restore.disabledText
+          : locked
+            ? undefined
+            : restore.hint;
       tools.push({
         label: t("actions.restoreDefaults"),
         icon: <HistoryIcon aria-hidden="true" />,
-        onSelect: restore.onClick,
+        onSelect: () => {
+          userEdit?.();
+          onRestore();
+        },
         disabled: locked,
         ...(restore.busy === true ? { busy: true } : {}),
-        ...(restore.disabled === true && restore.disabledText !== undefined
-          ? { hint: restore.disabledText }
-          : {}),
+        ...(hint !== undefined ? { hint } : {}),
         "data-testid": "editor-menu-restore-defaults",
       });
     }
@@ -1136,5 +1151,6 @@ export {
   type EditorHeaderTool,
   type EditorLeaveGuardOptions,
   type EditorLifecycle,
+  type EditorRestoreDefaults,
   useEditorLeaveGuard,
 };

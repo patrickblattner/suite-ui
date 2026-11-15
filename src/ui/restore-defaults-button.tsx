@@ -13,6 +13,8 @@ type RestoreDefaultsButtonProps = {
   disabledText?: string;
   // Only when given: declaring `busy` also turns on the Button's repeat-click guard.
   busy?: boolean;
+  // What a press does, shown via `Hint` while free (`GL-UI-016`); a lock's `disabledText` wins over it.
+  hint?: string;
   testId?: string;
 };
 
@@ -23,6 +25,7 @@ function RestoreDefaultsButton({
   disabled,
   disabledText,
   busy,
+  hint,
   testId = "restore-defaults",
 }: RestoreDefaultsButtonProps) {
   const { t } = useTranslation("suite");
@@ -46,6 +49,17 @@ function RestoreDefaultsButton({
       {t("actions.restoreDefaults")}
     </Button>
   );
+  if (hint !== undefined) {
+    // The hint explains only the free action; locked or busy it says nothing but the lock's reason.
+    // The wrapper stays, so a lock that comes and goes never remounts the button.
+    const free = disabled !== true && busy !== true;
+    const reason = disabled === true ? (disabledText ?? "") : "";
+    return (
+      <Hint text={free ? hint : reason} disabledText={disabledText}>
+        {button}
+      </Hint>
+    );
+  }
   return disabledText !== undefined && disabled === true ? (
     <Hint text={disabledText} disabledText={disabledText}>
       {button}

@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — #908: `RestoreDefaultsButton` and `EditorHeader` `restoreDefaults` take a `hint` (minor)
+
+- **Added (#908, SUI-FEATURE-045 rev 5, SUI-FEATURE-430 rev 4):** new prop `hint?: string` on `RestoreDefaultsButton` and on `EditorHeader`'s `restoreDefaults`. Free, the hint explains the action via the package `Hint` (hover and keyboard focus, `GL-UI-016`); locked with `disabledText`, the reason replaces it. The folded ⋯ entry carries the same hint. Without `hint` nothing changes.
+- **Added (#908, finding #587):** the `EditorRestoreDefaults` type is exported beside `EditorHeaderTool` and `EditorLifecycle`.
+- **Fixed (#908, finding #588):** the folded ⋯ "Restore defaults" entry calls the form's `FieldUserEditContext` user edit before `onClick`, as the wide `RestoreDefaultsButton` does (`GL-UI-038`).
+- **Fixed (#908, finding #584):** the ⋯ trigger of `RowActionMenu` shows its working state also for a busy folded tool (e.g. a busy folded `restoreDefaults`), not only for busy record entries.
+
 ## 0.240.1 — #909: style drawer reset confirmation with its own hint `editor.styleResetHint` (patch)
 
 - **Fixed (#909, SUI-FEATURE-370 rev 3):** the style-drawer reset confirmation names its own consequence via the new package text `editor.styleResetHint` (de/en/es) instead of `settings.resetHint`.
