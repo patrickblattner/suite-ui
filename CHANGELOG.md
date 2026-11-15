@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased — #904: raise spec-sync-toolkit pin to v0.50.0 (patch)
+
+- **Changed (#904):** spec-sync-toolkit pin raised v0.49.1 → v0.50.0 (`spec-sync ledger build`, PROC-DEV-043 rev 7; `fastLane` lens decision, PROC-DEV-002 rev 7); `allowScripts` key carries the new resolved SHA.
+
 ## 0.239.0 — #902: ui sweep — EditPanel head-action fixes, float-noise-free grid and chart values, test gaps (minor)
 
 - **Fixed (#902, finding #518):** `GridFields` and the slide editor's chart value fields show a value (and the grid its `aria-valuenow`) through the one float-noise normalisation before `formatDecimal`: 0.1 + 0.2 shows "0.3", not "0.30000000000000004". `storedNumber` now lives in (and is exported from) `./ui/decimal-number`; `./slides/number-field` still exports it.

@@ -154,7 +154,7 @@
     "size-limit": "^14.3.0",
     "sonner": "^2.0.8",
     "source-map-explorer": "^2.5.3",
-    "spec-sync-toolkit": "github:patrickblattner/spec-sync-toolkit#v0.49.1",
+    "spec-sync-toolkit": "github:patrickblattner/spec-sync-toolkit#v0.50.0",
     "tailwind-merge": "^3.7.0",
     "tailwindcss": "^4.3.3",
     "tsup": "^9.0.0",
@@ -179,7 +179,7 @@
     "esbuild@0.28.2": true,
     "fsevents@2.3.2": false,
     "fsevents@2.3.3": false,
-    "github:patrickblattner/spec-sync-toolkit#902a1995d0e3a9f5a009bd072c6ac255b38caf6e": true,
+    "github:patrickblattner/spec-sync-toolkit#ec22d955f11a84fd64e53efec1a3efaa9ad2c38b": true,
     "simple-git-hooks@2.14.0": false
   },
   "simple-git-hooks": {
