@@ -389,6 +389,8 @@ export const de: SuiteStrings = {
     resetConfirm:
       "Entwurf verwerfen und zum gespeicherten Stand zurückkehren? Das lässt sich nicht rückgängig machen.",
     resetHint: "Verwirft den Entwurf und kehrt zum gespeicherten Stand zurück.",
+    styleResetHint:
+      "Verwirft die ungespeicherten Stil-Änderungen und kehrt zum gespeicherten Stil zurück. Der Inhalt bleibt unverändert.",
     resetCleanHint: "Verwirft den Entwurf — verfügbar, sobald du etwas geändert hast.",
     resetSavingHint: "Verwirft den Entwurf — gesperrt, solange gespeichert wird.",
     resetPendingHint:

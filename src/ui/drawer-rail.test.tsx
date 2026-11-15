@@ -362,4 +362,31 @@ describe("DrawerRail (SUI-FEATURE-071)", () => {
     expect(screen.queryByTestId("drawer-style-draft")).toBeNull();
     expect(screen.getByTestId("drawer-style")).toHaveAccessibleName(name);
   });
+
+  // SUI-FEATURE-370 AC 6: the style reset confirmation carries its own package hint, never the
+  // settings or editor reset hint.
+  it.each(["de", "en", "es"])(
+    "%s: the style reset confirmation shows editor.styleResetHint",
+    async (lng) => {
+      await i18n.changeLanguage(lng);
+      const t = (key: string) => i18n.t(key, { ns: "suite" });
+      render(
+        <DrawerRail
+          items={ITEMS}
+          open="style"
+          onOpen={() => {}}
+          styleSave={{ onSave: () => {}, onReset: () => {}, dirty: true }}
+        />,
+      );
+      fireEvent.click(screen.getByTestId("drawer-style-reset"));
+      const ids =
+        (await screen.findByTestId("drawer-style-reset-confirm-confirm"))
+          .getAttribute("aria-describedby")
+          ?.split(" ") ?? [];
+      const hint = ids.map((id) => document.getElementById(id)?.textContent ?? "").join(" ");
+      expect(hint).toContain(t("editor.styleResetHint"));
+      expect(hint).not.toContain(t("settings.resetHint"));
+      expect(hint).not.toContain(t("editor.resetHint"));
+    },
+  );
 });

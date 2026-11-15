@@ -382,6 +382,8 @@ export const es: SuiteStrings = {
     draft: "Borrador · sin guardar",
     resetConfirm: "¿Descartar el borrador y volver al estado guardado? No se puede deshacer.",
     resetHint: "Descarta el borrador y vuelve al estado guardado.",
+    styleResetHint:
+      "Descarta los cambios de estilo no guardados y vuelve al estilo guardado. El contenido no cambia.",
     resetCleanHint: "Descarta el borrador — disponible en cuanto cambies algo.",
     resetSavingHint: "Descarta el borrador — bloqueado mientras se guarda.",
     resetPendingHint: "Descarta el borrador — bloqueado hasta que termine la acción en curso.",

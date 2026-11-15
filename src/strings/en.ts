@@ -412,6 +412,8 @@ export const en = {
     draft: "Draft · unsaved",
     resetConfirm: "Discard the draft and return to the saved state? This can't be undone.",
     resetHint: "Discards the draft and returns to the saved state.",
+    styleResetHint:
+      "Discards the unsaved style changes and returns to the saved style. The content stays unchanged.",
     resetCleanHint: "Discards the draft — available once you have changed something.",
     resetSavingHint: "Discards the draft — locked while it is being saved.",
     resetPendingHint: "Discards the draft — locked until the running action has finished.",

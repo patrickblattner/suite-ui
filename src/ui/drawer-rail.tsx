@@ -254,7 +254,7 @@ function DrawerRail({ items, open, onOpen, styleSave, documentLabel }: DrawerRai
           title={t("actions.reset")}
           description={t("editor.resetConfirm")}
           confirmLabel={t("actions.reset")}
-          confirmHint={t("settings.resetHint")}
+          confirmHint={t("editor.styleResetHint")}
           data-testid="drawer-style-reset-confirm"
         />
       )}

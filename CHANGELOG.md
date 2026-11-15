@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — #909: style drawer reset confirmation with its own hint `editor.styleResetHint` (patch)
+
+- **Fixed (#909, SUI-FEATURE-370 rev 3):** the style-drawer reset confirmation names its own consequence via the new package text `editor.styleResetHint` (de/en/es) instead of `settings.resetHint`.
+- Size (#909, GL-CODE-021, register #1998): ./strings, ./parity, ./testing maxima raised to measured +5 %; cause: three new editor.styleResetHint strings (de/en/es).
+
 ## 0.240.0 — #906: `EditorHeader` `restoreDefaults` head tool in `RestoreDefaultsButton` form (minor)
 
 - **Added (#906, SUI-FEATURE-430):** new `EditorHeader` prop `restoreDefaults?: { onClick; disabled?; disabledText?; busy? }`, rendered as `RestoreDefaultsButton` (`outline`, `sm`, `HistoryIcon`, `suite:actions.restoreDefaults`, testid `restore-defaults`) at the end of the tools group, before its divider; without `tools` it forms the tools group alone. `disabledText` names the lock via `Hint`, `busy` locks only this action. At narrow width it folds with the tools (`SUI-FEATURE-090` stage 3) as the last header-tool entry of the ⋯ (testid `editor-menu-restore-defaults`), with icon, text and lock reason. Absent with `readOnly`; the head never confirms. Without the prop the head renders as before.
