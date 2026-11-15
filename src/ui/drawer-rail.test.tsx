@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import i18n from "i18next";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -245,7 +245,7 @@ describe("DrawerRail (SUI-FEATURE-071)", () => {
     expect(screen.getByTestId("drawer-style-reset")).not.toHaveAttribute("aria-disabled");
     fireEvent.click(screen.getByTestId("drawer-style-reset"));
     expect(await screen.findByTestId("drawer-style-reset-confirm")).toHaveTextContent(
-      "Discard the draft and return to the saved state? This can't be undone.",
+      "Discard the style changes and return to the saved style? This can't be undone.",
     );
     fireEvent.click(screen.getByTestId("drawer-style-reset-confirm-cancel"));
     await waitFor(() => expect(screen.queryByTestId("drawer-style-reset-confirm")).toBeNull());
@@ -283,7 +283,7 @@ describe("DrawerRail (SUI-FEATURE-071)", () => {
     const reset = screen.getByTestId("drawer-style-reset");
     expect(reset).toHaveAttribute("aria-disabled", "true");
     expect(reset).toHaveAccessibleDescription(
-      "Discards the draft — locked while it is being saved.",
+      "Discards the style changes — locked while the style is being saved.",
     );
     fireEvent.click(reset);
     expect(screen.queryByTestId("drawer-style-reset-confirm")).toBeNull();
@@ -363,10 +363,10 @@ describe("DrawerRail (SUI-FEATURE-071)", () => {
     expect(screen.getByTestId("drawer-style")).toHaveAccessibleName(name);
   });
 
-  // SUI-FEATURE-370 AC 6: the style reset confirmation carries its own package hint, never the
-  // settings or editor reset hint.
+  // SUI-FEATURE-370 rev 6 AC 2, 6: own title, question, tooltip and confirm hint — never the
+  // EditorHeader confirm's actions.reset / editor.resetConfirm, never a settings or editor reset hint.
   it.each(["de", "en", "es"])(
-    "%s: the style reset confirmation shows editor.styleResetHint",
+    "%s: the style reset shows its own title, question, tooltip and hint",
     async (lng) => {
       await i18n.changeLanguage(lng);
       const t = (key: string) => i18n.t(key, { ns: "suite" });
@@ -378,7 +378,21 @@ describe("DrawerRail (SUI-FEATURE-071)", () => {
           styleSave={{ onSave: () => {}, onReset: () => {}, dirty: true }}
         />,
       );
-      fireEvent.click(screen.getByTestId("drawer-style-reset"));
+      const described = (el: Element) =>
+        (el.getAttribute("aria-describedby")?.split(" ") ?? [])
+          .map((id) => document.getElementById(id)?.textContent ?? "")
+          .join(" ");
+      const reset = screen.getByTestId("drawer-style-reset");
+      expect(described(reset)).toContain(t("editor.styleResetHint"));
+      expect(described(reset)).not.toContain(t("editor.resetHint"));
+      expect(described(reset)).not.toContain(t("settings.resetHint"));
+      fireEvent.click(reset);
+      const dialog = await screen.findByRole("dialog");
+      const title = within(dialog).getByRole("heading").textContent;
+      expect(title).toBe(t("editor.styleResetTitle"));
+      expect(title).not.toBe(t("actions.reset"));
+      expect(dialog).toHaveTextContent(t("editor.styleResetConfirm"));
+      expect(dialog).not.toHaveTextContent(t("editor.resetConfirm"));
       const ids =
         (await screen.findByTestId("drawer-style-reset-confirm-confirm"))
           .getAttribute("aria-describedby")
@@ -389,4 +403,38 @@ describe("DrawerRail (SUI-FEATURE-071)", () => {
       expect(hint).not.toContain(t("editor.resetHint"));
     },
   );
+
+  // SUI-FEATURE-370 rev 6 AC 6: the locked Reset explains itself with editor.styleReset* texts only.
+  it.each([
+    ["de", "clean", { dirty: false }, "editor.styleResetCleanHint"],
+    ["en", "clean", { dirty: false }, "editor.styleResetCleanHint"],
+    ["es", "clean", { dirty: false }, "editor.styleResetCleanHint"],
+    ["de", "saving", { dirty: true, saving: true }, "editor.styleResetSavingHint"],
+    ["en", "saving", { dirty: true, saving: true }, "editor.styleResetSavingHint"],
+    ["es", "saving", { dirty: true, saving: true }, "editor.styleResetSavingHint"],
+  ] as const)("%s: the %s style Reset tooltip shows its own text", async (lng, _s, state, key) => {
+    await i18n.changeLanguage(lng);
+    const t = (k: string) => i18n.t(k, { ns: "suite" });
+    render(
+      <DrawerRail
+        items={ITEMS}
+        open="style"
+        onOpen={() => {}}
+        styleSave={{ onSave: () => {}, onReset: () => {}, ...state }}
+      />,
+    );
+    const reset = screen.getByTestId("drawer-style-reset");
+    const tip = (reset.getAttribute("aria-describedby")?.split(" ") ?? [])
+      .map((id) => document.getElementById(id)?.textContent ?? "")
+      .join(" ");
+    expect(tip).toContain(t(key));
+    for (const other of [
+      "settings.resetHint",
+      "editor.resetHint",
+      "editor.resetCleanHint",
+      "editor.resetSavingHint",
+    ]) {
+      expect(tip).not.toContain(t(other));
+    }
+  });
 });

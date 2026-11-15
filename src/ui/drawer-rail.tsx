@@ -202,9 +202,9 @@ function DrawerRail({ items, open, onOpen, styleSave, documentLabel }: DrawerRai
               ) : (
                 <div className="flex flex-wrap gap-2" data-testid="drawer-style-actions">
                   <Hint
-                    text={t("editor.resetHint")}
+                    text={t("editor.styleResetHint")}
                     disabledText={t(
-                      styleSaving ? "editor.resetSavingHint" : "editor.resetCleanHint",
+                      styleSaving ? "editor.styleResetSavingHint" : "editor.styleResetCleanHint",
                     )}
                   >
                     <Button
@@ -251,8 +251,8 @@ function DrawerRail({ items, open, onOpen, styleSave, documentLabel }: DrawerRai
             setConfirming(false);
             styleSave.onReset?.();
           }}
-          title={t("actions.reset")}
-          description={t("editor.resetConfirm")}
+          title={t("editor.styleResetTitle")}
+          description={t("editor.styleResetConfirm")}
           confirmLabel={t("actions.reset")}
           confirmHint={t("editor.styleResetHint")}
           data-testid="drawer-style-reset-confirm"
