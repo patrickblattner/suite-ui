@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — #904: raise spec-sync-toolkit pin to v0.50.0 (patch)
+## 0.239.1 — #904: raise spec-sync-toolkit pin to v0.50.0 (patch)
 
 - **Changed (#904):** spec-sync-toolkit pin raised v0.49.1 → v0.50.0 (`spec-sync ledger build`, PROC-DEV-043 rev 7; `fastLane` lens decision, PROC-DEV-002 rev 7); `allowScripts` key carries the new resolved SHA.
 
