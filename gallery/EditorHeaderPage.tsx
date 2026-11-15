@@ -209,6 +209,31 @@ export function EditorHeaderPage() {
   );
 }
 
+// `SUI-FEATURE-430`: an editor head with tools and "Restore defaults", wide and folded into the ⋯ in a
+// phone-wide box.
+export function EditorRestorePage() {
+  const tools = useTools();
+  const head = {
+    title: "Brand kit",
+    ...NOOP,
+    tools,
+    restoreDefaults: { onClick: () => {} },
+    lifecycle: LIFECYCLE,
+  };
+  return (
+    <Section id="editor-restore" title="EditorHeader with Restore defaults">
+      <div className="flex flex-col gap-4">
+        <div className="rounded-md border" data-testid="editor-restore-wide">
+          <EditorHeader {...head} />
+        </div>
+        <div className="w-full max-w-[342px] rounded-md border" data-testid="editor-restore-folded">
+          <EditorHeader {...head} />
+        </div>
+      </div>
+    </Section>
+  );
+}
+
 // `SUI-FEATURE-390`: a record page that saves per section carries the record head, without the save
 // cluster, next to the draft head of the record's editor pages; Back, title and subtitle stand alike.
 export function EditorRecordPage() {

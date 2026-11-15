@@ -116,6 +116,8 @@ const PAGES: [name: string, ready: (page: Page) => Locator, woken?: (page: Page)
   ["pressed", (page) => page.getByTestId("pressed-on")],
   // `SUI-FEATURE-104`/`-105`: tools and status, read-only, and the subtitle.
   ["editor-bar", (page) => page.getByTestId("editor-header-subtitle")],
+  // `SUI-FEATURE-430`: tools and Restore defaults, wide and folded.
+  ["restore-bar", (page) => page.getByTestId("editor-restore-folded")],
   // SUI-FEATURE-160: the drawn slides once every view has its fonts and icons.
   ["slides", (page) => page.locator("[data-testid=slide-fit-off][data-slide-ready=true]")],
   // The player once its bar has hidden itself: a still scene without input.
@@ -4664,6 +4666,43 @@ for (const width of [390, 1280, 1440]) {
     expect(await lastRight(record)).toBeCloseTo(await lastRight(draft), 1);
   });
 }
+
+// `SUI-FEATURE-430` AC 1, 3: wide, "Restore defaults" ends the tools group before its divider; in the
+// phone-wide head it is the ⋯'s last header tool, with icon and text, reached by keyboard.
+test("editor header: Restore defaults stands in the tools group, folded into the ⋯", async ({
+  page,
+}) => {
+  await page.goto("/?page=restore-bar&lng=en");
+  const wide = page.getByTestId("editor-restore-wide");
+  expect(
+    await wide
+      .locator("[data-slot=editor-actions] [data-testid]")
+      .evaluateAll((nodes) => nodes.slice(0, 4).map((node) => node.getAttribute("data-testid"))),
+  ).toEqual([
+    "editor-tool-desktop",
+    "editor-tool-grid",
+    "restore-defaults",
+    "editor-tools-separator",
+  ]);
+  const folded = page.getByTestId("editor-restore-folded");
+  await expect(folded.getByTestId("restore-defaults")).toHaveCount(0);
+  await folded.getByTestId("editor-menu").focus();
+  await page.keyboard.press("Enter");
+  const menu = page.getByRole("menu");
+  const entry = menu.getByTestId("editor-menu-restore-defaults");
+  await expect(entry).toHaveText("Restore defaults");
+  await expect(entry.locator("svg.lucide-history")).toHaveCount(1);
+  expect(
+    await menu
+      .locator("[role^=menuitem]")
+      .evaluateAll((nodes) => nodes.slice(0, 3).map((node) => node.getAttribute("data-testid"))),
+  ).toEqual(["editor-menu-tool-desktop", "editor-menu-tool-grid", "editor-menu-restore-defaults"]);
+  // The arrow keys reach it from the menu's start.
+  const focused = () => entry.evaluate((node) => node === document.activeElement);
+  for (let step = 0; step < 4 && !(await focused()); step += 1)
+    await page.keyboard.press("ArrowDown");
+  await expect(entry).toBeFocused();
+});
 
 // `SUI-FEATURE-119` AC 7: the ⋯ in titled groups with a locked entry's reason in view, and a header
 // whose content is locked by its state keeping its lifecycle.

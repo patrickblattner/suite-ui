@@ -9,7 +9,7 @@ import { initReactI18next, useTranslation } from "react-i18next";
 import { registerSuiteStrings, suiteStrings, type SuiteLanguage } from "../src/strings/index.js";
 import { installLeaveGuard } from "../src/ui/leave-guard.js";
 import { ComponentsPage } from "./ComponentsPage.js";
-import { EditorHeaderPage, EditorRecordPage } from "./EditorHeaderPage.js";
+import { EditorHeaderPage, EditorRecordPage, EditorRestorePage } from "./EditorHeaderPage.js";
 import { EditorShellPage } from "./EditorShellPage.js";
 import { EditPanelPage } from "./EditPanelPage.js";
 import { CanvasLayersHarness } from "./CanvasLayersHarness.js";
@@ -67,6 +67,7 @@ const PAGES = [
   "editor-shell",
   "editor-bar",
   "record-bar",
+  "restore-bar",
   "grid",
   "pressed",
   "help",
@@ -115,6 +116,7 @@ const PAGE_CONTENT: Record<Exclude<Page, "strings">, (theme: Theme) => ReactNode
   "editor-shell": (theme) => <EditorShellPage theme={theme} />,
   "editor-bar": () => <EditorHeaderPage />,
   "record-bar": () => <EditorRecordPage />,
+  "restore-bar": () => <EditorRestorePage />,
   grid: () => <GridPage />,
   pressed: () => <PressedPage />,
   help: () => <HelpPage />,

@@ -455,6 +455,94 @@ describe("EditorHeader tools, status and read-only", () => {
     ]);
   });
 
+  // SUI-FEATURE-430 AC 1: "Restore defaults" ends the tools group, before its divider.
+  it("restoreDefaults: tools · Restore defaults · separator · lifecycle · separator · editor group", () => {
+    const onClick = vi.fn();
+    renderHeader({ tools: headerTools(), restoreDefaults: { onClick }, lifecycle: lifecycle() });
+    expect(order().slice(0, 5)).toEqual([
+      "editor-tool-mode",
+      "editor-tool-grid",
+      "restore-defaults",
+      "editor-tools-separator",
+      "editor-preview",
+    ]);
+    const restore = screen.getByTestId("restore-defaults");
+    expect(restore).toHaveAccessibleName("Restore defaults");
+    expect(restore).toHaveAttribute("data-variant", "outline");
+    expect(restore).toHaveAttribute("data-size", "sm");
+    expect(restore.querySelector("svg")).toHaveClass("lucide-history");
+    fireEvent.click(restore);
+    // The head never confirms: the app's call runs at once.
+    expect(onClick).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
+
+  it("restoreDefaults without tools forms the tools group alone", () => {
+    renderHeader({ restoreDefaults: { onClick: vi.fn() } });
+    expect(order()).toEqual([
+      "restore-defaults",
+      "editor-tools-separator",
+      "editor-undo",
+      "editor-redo",
+      "editor-state",
+      "editor-reset",
+      "editor-save",
+    ]);
+  });
+
+  // SUI-FEATURE-430 AC 2
+  it("restoreDefaults: disabledText names the reason on focus; busy locks only this action", () => {
+    const onClick = vi.fn();
+    const view = render(
+      <EditorHeader
+        title="Brand kit"
+        canUndo
+        canRedo
+        dirty
+        saving={false}
+        onBack={vi.fn()}
+        onUndo={vi.fn()}
+        onRedo={vi.fn()}
+        onSave={vi.fn()}
+        onReset={vi.fn()}
+        tools={headerTools()}
+        restoreDefaults={{ onClick, disabled: true, disabledText: "Already the defaults" }}
+      />,
+    );
+    const locked = screen.getByTestId("restore-defaults");
+    expect(locked).toHaveAttribute("aria-disabled", "true");
+    expect(locked).toHaveAccessibleDescription("Already the defaults");
+    locked.focus();
+    expect(locked).toHaveFocus();
+    fireEvent.click(locked);
+    expect(onClick).not.toHaveBeenCalled();
+    view.unmount();
+
+    const handlers = renderHeader({
+      tools: headerTools(),
+      restoreDefaults: { onClick, busy: true },
+      dirty: true,
+    });
+    const busy = screen.getByTestId("restore-defaults");
+    expect(busy).toHaveAttribute("aria-busy", "true");
+    fireEvent.click(busy);
+    expect(onClick).not.toHaveBeenCalled();
+    // Everything else stays usable.
+    expect(screen.getByTestId("editor-tool-grid")).not.toHaveAttribute("aria-disabled");
+    fireEvent.click(screen.getByTestId("editor-save"));
+    expect(handlers.onSave).toHaveBeenCalledTimes(1);
+  });
+
+  // SUI-FEATURE-430 AC 4
+  it.each([[true], ["content" as const]])(
+    "restoreDefaults is not in the DOM with readOnly=%s",
+    (readOnly) => {
+      renderHeader({ readOnly, tools: headerTools(), restoreDefaults: { onClick: vi.fn() } });
+      expect(screen.queryByTestId("restore-defaults")).toBeNull();
+      expect(screen.getByTestId("editor-tool-mode")).toBeInTheDocument();
+    },
+  );
+
   // AC 2
   it("a tool is an icon-sm button named by its label; pressed, a toggle with the pressed fill", () => {
     const tools = headerTools();
@@ -2791,6 +2879,60 @@ describe("EditorHeader at narrow width", () => {
       expect(onClick).not.toHaveBeenCalled();
     },
   );
+
+  // SUI-FEATURE-430 AC 3: folded with the tools, the last entry of the tools group, with its icon,
+  // text and lock reason, reachable by keyboard.
+  it("at 390 px Restore defaults is the last header tool in the ⋯, with icon, text and reason", () => {
+    available = 390;
+    const onClick = vi.fn();
+    renderHeader({
+      dirty: true,
+      tools: headerTools(),
+      restoreDefaults: { onClick },
+      lifecycle: lifecycle(),
+    });
+    expect(screen.queryByTestId("restore-defaults")).toBeNull();
+    const menu = openMenu();
+    const items = [...menu.querySelectorAll("[role^=menuitem]")].map((el) =>
+      el.getAttribute("data-testid"),
+    );
+    expect(items.slice(0, 4)).toEqual([
+      "editor-menu-tool-mode",
+      "editor-menu-tool-grid",
+      "editor-menu-restore-defaults",
+      "editor-menu-undo",
+    ]);
+    const entry = within(menu).getByRole("menuitem", { name: "Restore defaults" });
+    expect(entry.querySelector("svg")).toHaveClass("lucide-history");
+    entry.focus();
+    fireEvent.keyDown(entry, { key: "Enter" });
+    expect(onClick).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ["disabled with its reason", { disabled: true, disabledText: "Already the defaults" }],
+    ["busy", { busy: true }],
+  ] as const)("folded, a Restore defaults %s is locked in the ⋯", (_, lock) => {
+    available = 390;
+    const onClick = vi.fn();
+    renderHeader({
+      tools: headerTools(),
+      restoreDefaults: { onClick, ...lock },
+      lifecycle: lifecycle(),
+    });
+    const entry = within(openMenu()).getByRole("menuitem", { name: "Restore defaults" });
+    expect(entry).toHaveAttribute("aria-disabled", "true");
+    if ("disabledText" in lock) {
+      const described = (entry.getAttribute("aria-describedby") ?? "")
+        .split(" ")
+        .map((id) => document.getElementById(id)?.textContent)
+        .join(" ");
+      expect(described).toBe("Already the defaults");
+    }
+    entry.focus();
+    fireEvent.keyDown(entry, { key: "Enter" });
+    expect(onClick).not.toHaveBeenCalled();
+  });
 
   // SUI-FEATURE-104 rev 3, AC 8: read-only, the text in the state's place folds as step 4 — to an
   // eye with its text as tooltip and status — before Back and the title's floor; never into the ⋯.

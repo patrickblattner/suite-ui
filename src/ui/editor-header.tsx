@@ -1,6 +1,7 @@
 import {
   ArrowLeftIcon,
   EyeIcon,
+  HistoryIcon,
   Redo2Icon,
   RotateCcwIcon,
   SaveIcon,
@@ -25,6 +26,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "./tooltip.js";
+import { RestoreDefaultsButton } from "./restore-defaults-button.js";
 import { REDO_SHORTCUT, UNDO_SHORTCUT, useEditShortcuts } from "./use-edit-shortcuts.js";
 import { useFoldSteps } from "./use-fold-steps.js";
 
@@ -51,6 +53,9 @@ type EditorHeaderCommonProps = {
   lifecycle?: EditorLifecycle;
   // The editor's own tools in the header row, first in the right group (`SUI-FEATURE-104`).
   tools?: readonly EditorHeaderTool[];
+  // "Restore defaults" as `RestoreDefaultsButton`, last in the tools group (`SUI-FEATURE-430`); it
+  // folds with the tools and is absent read-only. The head never confirms: that stays with the app.
+  restoreDefaults?: EditorRestoreDefaults;
   // A running operation, compact (icon and short text), directly left of the state; never folds.
   status?: React.ReactNode;
   // A role that may only read: no write controls at all, "Read only" in place of the state. The app
@@ -121,6 +126,14 @@ type EditorHeaderTool = {
   onClick: () => void;
   pressed?: boolean;
   disabledText?: string;
+};
+
+// The head's "Restore defaults" (`SUI-FEATURE-430`), as on `RestoreDefaultsButton`.
+type EditorRestoreDefaults = {
+  onClick: () => void;
+  disabled?: boolean;
+  disabledText?: string;
+  busy?: boolean;
 };
 
 // Structured, so the header can fold Preview and the menu's entries into its one ⋯ (`SUI-FEATURE-090`).
@@ -271,6 +284,7 @@ function EditorHeader({
   onReset,
   lifecycle,
   tools: headerTools = [],
+  restoreDefaults,
   status,
   readOnly: readOnlyMode = false,
   layout,
@@ -299,7 +313,10 @@ function EditorHeader({
   // The header tools fold with Preview. Read-only, only what it shows can fold; the read-only text
   // stands in the state's place and folds as `SUI-FEATURE-090` stage 4 (here the second step). A
   // record head folds the same, without a state unless it is read-only.
-  const foldsPreview = lifecycle?.preview !== undefined || headerTools.length > 0;
+  // "Restore defaults" is a write handle: read-only, it is gone (`SUI-FEATURE-430`).
+  const restore = readOnly ? undefined : restoreDefaults;
+  const foldsPreview =
+    lifecycle?.preview !== undefined || headerTools.length > 0 || restore !== undefined;
   const foldsNext = lifecycle?.next?.icon !== undefined && !roleReadOnly;
   const folds: Fold[] = noEditorGroup
     ? [
@@ -574,6 +591,21 @@ function EditorHeader({
         "data-testid": `editor-menu-tool-${tool.id}`,
       });
     }
+    // "Restore defaults" ends the tools group, with its icon, text and lock reason; `busy` locks it.
+    if (restore !== undefined) {
+      const locked = restore.disabled === true || restore.busy === true;
+      tools.push({
+        label: t("actions.restoreDefaults"),
+        icon: <HistoryIcon aria-hidden="true" />,
+        onSelect: restore.onClick,
+        disabled: locked,
+        ...(restore.busy === true ? { busy: true } : {}),
+        ...(restore.disabled === true && restore.disabledText !== undefined
+          ? { hint: restore.disabledText }
+          : {}),
+        "data-testid": "editor-menu-restore-defaults",
+      });
+    }
   }
   if (folded("undo")) {
     // Locked, each names why and offers no shortcut, as the header buttons (#380, #454).
@@ -748,11 +780,12 @@ function EditorHeader({
         data-tooltip-row=""
         className="ml-auto flex shrink-0 items-center gap-2"
       >
-        {headerTools.length === 0 || folded("preview") ? null : (
+        {(headerTools.length === 0 && restore === undefined) || folded("preview") ? null : (
           <>
             {headerTools.map((tool) => (
               <HeaderTool key={tool.id} {...tool} />
             ))}
+            {restore === undefined ? null : <RestoreDefaultsButton {...restore} />}
             {lifecycleShown || editorGroupShown ? (
               <div
                 aria-hidden="true"
