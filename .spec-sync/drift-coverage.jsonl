@@ -1002,3 +1002,5 @@
 {"ts":"2026-11-14T11:07:33.597Z","key":"PROC-FLOW-003","from":12,"to":13,"disposition":"editorial","ref":"flow diagram: taste-report step targets foundation — process only, no code impact"}
 {"ts":"2026-11-14T16:10:57.000Z","key":"SUI-FEATURE-420","from":null,"to":2,"disposition":"ticket","ref":"894"}
 {"ts":"2026-11-14T17:37:25.873Z","key":"SUI-FEATURE-420","from":2,"to":3,"disposition":"ticket","ref":"894"}
+{"ts":"2026-11-15T10:56:35.958Z","key":"PROC-DEV-039","from":6,"to":7,"disposition":"editorial","ref":"worker queue-start semantics (continuation is no start, queue before every start); toolkit-carried, no code in suite-ui"}
+{"ts":"2026-11-15T10:56:36.440Z","key":"PROC-REL-012","from":24,"to":25,"disposition":"editorial","ref":"iris PR-check budget 6->8 min; suite-ui is local mode without PR checks/workflows"}
