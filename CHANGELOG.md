@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — #908: `RestoreDefaultsButton` and `EditorHeader` `restoreDefaults` take a `hint` (minor)
+## 0.241.0 — #908: `RestoreDefaultsButton` and `EditorHeader` `restoreDefaults` take a `hint` (minor)
 
 - **Added (#908, SUI-FEATURE-045 rev 5, SUI-FEATURE-430 rev 4):** new prop `hint?: string` on `RestoreDefaultsButton` and on `EditorHeader`'s `restoreDefaults`. Free, the hint explains the action via the package `Hint` (hover and keyboard focus, `GL-UI-016`); locked with `disabledText`, the reason replaces it. The folded ⋯ entry carries the same hint. Without `hint` nothing changes.
 - **Added (#908, finding #587):** the `EditorRestoreDefaults` type is exported beside `EditorHeaderTool` and `EditorLifecycle`.
