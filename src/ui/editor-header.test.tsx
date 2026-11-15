@@ -164,6 +164,14 @@ describe("EditorHeader", () => {
     expect(dialog).toHaveTextContent(
       "Discard the draft and return to the saved state? This can't be undone.",
     );
+    // SUI-FEATURE-064 rev 8 (#910): the confirm hint is the editor's own reset hint.
+    const hintIds =
+      (await screen.findByTestId("editor-reset-confirm-confirm"))
+        .getAttribute("aria-describedby")
+        ?.split(" ") ?? [];
+    const hint = hintIds.map((id) => document.getElementById(id)?.textContent ?? "").join(" ");
+    expect(hint).toContain("Discards the draft and returns to the saved state.");
+    expect(hint).not.toContain("Discards the unsaved changes on this page.");
     expect(onReset).not.toHaveBeenCalled();
     fireEvent.click(screen.getByTestId("editor-reset-confirm-cancel"));
     await waitFor(() => expect(screen.queryByTestId("editor-reset-confirm")).toBeNull());

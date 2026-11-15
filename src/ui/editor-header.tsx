@@ -984,7 +984,7 @@ function EditorHeader({
           title={t("actions.reset")}
           description={t("editor.resetConfirm")}
           confirmLabel={t("actions.reset")}
-          confirmHint={t("settings.resetHint")}
+          confirmHint={t("editor.resetHint")}
           data-testid="editor-reset-confirm"
         />
       )}
