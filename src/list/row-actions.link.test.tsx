@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import i18n from "i18next";
 import { CopyIcon, ExternalLinkIcon, SendIcon } from "lucide-react";
+import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Table, TableBody, TableRow } from "../ui/table.js";
@@ -34,6 +35,8 @@ export const linkShapes: RowAction[] = [
 export const linkStep: RowActionSet = { rowName: "Ada", step: { ...base, href: "/costs" } };
 
 const HREF = "https://pay.example.com/top-up";
+// A same-tab link is an in-app route, the router's `Link` (rev 3).
+const ROUTE = "/costs/top-up";
 
 function renderRow(extra: RowAction[], props: Partial<RowActionSet> = {}) {
   const onRowClick = vi.fn();
@@ -52,6 +55,7 @@ function renderRow(extra: RowAction[], props: Partial<RowActionSet> = {}) {
         </TableRow>
       </TableBody>
     </Table>,
+    { wrapper: MemoryRouter },
   );
   return onRowClick;
 }
@@ -85,10 +89,10 @@ afterEach(async () => {
 
 describe("RowAction link (SUI-FEATURE-331)", () => {
   it("AC1: renders an <a href> in the button's look, named ‹label› ‹rowName›", () => {
-    renderRow([copy, topUp()]);
+    renderRow([copy, topUp({ href: ROUTE })]);
     const link = screen.getByRole("link", { name: "Top up Ada" });
     expect(link.tagName).toBe("A");
-    expect(link).toHaveAttribute("href", HREF);
+    expect(link).toHaveAttribute("href", ROUTE);
     expect(link).not.toHaveAttribute("target");
     expect(link).not.toHaveAttribute("rel");
     // The classes and slots of the button beside it: the same look. Beyond them only the locked look,
@@ -104,12 +108,12 @@ describe("RowAction link (SUI-FEATURE-331)", () => {
   });
 
   it("AC1: the hint names the link like the button", () => {
-    renderRow([topUp()]);
+    renderRow([topUp({ href: ROUTE })]);
     expect(hintOf(screen.getByRole("link", { name: "Top up Ada" })).hover1500).toBe("Top up Ada");
   });
 
   it("AC1: a click on the link never opens the row", () => {
-    const onRowClick = renderRow([topUp()]);
+    const onRowClick = renderRow([topUp({ href: ROUTE })]);
     const link = screen.getByRole("link", { name: "Top up Ada" });
     // Cancelled only so jsdom does not try to navigate.
     link.addEventListener("click", (event) => event.preventDefault());
@@ -173,6 +177,7 @@ function renderMenu(items: RowMenuItem[]) {
         </TableRow>
       </TableBody>
     </Table>,
+    { wrapper: MemoryRouter },
   );
   const trigger = screen.getByRole("button", { name: "More for Ada" });
   return {
@@ -215,8 +220,10 @@ describe("RowAction link folded into ⋯ (SUI-FEATURE-331 AC 4)", () => {
   });
 
   it("same-tab link: href without target or rel", () => {
-    const entry = within(openFolded(topUp())).getByRole("menuitem", { name: "Top up" });
-    expect(entry).toHaveAttribute("href", HREF);
+    const entry = within(openFolded(topUp({ href: ROUTE }))).getByRole("menuitem", {
+      name: "Top up",
+    });
+    expect(entry).toHaveAttribute("href", ROUTE);
     expect(entry).not.toHaveAttribute("target");
   });
 

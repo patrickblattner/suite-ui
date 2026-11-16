@@ -51,7 +51,8 @@ afterEach(async () => {
   await i18n.changeLanguage("en");
 });
 
-function renderHeader(props: Partial<EditorHeaderProps> = {}) {
+// `routed`: under a router, as a same-tab link tool needs (`SUI-FEATURE-331` rev 3).
+function renderHeader(props: Partial<EditorHeaderProps> = {}, routed = false) {
   const handlers = {
     onBack: vi.fn(),
     onUndo: vi.fn(),
@@ -72,6 +73,7 @@ function renderHeader(props: Partial<EditorHeaderProps> = {}) {
       />
       <Input aria-label="Body" />
     </>,
+    routed ? { wrapper: MemoryRouter } : {},
   );
   return handlers;
 }
@@ -621,19 +623,22 @@ describe("EditorHeader tools, status and read-only", () => {
 
   // SUI-FEATURE-331 AC 5: a tool with `href` is a link in the tool's look.
   it("a tool with href is an <a> in the tool's look; external opens a new tab", () => {
-    renderHeader({
-      tools: [
-        ...headerTools(),
-        { id: "docs", label: "Docs", icon: <EyeIcon aria-hidden="true" />, href: "/docs" },
-        {
-          id: "billing",
-          label: "Billing",
-          icon: <EyeIcon aria-hidden="true" />,
-          href: "https://pay.example.com",
-          external: true,
-        },
-      ],
-    });
+    renderHeader(
+      {
+        tools: [
+          ...headerTools(),
+          { id: "docs", label: "Docs", icon: <EyeIcon aria-hidden="true" />, href: "/docs" },
+          {
+            id: "billing",
+            label: "Billing",
+            icon: <EyeIcon aria-hidden="true" />,
+            href: "https://pay.example.com",
+            external: true,
+          },
+        ],
+      },
+      true,
+    );
     const docs = screen.getByRole("link", { name: "Docs" });
     expect(docs).toHaveAttribute("href", "/docs");
     expect(docs).not.toHaveAttribute("target");

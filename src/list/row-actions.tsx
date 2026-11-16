@@ -2,6 +2,7 @@ import { EllipsisIcon, LinkIcon, Loader2Icon, PencilIcon, Trash2Icon } from "luc
 import type { TFunction } from "i18next";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
 
 import { cn } from "../lib/cn.js";
 import { ariaKeyShortcuts, shortcutChip } from "../lib/keyboard.js";
@@ -270,7 +271,7 @@ function entryText(item: RowMenuItem, described: string | undefined, visibleHint
 }
 
 // A link entry (`SUI-FEATURE-331`) is the `<a>` itself, so choosing it follows the link; locked, it has
-// no `href`. Undefined for an entry that is no link.
+// no `href`. Same tab, the entry renders it as the router's `Link`. Undefined for an entry that is no link.
 function entryLink(item: RowMenuItem): React.ComponentProps<"a"> | undefined {
   if (item.href === undefined) return undefined;
   if (item.disabled === true) return {};
@@ -323,7 +324,14 @@ function MenuEntry({ item, described }: { item: RowMenuItem; described?: string 
           else item.onSelect?.();
         }}
       >
-        {link === undefined ? content : <a {...link}>{content}</a>}
+        {link === undefined ? (
+          content
+        ) : item.external !== true && link.href !== undefined ? (
+          // Same tab, the router's `Link`: the leave guard asks before it goes (`SUI-FEATURE-064`).
+          <Link to={link.href}>{content}</Link>
+        ) : (
+          <a {...link}>{content}</a>
+        )}
       </DropdownMenuItem>
     ) : (
       <DropdownMenuCheckboxItem
