@@ -11,9 +11,13 @@ import {
   type RowAction,
   RowActions,
   RowActionsHead,
+  type RowActionSet,
   type RowActionsProps,
 } from "./row-actions.js";
 import { hintOf } from "./test-utils.js";
+
+// A row action that runs a handler: the form a step takes (`SUI-FEATURE-331`).
+type ButtonAction = NonNullable<RowActionSet["step"]>;
 
 function renderRow(props: Partial<RowActionsProps> = {}, onRowClick = vi.fn()) {
   render(
@@ -738,11 +742,11 @@ describe("RowActions step (SUI-FEATURE-330)", () => {
   });
 
   // Ada's row with a step, Bob's without; Cleo's step is running.
-  function renderRows(adaStep: Partial<RowAction> = {}) {
+  function renderRows(adaStep: Partial<ButtonAction> = {}) {
     const deliverAda = vi.fn();
     const deliverCleo = vi.fn();
     const editAda = vi.fn();
-    const row = (rowName: string, step?: RowAction) => (
+    const row = (rowName: string, step?: ButtonAction) => (
       <TableRow>
         <RowActions
           rowName={rowName}
@@ -896,7 +900,7 @@ describe("RowActions step fold (SUI-FEATURE-330 rev 9 AC 4)", () => {
     steps?: boolean;
     cleoStep?: boolean;
     adaName?: string;
-    adaStep?: Partial<RowAction>;
+    adaStep?: Partial<ButtonAction>;
     note?: string;
   };
   // Ada's row with a step, Bob's without and without a menu, Cleo's step running and her own menu;

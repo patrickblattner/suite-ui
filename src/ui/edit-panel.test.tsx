@@ -13,6 +13,9 @@ import { Input } from "./input.js";
 import { TagInput } from "./tag-input.js";
 import { stableIds } from "./test-utils.js";
 
+// A head action that runs a handler (`SUI-FEATURE-331`: `RowAction` also takes a link form).
+type ButtonAction = Extract<RowAction, { onClick: () => void }>;
+
 afterEach(async () => {
   localStorage.clear();
   await i18n.changeLanguage("en");
@@ -1950,7 +1953,7 @@ describe("EditPanel composition", () => {
 // #894 (SUI-FEATURE-420): a record's decision actions in the panel head, in every mode.
 const headIcon = (props: SVGProps<SVGSVGElement>) => <svg {...props} />;
 const header = () => document.querySelector<HTMLElement>("[data-slot=edit-panel-header]")!;
-function headActions(over: { take?: Partial<RowAction>; drop?: Partial<RowAction> } = {}) {
+function headActions(over: { take?: Partial<ButtonAction>; drop?: Partial<ButtonAction> } = {}) {
   const take = vi.fn();
   const drop = vi.fn();
   const regenerate = vi.fn();

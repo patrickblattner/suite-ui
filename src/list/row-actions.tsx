@@ -1,4 +1,4 @@
-import { EllipsisIcon, LinkIcon, PencilIcon, Trash2Icon } from "lucide-react";
+import { EllipsisIcon, LinkIcon, Loader2Icon, PencilIcon, Trash2Icon } from "lucide-react";
 import type { TFunction } from "i18next";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { cn } from "../lib/cn.js";
 import { ariaKeyShortcuts, shortcutChip } from "../lib/keyboard.js";
 import { PRESSED_FILL_CLASS } from "../lib/pressed-fill.js";
+import { ActionLink } from "../ui/action-link-internal.js";
 import { Button } from "../ui/button.js";
 import {
   DropdownMenu,
@@ -27,37 +28,57 @@ import { useStepFold } from "./use-step-fold.js";
 // `disabledText` the action is locked and its hint names the reason. With `busy` the action is running
 // (`SUI-FEATURE-072`): the `Button` working state and its lock, for this action in this row only; name
 // and hint stay "‹label› ‹rowName›".
+// Instead of `onClick` an action can take `href` (`SUI-FEATURE-331`): it is a link in the same look,
+// `external` opening it in a new tab. A navigation has no duration of its own, so a link takes no `busy`.
 type RowAction = {
   label: string;
   icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
-  onClick: () => void;
   disabledText?: string;
-  busy?: boolean;
   shortcut?: readonly string[];
   "data-testid"?: string;
-};
+} & (
+  | { onClick: () => void; busy?: boolean; href?: never; external?: never }
+  | { href: string; external?: boolean; onClick?: never; busy?: never }
+);
+
+// A row action that runs a handler: a lifecycle step is a state change, never a link (`GL-UI-011`).
+type RowButtonAction = Extract<RowAction, { onClick: () => void }>;
 
 // One entry of a row's overflow menu. A `destructive` entry stands last, after a separator, in the
 // destructive colour; a `disabled` entry is muted and cannot be chosen. `hint` is the entry's
 // description hint (`GL-UI-017`); on a disabled entry it names the condition under which it unlocks.
 // `icon` stands before the label, as on the button the entry stands for (`SUI-FEATURE-090`).
+// Instead of `onSelect` an entry can take `href` (`SUI-FEATURE-331`, a folded link action): it stays a
+// link, `external` opening it in a new tab, and choosing it follows the link.
 type RowMenuItem = {
   label: string;
   icon?: React.ReactNode;
   // The key hint of the action the entry stands for, e.g. Undo's `["Ctrl+Z", "Meta+Z"]`.
   shortcut?: readonly string[];
-  onSelect: () => void;
-  // Set, the entry is a switch with this state (a pressed header tool, `SUI-FEATURE-104`): a checkbox
-  // entry, and choosing it calls `onSelect`.
-  checked?: boolean;
   destructive?: boolean;
   disabled?: boolean;
-  // The action the entry stands for is running (`SUI-FEATURE-072`): the ⋯ button shows the working
-  // state while any of its entries runs.
-  busy?: boolean;
   hint?: string;
   "data-testid"?: string;
-};
+} & (
+  | {
+      onSelect: () => void;
+      // Set, the entry is a switch with this state (a pressed header tool, `SUI-FEATURE-104`): a
+      // checkbox entry, and choosing it calls `onSelect`.
+      checked?: boolean;
+      // The action the entry stands for is running (`SUI-FEATURE-072`): the entry shows the working
+      // sign, and the ⋯ button the working state while any of its entries runs.
+      busy?: boolean;
+      href?: never;
+      external?: never;
+    }
+  | {
+      href: string;
+      external?: boolean;
+      onSelect?: never;
+      checked?: never;
+      busy?: never;
+    }
+);
 
 // A titled group of overflow-menu entries (`SUI-FEATURE-119`): the `EditorHeader`'s ⋯ shows each under
 // its `title`, a separator between groups.
@@ -72,8 +93,8 @@ type RowActionSet = {
   // The row's name, the object of every action's name.
   rowName: string;
   // The row's next lifecycle step (`SUI-FEATURE-330`): a labelled `success` button before every
-  // other action (`GL-UI-011`: a lifecycle promote).
-  step?: RowAction;
+  // other action (`GL-UI-011`: a lifecycle promote). A state change, so never a link.
+  step?: RowButtonAction;
   // "Used by", the first of the extra actions.
   usage?: RowUsage;
   // Further actions, left of edit and delete.
@@ -115,6 +136,7 @@ function RowActionButton({
 }) {
   const Icon = action.icon;
   const locked = action.disabledText !== undefined;
+  const buttonSize = labelled ? (size === "icon-xs" ? "xs" : "sm") : size;
   return (
     <IconButtonTooltip
       // Without a row name (a panel's head action, `SUI-FEATURE-420`) the name is the label alone.
@@ -122,19 +144,33 @@ function RowActionButton({
       disabledText={action.disabledText}
       shortcut={action.shortcut}
     >
-      {/* Never `submit`: a row inside a form acts on its row, not on the form. */}
-      <Button
-        type="button"
-        variant={variant}
-        size={labelled ? (size === "icon-xs" ? "xs" : "sm") : size}
-        disabled={locked}
-        {...(action.busy === undefined ? {} : { busy: action.busy })}
-        onClick={action.onClick}
-        data-testid={action["data-testid"]}
-      >
-        <Icon aria-hidden="true" />
-        {labelled ? action.label : null}
-      </Button>
+      {action.href !== undefined ? (
+        <ActionLink
+          href={action.href}
+          external={action.external}
+          variant={variant}
+          size={buttonSize}
+          {...(locked ? { "aria-disabled": true } : {})}
+          data-testid={action["data-testid"]}
+        >
+          <Icon aria-hidden="true" />
+          {labelled ? action.label : null}
+        </ActionLink>
+      ) : (
+        /* Never `submit`: a row inside a form acts on its row, not on the form. */
+        <Button
+          type="button"
+          variant={variant}
+          size={buttonSize}
+          disabled={locked}
+          {...(action.busy === undefined ? {} : { busy: action.busy })}
+          onClick={action.onClick}
+          data-testid={action["data-testid"]}
+        >
+          <Icon aria-hidden="true" />
+          {labelled ? action.label : null}
+        </Button>
+      )}
     </IconButtonTooltip>
   );
 }
@@ -182,6 +218,130 @@ function UsageButton({
   );
 }
 
+// How an overflow-menu entry is locked. A locked entry with a hint stays in the arrow keys' path, so
+// its reason reaches the keyboard too: it is marked `aria-disabled` and ignores the choice instead of
+// being `disabled`. A running entry (#595) is locked, but shows it runs as the `Button` does
+// (`SUI-FEATURE-072`): the working sign in place of its icon, `aria-busy`, full colour, the progress
+// cursor. `described` is the id base of a grouped entry: locked with a hint, it shows the hint under
+// its label and names it with `aria-describedby`, the label alone being its name.
+function entryLock(item: RowMenuItem, described: string | undefined) {
+  const lockedWithReason = item.disabled === true && item.hint !== undefined;
+  const running = item.busy === true;
+  const visibleHint = lockedWithReason && described !== undefined && !running;
+  const lock = {
+    disabled: item.disabled === true && !lockedWithReason,
+    ...(lockedWithReason ? { "aria-disabled": true, "data-disabled": "" } : {}),
+    ...(running ? { "aria-busy": true, "data-busy": "true" } : {}),
+    ...(visibleHint
+      ? { "aria-labelledby": `${described}-label`, "aria-describedby": `${described}-hint` }
+      : {}),
+    // Its hint opens on the pointer as well. With its reason in view only the icon and label dim, so
+    // the muted reason keeps its contrast.
+    className:
+      cn(
+        lockedWithReason && "data-[disabled]:pointer-events-auto",
+        lockedWithReason && !running && "data-[disabled]:cursor-not-allowed",
+        visibleHint && "data-[disabled]:opacity-100 [&>svg]:opacity-50",
+        running && "data-[disabled]:cursor-progress data-[disabled]:opacity-100",
+      ) || undefined,
+    "data-testid": item["data-testid"] ?? "row-menu-item",
+  };
+  return { lockedWithReason, visibleHint, lock };
+}
+
+// The label of an entry; with its reason in view, the label over the muted reason.
+function entryText(item: RowMenuItem, described: string | undefined, visibleHint: boolean) {
+  if (!visibleHint) return item.label;
+  return (
+    <span className="flex min-w-0 flex-col">
+      <span id={`${described}-label`} className="opacity-50">
+        {item.label}
+      </span>
+      {/* A long reason wraps instead of widening the menu past a narrow screen. */}
+      <span
+        id={`${described}-hint`}
+        className="max-w-64 text-xs whitespace-normal text-muted-foreground"
+        data-testid="row-menu-item-hint"
+      >
+        {item.hint}
+      </span>
+    </span>
+  );
+}
+
+// A link entry (`SUI-FEATURE-331`) is the `<a>` itself, so choosing it follows the link; locked, it has
+// no `href`. Undefined for an entry that is no link.
+function entryLink(item: RowMenuItem): React.ComponentProps<"a"> | undefined {
+  if (item.href === undefined) return undefined;
+  if (item.disabled === true) return {};
+  return {
+    href: item.href,
+    ...(item.external === true ? { target: "_blank", rel: "noopener noreferrer" } : {}),
+  };
+}
+
+// One entry of an overflow menu: a plain entry, a checkbox entry for a switch, or a link.
+function MenuEntry({ item, described }: { item: RowMenuItem; described?: string | undefined }) {
+  const { t } = useTranslation("suite");
+  const { lockedWithReason, visibleHint, lock } = entryLock(item, described);
+  // Locked, the entry offers no shortcut (`GL-UI-006` §Sichtbarkeit, #518).
+  const shortcut = item.disabled === true ? undefined : item.shortcut;
+  const text = entryText(item, described, visibleHint);
+  const icon =
+    item.busy === true ? (
+      <Loader2Icon data-slot="busy" aria-hidden="true" className="animate-spin" />
+    ) : (
+      item.icon
+    );
+  const link = entryLink(item);
+  const content = (
+    <>
+      {icon}
+      {text}
+      {item.external === true && item.disabled !== true ? (
+        <>
+          {" "}
+          <span className="sr-only">{t("action.opensInNewTab")}</span>
+        </>
+      ) : null}
+      {shortcut === undefined ? null : (
+        <kbd aria-hidden className="ml-auto pl-4 text-xs opacity-70">
+          {shortcutChip(shortcut, t("keys.delete"))}
+        </kbd>
+      )}
+    </>
+  );
+  const control =
+    item.checked === undefined ? (
+      <DropdownMenuItem
+        variant={item.destructive === true ? "destructive" : "default"}
+        {...lock}
+        aria-keyshortcuts={shortcut === undefined ? undefined : ariaKeyShortcuts(shortcut)}
+        asChild={link !== undefined}
+        onSelect={(event) => {
+          if (lockedWithReason) event.preventDefault();
+          else item.onSelect?.();
+        }}
+      >
+        {link === undefined ? content : <a {...link}>{content}</a>}
+      </DropdownMenuItem>
+    ) : (
+      <DropdownMenuCheckboxItem
+        checked={item.checked}
+        // The check after the text, so the entry lines up with the menu's plain entries.
+        indicator="end"
+        {...lock}
+        onCheckedChange={() => {
+          if (!lockedWithReason) item.onSelect?.();
+        }}
+      >
+        {icon}
+        {text}
+      </DropdownMenuCheckboxItem>
+    );
+  return item.hint === undefined || visibleHint ? control : <Hint text={item.hint}>{control}</Hint>;
+}
+
 // The ⋯ button of a row's overflow menu (`SUI-FEATURE-066`): `outline`, named `label`, opening a
 // `DropdownMenu` with the destructive entries last after a separator. The `EditorHeader` uses it
 // `ghost`, like its other icon buttons (`SUI-FEATURE-090`).
@@ -204,98 +364,18 @@ function RowActionMenu({
   groups?: readonly RowMenuGroup[];
   "data-testid"?: string;
 }) {
-  const { t } = useTranslation("suite");
   const plain = menu.items.filter((item) => item.destructive !== true);
   const destructive = menu.items.filter((item) => item.destructive === true);
   // A group without entries shows no title.
   const shownGroups = (groups ?? []).filter((group) => group.items.length > 0);
-  // `described` is the id base of a grouped entry: locked with a hint, it shows the hint under its
-  // label and names it with `aria-describedby`, the label alone being its name.
-  const entry = (item: RowMenuItem, described?: string) => {
-    // A locked entry with a hint stays in the arrow keys' path, so its reason reaches the keyboard
-    // too: it is marked `aria-disabled` and ignores the choice instead of being `disabled`.
-    const lockedWithReason = item.disabled === true && item.hint !== undefined;
-    const visibleHint = lockedWithReason && described !== undefined;
-    // Locked, the entry offers no shortcut (`GL-UI-006` §Sichtbarkeit, #518).
-    const shortcut = item.disabled === true ? undefined : item.shortcut;
-    const lock = {
-      disabled: item.disabled === true && !lockedWithReason,
-      ...(lockedWithReason ? { "aria-disabled": true, "data-disabled": "" } : {}),
-      ...(visibleHint
-        ? { "aria-labelledby": `${described}-label`, "aria-describedby": `${described}-hint` }
-        : {}),
-      // Its hint opens on the pointer as well. With its reason in view only the icon and label dim, so
-      // the muted reason keeps its contrast.
-      className: lockedWithReason
-        ? cn(
-            "data-[disabled]:pointer-events-auto data-[disabled]:cursor-not-allowed",
-            visibleHint && "data-[disabled]:opacity-100 [&>svg]:opacity-50",
-          )
-        : undefined,
-      "data-testid": item["data-testid"] ?? "row-menu-item",
-    };
-    const text = visibleHint ? (
-      <span className="flex min-w-0 flex-col">
-        <span id={`${described}-label`} className="opacity-50">
-          {item.label}
-        </span>
-        {/* A long reason wraps instead of widening the menu past a narrow screen. */}
-        <span
-          id={`${described}-hint`}
-          className="max-w-64 text-xs whitespace-normal text-muted-foreground"
-          data-testid="row-menu-item-hint"
-        >
-          {item.hint}
-        </span>
-      </span>
-    ) : (
-      item.label
-    );
-    const control =
-      item.checked === undefined ? (
-        <DropdownMenuItem
-          key={item.label}
-          variant={item.destructive === true ? "destructive" : "default"}
-          {...lock}
-          aria-keyshortcuts={shortcut === undefined ? undefined : ariaKeyShortcuts(shortcut)}
-          onSelect={(event) => {
-            if (lockedWithReason) event.preventDefault();
-            else item.onSelect();
-          }}
-        >
-          {item.icon}
-          {text}
-          {shortcut === undefined ? null : (
-            <kbd aria-hidden className="ml-auto pl-4 text-xs opacity-70">
-              {shortcutChip(shortcut, t("keys.delete"))}
-            </kbd>
-          )}
-        </DropdownMenuItem>
-      ) : (
-        <DropdownMenuCheckboxItem
-          key={item.label}
-          checked={item.checked}
-          // The check after the text, so the entry lines up with the menu's plain entries.
-          indicator="end"
-          {...lock}
-          onCheckedChange={() => {
-            if (!lockedWithReason) item.onSelect();
-          }}
-        >
-          {item.icon}
-          {text}
-        </DropdownMenuCheckboxItem>
-      );
-    return item.hint === undefined || visibleHint ? (
-      control
-    ) : (
-      <Hint key={item.label} text={item.hint}>
-        {control}
-      </Hint>
-    );
-  };
+  const entry = (item: RowMenuItem, described?: string) => (
+    <MenuEntry key={item.label} item={item} described={described} />
+  );
+  // Esc closes the menu even while an entry's hint bubble is open (#596): the bubble, the top-most
+  // layer, would take the first Esc alone and leave the menu open to a following Enter.
+  const [open, setOpen] = React.useState(false);
   return (
-    <DropdownMenu>
+    <DropdownMenu open={open} onOpenChange={setOpen}>
       <IconButtonTooltip label={menu.label}>
         <DropdownMenuTrigger asChild>
           <Button
@@ -312,7 +392,12 @@ function RowActionMenu({
           </Button>
         </DropdownMenuTrigger>
       </IconButtonTooltip>
-      <DropdownMenuContent data-testid={`${testId}-content`}>
+      <DropdownMenuContent
+        data-testid={`${testId}-content`}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") setOpen(false);
+        }}
+      >
         {tools.map((item) => entry(item))}
         {tools.length > 0 && plain.length + destructive.length > 0 ? (
           <DropdownMenuSeparator />
@@ -375,17 +460,28 @@ function usageName(t: TFunction<"suite">, rowName: string, count: number): strin
 
 // An action folded into the ⋯ menu (`SUI-FEATURE-067`): its icon and shortcut, its hint "‹label›
 // ‹rowName›", or its reason while locked; a running action's entry is locked while it runs and marks
-// the ⋯ button as working (`SUI-FEATURE-072`).
+// the ⋯ button as working (`SUI-FEATURE-072`). A link action stays a link (`SUI-FEATURE-331`).
 function foldRowAction(action: RowAction, rowName: string): RowMenuItem {
   const Icon = action.icon;
-  return {
+  const shared = {
     label: action.label,
     icon: <Icon aria-hidden="true" />,
     ...(action.shortcut === undefined ? {} : { shortcut: action.shortcut }),
+    hint: action.disabledText ?? `${action.label} ${rowName}`,
+  };
+  if (action.href !== undefined) {
+    return {
+      ...shared,
+      href: action.href,
+      ...(action.external === undefined ? {} : { external: action.external }),
+      disabled: action.disabledText !== undefined,
+    };
+  }
+  return {
+    ...shared,
     onSelect: action.onClick,
     disabled: action.disabledText !== undefined || action.busy === true,
     ...(action.busy === true ? { busy: true } : {}),
-    hint: action.disabledText ?? `${action.label} ${rowName}`,
   };
 }
 

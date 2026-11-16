@@ -34,6 +34,18 @@ export const onResetValue: OnReset = () => "reset";
 // @ts-expect-error nor a promise of one
 export const onResetPromise: OnReset = () => Promise.resolve(1);
 
+// SUI-FEATURE-331 AC 6: a link tool is no toggle, and a tool takes exactly one of href and onClick.
+const toolBase = { id: "docs", label: "Docs", icon: null };
+export const toolShapes: EditorHeaderTool[] = [
+  { ...toolBase, href: "/docs", external: true },
+  // @ts-expect-error a link is no toggle
+  { ...toolBase, href: "/docs", pressed: true },
+  // @ts-expect-error href and onClick exclude each other
+  { ...toolBase, href: "/docs", onClick: () => {} },
+  // @ts-expect-error neither href nor onClick
+  { ...toolBase },
+];
+
 afterEach(async () => {
   cleanup();
   await i18n.changeLanguage("en");
@@ -605,6 +617,58 @@ describe("EditorHeader tools, status and read-only", () => {
     expect(upload).toHaveAccessibleDescription("Save first");
     fireEvent.click(upload);
     expect(onClick).not.toHaveBeenCalled();
+  });
+
+  // SUI-FEATURE-331 AC 5: a tool with `href` is a link in the tool's look.
+  it("a tool with href is an <a> in the tool's look; external opens a new tab", () => {
+    renderHeader({
+      tools: [
+        ...headerTools(),
+        { id: "docs", label: "Docs", icon: <EyeIcon aria-hidden="true" />, href: "/docs" },
+        {
+          id: "billing",
+          label: "Billing",
+          icon: <EyeIcon aria-hidden="true" />,
+          href: "https://pay.example.com",
+          external: true,
+        },
+      ],
+    });
+    const docs = screen.getByRole("link", { name: "Docs" });
+    expect(docs).toHaveAttribute("href", "/docs");
+    expect(docs).not.toHaveAttribute("target");
+    expect(docs).toHaveAttribute("data-size", "icon-sm");
+    expect(docs).toHaveAttribute("data-variant", "ghost");
+    const grid = screen.getByTestId("editor-tool-grid");
+    expect(docs.className.startsWith(grid.className)).toBe(true);
+    const billing = screen.getByTestId("editor-tool-billing");
+    expect(billing).toHaveAttribute("target", "_blank");
+    expect(billing).toHaveAttribute("rel", "noopener noreferrer");
+    expect(billing).toHaveAccessibleName("Billing opens in a new tab");
+  });
+
+  it("a link tool with disabledText has no href, is aria-disabled, focusable, names the reason", () => {
+    renderHeader({
+      tools: [
+        {
+          id: "billing",
+          label: "Billing",
+          icon: <EyeIcon aria-hidden="true" />,
+          href: "https://pay.example.com",
+          external: true,
+          disabledText: "No account yet",
+        },
+      ],
+    });
+    const billing = screen.getByTestId("editor-tool-billing");
+    expect(billing.tagName).toBe("A");
+    expect(billing).not.toHaveAttribute("href");
+    expect(billing).toHaveAttribute("aria-disabled", "true");
+    expect(billing).toHaveAttribute("tabindex", "0");
+    expect(billing).toHaveAccessibleDescription("No account yet");
+    const click = new MouseEvent("click", { bubbles: true, cancelable: true });
+    billing.dispatchEvent(click);
+    expect(click.defaultPrevented).toBe(true);
   });
 
   // AC 4
@@ -2774,6 +2838,44 @@ describe("EditorHeader at narrow width", () => {
     mode.focus();
     fireEvent.keyDown(mode, { key: "Enter" });
     expect(tools[0]?.onClick).toHaveBeenCalledTimes(1);
+  });
+
+  // SUI-FEATURE-331 AC 5: folded, a link tool stays an <a> with its href, target and rel.
+  it("at 560 px a link tool is a link entry of the ⋯; locked, without href", () => {
+    available = 560;
+    renderHeader({
+      tools: [
+        {
+          id: "billing",
+          label: "Billing",
+          icon: <EyeIcon aria-hidden="true" />,
+          href: "https://pay.example.com",
+          external: true,
+        },
+        {
+          id: "docs",
+          label: "Docs",
+          icon: <EyeIcon aria-hidden="true" />,
+          href: "/docs",
+          disabledText: "Save first",
+        },
+      ],
+      lifecycle: lifecycle(),
+    });
+    expect(screen.queryByTestId("editor-tool-billing")).toBeNull();
+    const menu = openMenu();
+    const billing = within(menu).getByTestId("editor-menu-tool-billing");
+    expect(billing.tagName).toBe("A");
+    expect(billing).toHaveAttribute("role", "menuitem");
+    expect(billing).toHaveAttribute("href", "https://pay.example.com");
+    expect(billing).toHaveAttribute("target", "_blank");
+    expect(billing).toHaveAttribute("rel", "noopener noreferrer");
+    expect(billing).toHaveAccessibleName("Billing opens in a new tab");
+    const docs = within(menu).getByTestId("editor-menu-tool-docs");
+    expect(docs.tagName).toBe("A");
+    expect(docs).not.toHaveAttribute("href");
+    expect(docs).toHaveAttribute("aria-disabled", "true");
+    expect(docs).toHaveAccessibleDescription("Save first");
   });
 
   it("at 390 px Back, title, status, Save and the next step stay", () => {

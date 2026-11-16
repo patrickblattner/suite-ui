@@ -1,5 +1,6 @@
 import {
   CopyIcon,
+  ExternalLinkIcon,
   EyeIcon,
   Grid3x3Icon,
   LanguagesIcon,
@@ -97,6 +98,9 @@ const NOOP: Omit<EditorHeaderProps, "title"> = {
   onReset: () => {},
 };
 
+// `?links=1` adds an external link tool to the head tools (`SUI-FEATURE-331`).
+const LINKS = new URLSearchParams(window.location.search).get("links") === "1";
+
 // `SUI-FEATURE-104`: the preview-mode toggle, pressed and released.
 function useTools(): EditorHeaderTool[] {
   const [desktop, setDesktop] = useState(true);
@@ -115,6 +119,18 @@ function useTools(): EditorHeaderTool[] {
       onClick: () => {},
       disabledText: "Available once the page has a layout.",
     },
+    // `?links=1`: an external head tool (`SUI-FEATURE-331`), a link in the tools' look.
+    ...(LINKS
+      ? [
+          {
+            id: "help",
+            label: "Help centre",
+            icon: <ExternalLinkIcon aria-hidden="true" />,
+            href: "https://example.com/help",
+            external: true,
+          },
+        ]
+      : []),
   ];
 }
 

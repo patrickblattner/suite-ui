@@ -24,6 +24,11 @@ export const en = {
     next: "Next",
     send: "Send",
   },
+  action: {
+    // Appended, screen-reader only, to the name of a row action or head tool that opens its link in a
+    // new tab (`SUI-FEATURE-331`).
+    opensInNewTab: "opens in a new tab",
+  },
   status: {
     success: "Success",
     warning: "Warning",

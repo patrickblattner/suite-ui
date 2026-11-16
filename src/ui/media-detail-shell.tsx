@@ -17,7 +17,7 @@ import { Link } from "react-router-dom";
 
 import { isTextField } from "../lib/keyboard.js";
 import { isCompositionKey } from "./composition.js";
-import { type RowAction, type RowUsage, useRowActionButtons } from "../list/row-actions.js";
+import { type RowActionSet, type RowUsage, useRowActionButtons } from "../list/row-actions.js";
 import { PANEL_SURFACE_CLASS, usePanelGeometry } from "../lib/panel-geometry.js";
 import { Button } from "./button.js";
 import { CompositionTabBoundary } from "./composition-tab-internal.js";
@@ -89,8 +89,8 @@ type MediaDetailShellProps = MediaDetailSource & {
   usage?: RowUsage & { content: React.ReactNode };
   // The medium's next lifecycle step (`SUI-FEATURE-330`): a labelled `success` button first in the
   // preview head, before "Used by"; its name and hint read "‹label› ‹rowName›". Not shown with
-  // `pickAction` (rev 6).
-  step?: RowAction & { rowName: string };
+  // `pickAction` (rev 6). A state change, never a link (`SUI-FEATURE-331`).
+  step?: NonNullable<RowActionSet["step"]> & { rowName: string };
   // Opt-in (`SUI-FEATURE-125`): while Save is locked and no save runs, the footer shows the reason as
   // muted text before Reset + Save, Save's one description: the app's `submitDisabledHint`, else
   // `suite:form.unchanged` while nothing has changed.

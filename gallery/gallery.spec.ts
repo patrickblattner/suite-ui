@@ -1043,6 +1043,9 @@ const AXE_PAGES: [
   ],
   ["list", (page) => page.getByTestId("list-actions").first(), "&actions=1"],
   ["list", (page) => page.getByTestId("list-actions").first(), "&actions=1&step=1"],
+  // SUI-FEATURE-331: external row links, one locked, and an external head tool.
+  ["list", (page) => page.getByTestId("row-top-up").first(), "&actions=1&links=1"],
+  ["editor-bar", (page) => page.getByTestId("editor-tool-help"), "&links=1"],
   ["reorder", (page) => page.getByTestId("reorder-row").first()],
   ["tiles", (page) => page.getByTestId("media-tiles").getByTestId("row-menu").first(), "&step=1"],
   ["select", (page) => page.getByRole("combobox", { expanded: false }), "&select=closed"],

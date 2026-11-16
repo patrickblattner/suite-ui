@@ -1,4 +1,4 @@
-import { CopyIcon, SendIcon } from "lucide-react";
+import { CopyIcon, ExternalLinkIcon, SendIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 // sonner's own toast: the package's `toast` caps every duration at 12 s, and the gallery holds the
@@ -33,7 +33,9 @@ const LABELS = {
     views: ["Compact", "Detailed"],
     copy: "Copy",
     send: "Send now",
+    topUp: "Top up",
     inUse: "Still booked; delete the bookings first.",
+    topUpLocked: "No payment method on file; add one to top up.",
   },
   de: {
     severity: "Schweregrad",
@@ -47,7 +49,9 @@ const LABELS = {
     views: ["Kompakt", "Ausführlich"],
     copy: "Kopieren",
     send: "Jetzt zustellen",
+    topUp: "Aufladen",
     inUse: "Noch gebucht; zuerst die Buchungen löschen.",
+    topUpLocked: "Keine Zahlungsart hinterlegt; zum Aufladen eine hinzufügen.",
   },
   es: {
     severity: "Gravedad",
@@ -61,7 +65,9 @@ const LABELS = {
     views: ["Compacta", "Detallada"],
     copy: "Copiar",
     send: "Enviar ahora",
+    topUp: "Recargar",
     inUse: "Aún reservado; elimine primero las reservas.",
+    topUpLocked: "No hay método de pago; añada uno para recargar.",
   },
 } as const;
 
@@ -105,6 +111,22 @@ const ACTIONS = new URLSearchParams(window.location.search).get("actions") === "
 // `?step=1` (with `actions=1`) gives every odd row its next lifecycle step (`SUI-FEATURE-330`), so
 // rows with and without a step mix; the third row's step is running.
 const STEP = new URLSearchParams(window.location.search).get("step") === "1";
+// `?links=1` (with `actions=1`) gives every row an external "Top up" link action (`SUI-FEATURE-331`),
+// locked with its reason on the first row.
+const LINKS = new URLSearchParams(window.location.search).get("links") === "1";
+const topUpLink = (labels: (typeof LABELS)[keyof typeof LABELS], id: number) =>
+  LINKS
+    ? [
+        {
+          label: labels.topUp,
+          icon: ExternalLinkIcon,
+          href: "https://example.com/top-up",
+          external: true,
+          ...(id === 1 ? { disabledText: labels.topUpLocked } : {}),
+          "data-testid": "row-top-up",
+        },
+      ]
+    : [];
 // `?filters=node` passes the filters as one node, ordered by the page, with a third filter so the
 // controls group wraps at narrow widths; without it a list of one dynamic and one static filter.
 const NODE_FILTERS = new URLSearchParams(window.location.search).get("filters") === "node";
@@ -294,6 +316,7 @@ export function ListPage() {
                   // `SUI-FEATURE-072`: the second row's copy is running.
                   extra={[
                     { label: labels.copy, icon: CopyIcon, onClick: () => {}, busy: row.id === 2 },
+                    ...topUpLink(labels, row.id),
                   ]}
                   onEdit={() => {}}
                   onDelete={() => {}}

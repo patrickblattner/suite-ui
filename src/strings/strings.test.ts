@@ -69,6 +69,17 @@ describe("suite action texts", () => {
   );
 });
 
+// SUI-FEATURE-331: the screen-reader suffix of a link action that opens a new tab.
+describe("suite link action texts", () => {
+  it.each([
+    ["de", "öffnet in neuem Tab"],
+    ["en", "opens in a new tab"],
+    ["es", "se abre en una pestaña nueva"],
+  ] as const)("%s action.opensInNewTab", (lng, text) => {
+    expect(suiteStrings[lng].action.opensInNewTab).toBe(text);
+  });
+});
+
 // SUI-FEATURE-048 AC3: the shared terms, exactly as the spec's table gives them.
 describe("suite shared terms", () => {
   const keys = [

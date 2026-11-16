@@ -21,6 +21,9 @@ export const de: SuiteStrings = {
     next: "Weiter",
     send: "Senden",
   },
+  action: {
+    opensInNewTab: "öffnet in neuem Tab",
+  },
   status: {
     success: "Erfolg",
     warning: "Warnung",

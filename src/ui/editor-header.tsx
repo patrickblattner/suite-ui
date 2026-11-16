@@ -13,6 +13,7 @@ import { useTranslation } from "react-i18next";
 import { type RowMenuGroup, type RowMenuItem, RowActionMenu } from "../list/row-actions.js";
 import { cn } from "../lib/cn.js";
 import { PRESSED_FILL_CLASS } from "../lib/pressed-fill.js";
+import { ActionLink } from "./action-link-internal.js";
 import { Button } from "./button.js";
 import { ConfirmDeleteDialog } from "./confirm-delete-dialog.js";
 import { FieldDraftsContext, useHasFieldDrafts } from "./field-drafts-internal.js";
@@ -119,15 +120,17 @@ type EditorHeaderLayout = {
 };
 
 // An `icon-sm` tool of the header (`SUI-FEATURE-104`); `label` is its name and tooltip. With `pressed`
-// it is a toggle; `disabledText` locks it and names the reason.
+// it is a toggle; `disabledText` locks it and names the reason. Instead of `onClick` it can take `href`
+// (`SUI-FEATURE-331`): a link in the same look, `external` opening it in a new tab; a link is no toggle.
 type EditorHeaderTool = {
   id: string;
   label: string;
   icon: React.ReactNode;
-  onClick: () => void;
-  pressed?: boolean;
   disabledText?: string;
-};
+} & (
+  | { onClick: () => void; pressed?: boolean; href?: never; external?: never }
+  | { href: string; external?: boolean; onClick?: never; pressed?: never }
+);
 
 // The head's "Restore defaults" (`SUI-FEATURE-430`), as on `RestoreDefaultsButton`.
 type EditorRestoreDefaults = {
@@ -585,17 +588,7 @@ function EditorHeader({
   const tools: RowMenuItem[] = [];
   if (folded("preview")) {
     // The header tools lead the folded ones; a toggle becomes a checkbox entry.
-    for (const tool of headerTools) {
-      tools.push({
-        label: tool.label,
-        icon: tool.icon,
-        onSelect: tool.onClick,
-        ...(tool.pressed !== undefined ? { checked: tool.pressed } : {}),
-        disabled: tool.disabledText !== undefined,
-        ...(tool.disabledText !== undefined ? { hint: tool.disabledText } : {}),
-        "data-testid": `editor-menu-tool-${tool.id}`,
-      });
-    }
+    for (const tool of headerTools) tools.push(foldHeaderTool(tool));
     // "Restore defaults" ends the tools group, with its icon, text and lock reason or hint; `busy`
     // locks it.
     if (restore !== undefined) {
@@ -992,23 +985,70 @@ function EditorHeader({
   );
 }
 
+// A header tool folded into the ⋯ menu (`SUI-FEATURE-090`): its text, icon and lock; a toggle becomes a
+// checkbox entry, a link stays a link (`SUI-FEATURE-331`).
+function foldHeaderTool(tool: EditorHeaderTool): RowMenuItem {
+  const shared = {
+    label: tool.label,
+    icon: tool.icon,
+    disabled: tool.disabledText !== undefined,
+    ...(tool.disabledText !== undefined ? { hint: tool.disabledText } : {}),
+    "data-testid": `editor-menu-tool-${tool.id}`,
+  };
+  if (tool.href !== undefined) {
+    return {
+      ...shared,
+      href: tool.href,
+      ...(tool.external === undefined ? {} : { external: tool.external }),
+    };
+  }
+  return {
+    ...shared,
+    onSelect: tool.onClick,
+    ...(tool.pressed !== undefined ? { checked: tool.pressed } : {}),
+  };
+}
+
 // A header tool: `icon-sm` `ghost`, named by its label; pressed, the package's pressed fill
-// (`SUI-FEATURE-095`). Locked like Undo, so it keeps the focus.
-function HeaderTool({ id, label, icon, onClick, pressed, disabledText }: EditorHeaderTool) {
+// (`SUI-FEATURE-095`). Locked like Undo, so it keeps the focus. With `href` a link in the same look
+// (`SUI-FEATURE-331`).
+function HeaderTool({
+  id,
+  label,
+  icon,
+  onClick,
+  pressed,
+  disabledText,
+  href,
+  external,
+}: EditorHeaderTool) {
   return (
     <IconButtonTooltip label={label} disabledText={disabledText} named>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-sm"
-        {...(pressed === undefined ? {} : { "aria-pressed": pressed })}
-        {...(disabledText === undefined ? {} : { "aria-disabled": true })}
-        className={pressed === undefined ? undefined : PRESSED_FILL_CLASS}
-        onClick={onClick}
-        data-testid={`editor-tool-${id}`}
-      >
-        {icon}
-      </Button>
+      {href !== undefined ? (
+        <ActionLink
+          href={href}
+          external={external}
+          variant="ghost"
+          size="icon-sm"
+          {...(disabledText === undefined ? {} : { "aria-disabled": true })}
+          data-testid={`editor-tool-${id}`}
+        >
+          {icon}
+        </ActionLink>
+      ) : (
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          {...(pressed === undefined ? {} : { "aria-pressed": pressed })}
+          {...(disabledText === undefined ? {} : { "aria-disabled": true })}
+          className={pressed === undefined ? undefined : PRESSED_FILL_CLASS}
+          onClick={onClick}
+          data-testid={`editor-tool-${id}`}
+        >
+          {icon}
+        </Button>
+      )}
     </IconButtonTooltip>
   );
 }

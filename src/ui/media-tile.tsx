@@ -2,7 +2,7 @@ import { CheckIcon, FileTextIcon, FileVideoIcon } from "lucide-react";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 
-import { foldRowAction, type RowAction, useRowActionButtons } from "../list/row-actions.js";
+import { foldRowAction, type RowActionSet, useRowActionButtons } from "../list/row-actions.js";
 import { GRID_ITEM_ATTR, type RowGrid } from "../list/use-row-grid.js";
 import { cn } from "../lib/cn.js";
 import { ENTRY_FRAME_ATTR } from "../lib/list-focus.js";
@@ -29,8 +29,8 @@ type MediaTileProps = {
   // The medium's next lifecycle step (`SUI-FEATURE-330`). A tile is below the fold width, so the step
   // is the first entry of a ⋯ menu beside the delete button: named "‹label›", hinted "‹label› ‹name›";
   // while it runs the ⋯ button shows the working state. Not shown with `selected` or `current`
-  // (rev 7): a choice of a picker offers no step.
-  step?: RowAction | undefined;
+  // (rev 7): a choice of a picker offers no step. A state change, never a link (`SUI-FEATURE-331`).
+  step?: RowActionSet["step"] | undefined;
   // `useRowGrid().rowProps` of the grid whose `gridProps` the `TileGridShell` holds: the tile is
   // one of its entries, arrows move between the tiles, one tab stop. A tile without `onOpen` and
   // `onDelete` is no entry: not focusable, not reachable by Tab or arrows.
