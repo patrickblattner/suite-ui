@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.245.0 — #921: `EditPanel`/`MediaDetailShell` make the covered content area inert while open; `Toaster` portals to `document.body` (minor)
 
 - **Added (#921, SUI-FEATURE-142 rev 3, minor):** while an `EditPanel` or `MediaDetailShell` is open, the package marks the content area it covers `inert`: the highest ancestor of the page's `<main>` (a `<main>` inside a dialog, such as the help drawer's, does not count) that does not contain `#suite-app-sidebar`; without a sidebar, `<main>` itself; with `<main>` containing the sidebar, or without `<main>`, nothing. Covered controls leave the Tab order and the accessibility tree; the sidebar, the panel and everything portaled to the body (dialogs, menus, tooltips, toasts) stay operable. `inert` is set before the opening focus lands (also when a field takes it with `autoFocus`) and lifted as soon as the panel closes, before the focus returns to the trigger, in every mode, also while paging; several open panels (a view handing over to its edit panel) hold it until the last one closes, and an `inert` the app set itself is never removed. No new prop. Apps can drop an interim call-site `inert` on the content.
 - **Changed (#921, SUI-FEATURE-142 rev 3):** `Toaster` now renders through a portal into `document.body`, wherever the app places it, so a region gone `inert` never swallows a toast. Look and position are unchanged (sonner positions the toasts fixed); the wrapper element is now the body's last child instead of sitting where the app rendered `Toaster`.
