@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Fixed (#920, GL-UI-018):** the `EditPanel` preview frame makes its non-media child (the scroller) `relative`, so absolutely positioned content inside a preview stays anchored to the scroller instead of escaping to an outer ancestor, in `mode="edit"` and `mode="view"`.
+
 ## 0.244.0 — #918: `RowAction` description hint `hint` (minor)
 
 - **Added (#918, SUI-FEATURE-332 rev 2):** `RowAction` takes an optional `hint?: string` (already translated, one sentence) saying what happens next. A labelled button (`EditPanel` head action, `RowActionSet.step`, the `MediaDetailShell` step) shows the hint as its bubble, before the shortcut chip; an icon-only one (row `extra`, `PreviewToolbar`, `MediaTile`) shows "‹label› ‹rowName›" with the hint below it, then the chip. The hint reaches assistive tech only through `aria-describedby` (never `aria-description`); the accessible name is unchanged. `disabledText` wins over `hint` in bubble and description; `busy` changes nothing about it. Folded into the ⋯ menu, `hint` becomes the entry's `RowMenuItem.hint` (a locked entry shows `disabledText`). `IconButtonTooltip` takes the matching `hint` and `labelled`. Without `hint` nothing changes.
