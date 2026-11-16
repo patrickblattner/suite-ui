@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — #912: gallery sweep (7 findings)
+## 0.241.2 — #912: gallery sweep (7 findings) (patch)
 
 - **Gallery (#912, findings #66, #68, #342, #349, #367, #585, #604):** the settings head action keeps `lng` and `theme`; the fields layout shows an in-section primary action under its status text whose form opens in place (`SUI-FEATURE-042` rev 3); the settings bar-side floor sits in `@layer base` as in the cockpit; `restore-bar` adds a folded head with a locked "Restore defaults" and its reason, with baselines of the open ⋯; `TARGET_EXPECTED` is typed against `TARGET_PAGES`, the `SUI-FEATURE-384` axe comment says AC7, and the folded Restore-defaults focus test steps the arrow keys one asserted press at a time. Package unchanged.
 
