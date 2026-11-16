@@ -103,7 +103,7 @@ const PAGE_CONTENT: Record<Exclude<Page, "strings">, (theme: Theme) => ReactNode
   reorder: () => <ReorderPage />,
   tiles: () => <TilesPage />,
   keys: () => <KeysPage />,
-  settings: () => <SettingsPage />,
+  settings: (theme) => <SettingsPage theme={theme} />,
   shell: () => <ShellPage />,
   dialog: () => <DialogPage />,
   confirm: () => <ConfirmPage />,

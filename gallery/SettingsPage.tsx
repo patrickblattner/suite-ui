@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { PageScroll } from "../src/list/page-scroll.js";
@@ -35,6 +35,15 @@ const LABELS = {
     testFirst: "Test the connection first",
     noSpace: "Remove the spaces: the value can't contain any.",
     fillField: "Fill in this field: it can't be empty.",
+    mfaTitle: "Two-step sign-in",
+    mfaDescription: "A code from an app at every sign-in.",
+    mfaStatus: "Two-step sign-in is not set up.",
+    mfaSetup: "Set up two-step sign-in",
+    mfaCode: "Code from the app",
+    mfaDone: "Two-step sign-in is set up.",
+    mfaAgain: "Set up two-step sign-in again",
+    mfaSetupHint: "Opens a form here to connect a sign-in app.",
+    mfaCodeHint: "The six-digit code the sign-in app shows right now.",
   },
   de: {
     title: "Allgemein",
@@ -49,6 +58,15 @@ const LABELS = {
     testFirst: "Zuerst die Verbindung testen",
     noSpace: "Leerzeichen entfernen: Der Wert darf keine enthalten.",
     fillField: "Feld ausfüllen: Es darf nicht leer sein.",
+    mfaTitle: "Anmeldung in zwei Schritten",
+    mfaDescription: "Bei jeder Anmeldung ein Code aus einer App.",
+    mfaStatus: "Die Anmeldung in zwei Schritten ist nicht eingerichtet.",
+    mfaSetup: "Anmeldung in zwei Schritten einrichten",
+    mfaCode: "Code aus der App",
+    mfaDone: "Die Anmeldung in zwei Schritten ist eingerichtet.",
+    mfaAgain: "Anmeldung in zwei Schritten neu einrichten",
+    mfaSetupHint: "Öffnet hier ein Formular, um eine Anmelde-App zu verbinden.",
+    mfaCodeHint: "Der sechsstellige Code, den die Anmelde-App gerade zeigt.",
   },
   es: {
     title: "General",
@@ -63,6 +81,15 @@ const LABELS = {
     testFirst: "Prueba primero la conexión",
     noSpace: "Quita los espacios: el valor no puede contenerlos.",
     fillField: "Rellena este campo: no puede quedar vacío.",
+    mfaTitle: "Inicio de sesión en dos pasos",
+    mfaDescription: "Un código de una app en cada inicio de sesión.",
+    mfaStatus: "El inicio de sesión en dos pasos no está configurado.",
+    mfaSetup: "Configurar el inicio de sesión en dos pasos",
+    mfaCode: "Código de la app",
+    mfaDone: "El inicio de sesión en dos pasos está configurado.",
+    mfaAgain: "Volver a configurar el inicio de sesión en dos pasos",
+    mfaSetupHint: "Abre aquí un formulario para conectar una app de inicio de sesión.",
+    mfaCodeHint: "El código de seis dígitos que muestra ahora la app de inicio de sesión.",
   },
 } as const;
 
@@ -80,8 +107,9 @@ const COLUMN = PARAMS.get("layout") === "body";
 const STATE = PARAMS.get("state");
 // `?layout=fields` shows SettingsSection and SettingsField in the column (`SUI-FEATURE-042`): a section
 // with an action, a text field with hint and help, a short field, a RadioGroup and a checkbox group,
-// then a Checkbox and a Switch each in a SettingsToggleField (`SUI-FEATURE-058`), and a RadioGroup
-// outside any field after the section.
+// then a Checkbox and a Switch each in a SettingsToggleField (`SUI-FEATURE-058`), a RadioGroup
+// outside any field after the section, and a second section whose primary action stands under its
+// status text and opens its form in place (`SUI-FEATURE-042` rev 3).
 const FIELD_LAYOUT = PARAMS.get("layout") === "fields";
 // `?layout=blocks` shows a SettingsBlock with a full SecretCardHeader as its aside, Remove locked with a
 // reason, and a SettingsActionRow at its foot, after one field of the page form (`SUI-FEATURE-043`).
@@ -106,8 +134,10 @@ const SAVE_MS = 1500;
 
 // A settings page inside the same fixed full-height frame as the list page: PageScroll is the content
 // area, the scaffold fills it, and only the form body scrolls.
-export function SettingsPage() {
+export function SettingsPage({ theme }: { theme: "light" | "dark" }) {
   const { i18n } = useTranslation("suite");
+  // The head action keeps the gallery's language and theme (#912).
+  const componentsHref = `?${new URLSearchParams({ page: "components", lng: i18n.language, theme })}`;
   const labels = LABELS[i18n.language as keyof typeof LABELS] ?? LABELS.en;
   const [loaded, setLoaded] = useState(LOADED);
   const [form, setForm] = useState(LOADED);
@@ -227,7 +257,7 @@ export function SettingsPage() {
                   // The head action leads to another page (`SUI-FEATURE-042` rev 3).
                   <Hint text={labels.otherPageHint}>
                     <Button variant="link" size="inline" asChild data-testid="section-action">
-                      <a href="?page=components">{labels.otherPage}</a>
+                      <a href={componentsHref}>{labels.otherPage}</a>
                     </Button>
                   </Hint>
                 }
@@ -295,6 +325,7 @@ export function SettingsPage() {
               <RadioGroup defaultValue="a" aria-label={labels.status}>
                 {options("outside")}
               </RadioGroup>
+              <SetupSection labels={labels} />
             </>
           }
           form={formProps}
@@ -383,6 +414,82 @@ export function SettingsPage() {
         form={formProps}
       />
     </PageScroll>
+  );
+}
+
+// The primary action that acts in the section itself (`SUI-FEATURE-042` rev 3, cockpit `/security`):
+// directly under the status text, and its form opens in the same place.
+function SetupSection({ labels }: { labels: (typeof LABELS)[keyof typeof LABELS] }) {
+  const [open, setOpen] = useState(false);
+  const [code, setCode] = useState("");
+  const [done, setDone] = useState(false);
+  // Opening moves the focus into the form, closing returns it to the action (`GL-UI-050`), never to
+  // the page; only a change moves it, not the first render (nor its StrictMode re-run).
+  const opened = useRef(open);
+  useEffect(() => {
+    if (opened.current !== open)
+      document.getElementById(open ? "setup-code" : "setup-start")?.focus();
+    opened.current = open;
+  }, [open]);
+  const close = () => {
+    setCode("");
+    setOpen(false);
+  };
+  const save = () => {
+    setDone(true);
+    close();
+  };
+  return (
+    <SettingsSection title={labels.mfaTitle} description={labels.mfaDescription}>
+      <p className="text-sm" data-testid="setup-status">
+        {done ? labels.mfaDone : labels.mfaStatus}
+      </p>
+      {open ? (
+        <div className="flex flex-col gap-4" data-testid="setup-form">
+          <SettingsField
+            label={labels.mfaCode}
+            htmlFor="setup-code"
+            hint={labels.mfaCodeHint}
+            size="short"
+          >
+            <Input
+              id="setup-code"
+              data-testid="setup-code"
+              value={code}
+              onChange={(event) => setCode(event.target.value)}
+              // Enter saves the setup, never the page form around it.
+              onKeyDown={(event) => {
+                if (event.key !== "Enter") return;
+                event.preventDefault();
+                if (code !== "") save();
+              }}
+            />
+          </SettingsField>
+          <SettingsActionRow
+            dirty={code !== ""}
+            onSave={save}
+            onCancel={close}
+            cancelable
+            testIdPrefix="setup"
+          />
+        </div>
+      ) : (
+        <div>
+          <Hint text={labels.mfaSetupHint}>
+            <Button
+              type="button"
+              variant="default"
+              size="default"
+              id="setup-start"
+              data-testid="setup-start"
+              onClick={() => setOpen(true)}
+            >
+              {done ? labels.mfaAgain : labels.mfaSetup}
+            </Button>
+          </Hint>
+        </div>
+      )}
+    </SettingsSection>
   );
 }
 

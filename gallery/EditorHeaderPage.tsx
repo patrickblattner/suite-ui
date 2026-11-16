@@ -229,6 +229,20 @@ export function EditorRestorePage() {
         <div className="w-full max-w-[342px] rounded-md border" data-testid="editor-restore-folded">
           <EditorHeader {...head} />
         </div>
+        {/* #912: folded and locked, the ⋯ entry names its reason (`SUI-FEATURE-430` AC 3). */}
+        <div
+          className="w-full max-w-[342px] rounded-md border"
+          data-testid="editor-restore-folded-locked"
+        >
+          <EditorHeader
+            {...head}
+            restoreDefaults={{
+              onClick: () => {},
+              disabled: true,
+              disabledText: "Save the open changes first.",
+            }}
+          />
+        </div>
       </div>
     </Section>
   );

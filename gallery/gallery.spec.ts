@@ -1122,7 +1122,7 @@ const AXE_PAGES: [
       page.locator("[data-testid=slide-editor] [data-slot=slide-view][data-slide-ready=true]"),
     "&bands=1",
   ],
-  // `SUI-FEATURE-384` AC6: the host's Stil drawer with a draft, and its Dokument section.
+  // `SUI-FEATURE-384` AC7: the host's Stil drawer with a draft, and its Dokument section.
   [
     "slide-editor",
     (page) =>
@@ -4697,12 +4697,41 @@ test("editor header: Restore defaults stands in the tools group, folded into the
       .locator("[role^=menuitem]")
       .evaluateAll((nodes) => nodes.slice(0, 3).map((node) => node.getAttribute("data-testid"))),
   ).toEqual(["editor-menu-tool-desktop", "editor-menu-tool-grid", "editor-menu-restore-defaults"]);
-  // The arrow keys reach it from the menu's start.
-  const focused = () => entry.evaluate((node) => node === document.activeElement);
-  for (let step = 0; step < 4 && !(await focused()); step += 1)
-    await page.keyboard.press("ArrowDown");
-  await expect(entry).toBeFocused();
+  await arrowToRestoreEntry(page, menu);
 });
+
+// The arrow keys reach the folded "Restore defaults" from the ⋯'s start, one asserted step at a time:
+// Radix moves its roving focus after the key event, so a loop that checks between presses overshoots
+// under load (#912).
+async function arrowToRestoreEntry(page: Page, menu: Locator) {
+  await expect(menu.getByTestId("editor-menu-tool-desktop")).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await expect(menu.getByTestId("editor-menu-tool-grid")).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await expect(menu.getByTestId("editor-menu-restore-defaults")).toBeFocused();
+}
+
+// #912 (`SUI-FEATURE-430` AC 2, 3): folded and locked, "Restore defaults" stays in the ⋯'s arrow-key
+// path and names its reason.
+for (const theme of THEMES) {
+  test(`editor header: the folded Restore defaults shows its lock reason (${theme})`, async ({
+    page,
+  }) => {
+    await page.goto(`/?page=restore-bar&lng=en&theme=${theme}`);
+    await page.getByTestId("editor-restore-folded-locked").getByTestId("editor-menu").focus();
+    await page.keyboard.press("Enter");
+    const menu = page.getByRole("menu");
+    await arrowToRestoreEntry(page, menu);
+    const entry = menu.getByTestId("editor-menu-restore-defaults");
+    await expect(entry).toHaveAttribute("aria-disabled", "true");
+    await expect(entry).toHaveAccessibleDescription("Save the open changes first.");
+    // The flat ⋯ keeps the reason as the entry's tooltip (`SUI-FEATURE-119`), here on the pointer.
+    await parkPointer(page);
+    await entry.hover();
+    await expect(page.getByRole("tooltip")).toHaveText("Save the open changes first.");
+    await expect(page).toHaveScreenshot(`restore-bar-menu-locked-${theme}.png`);
+  });
+}
 
 // `SUI-FEATURE-119` AC 7: the ⋯ in titled groups with a locked entry's reason in view, and a header
 // whose content is locked by its state keeping its lifecycle.
@@ -9068,7 +9097,7 @@ test("settings section: h2 title, divider between head and content, action at th
   page,
 }) => {
   await page.goto("/?page=settings&layout=fields");
-  const section = page.locator("[data-slot=settings-section]");
+  const section = page.locator("[data-slot=settings-section]").first();
   const title = section.getByRole("heading", { level: 2 });
   const font = await title.evaluate((el) => [
     getComputedStyle(el).fontSize,
@@ -9146,6 +9175,96 @@ for (const theme of THEMES) {
   });
 }
 
+// #912 (`SUI-FEATURE-042` rev 3): the head action keeps the gallery's language and theme.
+test("settings section: the head action keeps lng and theme", async ({ page }) => {
+  await page.goto("/?page=settings&layout=fields&lng=de&theme=dark");
+  const action = page.getByTestId("section-action");
+  await expect(action).toHaveAttribute("href", "?page=components&lng=de&theme=dark");
+  await page.getByTestId("gallery-language").selectOption("es");
+  await page.getByTestId("gallery-theme").selectOption("light");
+  await expect(action).toHaveAttribute("href", "?page=components&lng=es&theme=light");
+});
+
+// #912 (`SUI-FEATURE-042` rev 3): the primary action that acts in the section stands directly under
+// its status text, and its form opens in the same place.
+for (const theme of THEMES) {
+  test(`settings section: in-section primary action opens its form in place (${theme})`, async ({
+    page,
+  }) => {
+    await page.goto(`/?page=settings&layout=fields&lng=en&theme=${theme}`);
+    const section = page
+      .locator("[data-slot=settings-section]")
+      .filter({ has: page.getByTestId("setup-status") });
+    const content = section.locator("[data-slot=settings-section-content]");
+    const status = content.getByTestId("setup-status");
+    const start = content.getByTestId("setup-start");
+    await expect(status).toHaveText("Two-step sign-in is not set up.");
+    await expect(start).toHaveClass(/bg-primary/);
+    const [text, button] = [await box(status), await box(start)];
+    expect(Math.abs(button.y - (text.y + text.height) - 16)).toBeLessThanOrEqual(1);
+    expect(Math.abs(button.x - text.x)).toBeLessThanOrEqual(1);
+    await parkPointer(page);
+    await expect(section).toHaveScreenshot(`settings-section-setup-${theme}.png`);
+    await start.click();
+    const form = content.getByTestId("setup-form");
+    const code = content.getByTestId("setup-code");
+    await expect(start).toHaveCount(0);
+    // `GL-UI-050`: the focus goes into the form and back to the action, never to the page.
+    await expect(code).toBeFocused();
+    // In the button's place: 16 px under the status text (the focus may have scrolled the body).
+    const shown = await box(status);
+    expect(Math.abs((await box(form)).y - (shown.y + shown.height) - 16)).toBeLessThanOrEqual(1);
+    await code.fill("123456");
+    await parkPointer(page);
+    await expect(section).toHaveScreenshot(`settings-section-setup-open-${theme}.png`);
+    await content.getByTestId("setup-cancel").click();
+    await expect(form).toHaveCount(0);
+    await expect(start).toBeFocused();
+    await expect(status).toHaveText("Two-step sign-in is not set up.");
+    await start.click();
+    await code.fill("123456");
+    await content.getByTestId("setup-save").click();
+    await expect(form).toHaveCount(0);
+    await expect(start).toBeFocused();
+    await expect(status).toHaveText("Two-step sign-in is set up.");
+  });
+}
+
+// #912: Enter in the setup code saves the setup, not the page form around it.
+test("settings section: Enter in the setup form saves the setup only", async ({ page }) => {
+  await page.goto("/?page=settings&layout=fields&lng=en");
+  await page.getByTestId("setup-start").click();
+  await page.getByTestId("setup-code").press("Enter");
+  await expect(page.getByTestId("setup-code")).toBeFocused();
+  await page.getByTestId("setup-code").fill("123456");
+  await page.getByTestId("setup-code").press("Enter");
+  await expect(page.getByTestId("setup-form")).toHaveCount(0);
+  await expect(page.getByTestId("setup-start")).toBeFocused();
+  await expect(page.getByTestId("setup-status")).toHaveText("Two-step sign-in is set up.");
+  // The page form started no save.
+  await expect(page.getByTestId("settings-general-save")).not.toHaveAttribute("aria-busy", "true");
+});
+
+// #912: the gallery's bar-side floor sits in `@layer base` as the cockpit's does, so a package
+// utility on a nested scroller beats it.
+test("settings: a padding utility on a nested scroller beats the bar-side floor", async ({
+  page,
+}) => {
+  await page.goto("/?page=settings&layout=fields");
+  const body = page.getByTestId("settings-body");
+  const floor = await body.evaluate((el) => getComputedStyle(el).paddingInlineEnd);
+  expect(parseFloat(floor)).toBeGreaterThan(6);
+  const inner = await body.evaluate((el) => {
+    const probe = document.createElement("div");
+    probe.className = "overflow-y-auto px-1.5";
+    el.append(probe);
+    const end = getComputedStyle(probe).paddingInlineEnd;
+    probe.remove();
+    return end;
+  });
+  expect(inner).toBe("6px");
+});
+
 // SUI-FEATURE-058 AC1: the control at the left, the label 8 px to its right on the same centre line;
 // the help text starts at the label's x, 8 px under the row.
 test("settings toggle field: control left, label right, help flush with the label", async ({
@@ -9198,7 +9317,7 @@ test("settings toggle field: 16 px apart from each other and from a SettingsFiel
   page,
 }) => {
   await page.goto("/?page=settings&layout=fields");
-  const content = page.locator("[data-slot=settings-section-content]");
+  const content = page.locator("[data-slot=settings-section-content]").first();
   const [field, first, second] = [
     await box(content.locator("[data-slot=settings-field]").last()),
     await box(content.locator("[data-slot=settings-toggle-field]").nth(0)),
@@ -10780,11 +10899,11 @@ const TARGET_PAGES = [
   "edit-panel",
   "help",
   "toast",
-];
+] as const;
 
 // The labels a keyed page must measure, so a keyed page that renders none of its targets fails;
 // a page without an entry asserts only that nothing misses.
-const TARGET_EXPECTED: Record<string, string[]> = {
+const TARGET_EXPECTED: Partial<Record<(typeof TARGET_PAGES)[number], string[]>> = {
   dialog: ["Close"],
   sheet: ["Close"],
   toast: ["Close toast"],
