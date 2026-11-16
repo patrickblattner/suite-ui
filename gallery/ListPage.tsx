@@ -32,6 +32,7 @@ const LABELS = {
     view: "View",
     views: ["Compact", "Detailed"],
     copy: "Copy",
+    copyHint: "Copies the event with its attendees and notes.",
     send: "Send now",
     topUp: "Top up",
     inUse: "Still booked; delete the bookings first.",
@@ -48,6 +49,7 @@ const LABELS = {
     view: "Sicht",
     views: ["Kompakt", "Ausführlich"],
     copy: "Kopieren",
+    copyHint: "Kopiert das Event mit Teilnehmenden und Notizen.",
     send: "Jetzt zustellen",
     topUp: "Aufladen",
     inUse: "Noch gebucht; zuerst die Buchungen löschen.",
@@ -64,6 +66,7 @@ const LABELS = {
     view: "Vista",
     views: ["Compacta", "Detallada"],
     copy: "Copiar",
+    copyHint: "Copia el evento con sus asistentes y notas.",
     send: "Enviar ahora",
     topUp: "Recargar",
     inUse: "Aún reservado; elimine primero las reservas.",
@@ -108,6 +111,8 @@ const TABS = new URLSearchParams(window.location.search).get("slots") === "tabs"
 // `?actions=1` gives the rows a long note and an actions column, so the table is wider than its
 // scroller at 1100 px and the gallery measures that the actions stay at the right edge.
 const ACTIONS = new URLSearchParams(window.location.search).get("actions") === "1";
+// `?hints=1` (with `actions=1`) gives each row's copy its description hint (`SUI-FEATURE-332`).
+const HINTS = new URLSearchParams(window.location.search).get("hints") === "1";
 // `?step=1` (with `actions=1`) gives every odd row its next lifecycle step (`SUI-FEATURE-330`), so
 // rows with and without a step mix; the third row's step is running.
 const STEP = new URLSearchParams(window.location.search).get("step") === "1";
@@ -315,7 +320,13 @@ export function ListPage() {
                     : {})}
                   // `SUI-FEATURE-072`: the second row's copy is running.
                   extra={[
-                    { label: labels.copy, icon: CopyIcon, onClick: () => {}, busy: row.id === 2 },
+                    {
+                      label: labels.copy,
+                      icon: CopyIcon,
+                      onClick: () => {},
+                      busy: row.id === 2,
+                      ...(HINTS ? { hint: labels.copyHint } : {}),
+                    },
                     ...topUpLink(labels, row.id),
                   ]}
                   onEdit={() => {}}

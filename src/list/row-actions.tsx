@@ -28,13 +28,16 @@ import { useStepFold } from "./use-step-fold.js";
 // One action of a row. `label` is the verb; the name and the hint read "‹label› ‹rowName›". With
 // `disabledText` the action is locked and its hint names the reason. With `busy` the action is running
 // (`SUI-FEATURE-072`): the `Button` working state and its lock, for this action in this row only; name
-// and hint stay "‹label› ‹rowName›".
+// and hint stay "‹label› ‹rowName›". `hint` (already translated, one sentence) says what happens next
+// (`SUI-FEATURE-332`): a labelled button's hint shows it alone, an icon-only one's below "‹label›
+// ‹rowName›", a folded entry's as its hint; only `aria-describedby` carries it, and `disabledText` wins.
 // Instead of `onClick` an action can take `href` (`SUI-FEATURE-331`): it is a link in the same look,
 // `external` opening it in a new tab. A navigation has no duration of its own, so a link takes no `busy`.
 type RowAction = {
   label: string;
   icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
   disabledText?: string;
+  hint?: string;
   shortcut?: readonly string[];
   "data-testid"?: string;
 } & (
@@ -143,6 +146,8 @@ function RowActionButton({
       // Without a row name (a panel's head action, `SUI-FEATURE-420`) the name is the label alone.
       label={rowName === "" ? action.label : `${action.label} ${rowName}`}
       disabledText={action.disabledText}
+      hint={action.hint}
+      labelled={labelled}
       shortcut={action.shortcut}
     >
       {action.href !== undefined ? (
@@ -271,14 +276,20 @@ function entryText(item: RowMenuItem, described: string | undefined, visibleHint
 }
 
 // A link entry (`SUI-FEATURE-331`) is the `<a>` itself, so choosing it follows the link; locked, it has
-// no `href`. Same tab, the entry renders it as the router's `Link`. Undefined for an entry that is no link.
-function entryLink(item: RowMenuItem): React.ComponentProps<"a"> | undefined {
+// no `href`. Same tab, it is the router's `Link`: the leave guard asks before it goes
+// (`SUI-FEATURE-064`). The one place that decides, as `ActionLink` does (#639). Undefined for an entry
+// that is no link.
+function entryAnchor(item: RowMenuItem, content: React.ReactNode): React.ReactElement | undefined {
   if (item.href === undefined) return undefined;
-  if (item.disabled === true) return {};
-  return {
-    href: item.href,
-    ...(item.external === true ? { target: "_blank", rel: "noopener noreferrer" } : {}),
-  };
+  if (item.disabled === true) return <a>{content}</a>;
+  if (item.external === true) {
+    return (
+      <a href={item.href} target="_blank" rel="noopener noreferrer">
+        {content}
+      </a>
+    );
+  }
+  return <Link to={item.href}>{content}</Link>;
 }
 
 // One entry of an overflow menu: a plain entry, a checkbox entry for a switch, or a link.
@@ -294,7 +305,6 @@ function MenuEntry({ item, described }: { item: RowMenuItem; described?: string 
     ) : (
       item.icon
     );
-  const link = entryLink(item);
   const content = (
     <>
       {icon}
@@ -312,26 +322,20 @@ function MenuEntry({ item, described }: { item: RowMenuItem; described?: string 
       )}
     </>
   );
+  const anchor = entryAnchor(item, content);
   const control =
     item.checked === undefined ? (
       <DropdownMenuItem
         variant={item.destructive === true ? "destructive" : "default"}
         {...lock}
         aria-keyshortcuts={shortcut === undefined ? undefined : ariaKeyShortcuts(shortcut)}
-        asChild={link !== undefined}
+        asChild={anchor !== undefined}
         onSelect={(event) => {
           if (lockedWithReason) event.preventDefault();
           else item.onSelect?.();
         }}
       >
-        {link === undefined ? (
-          content
-        ) : item.external !== true && link.href !== undefined ? (
-          // Same tab, the router's `Link`: the leave guard asks before it goes (`SUI-FEATURE-064`).
-          <Link to={link.href}>{content}</Link>
-        ) : (
-          <a {...link}>{content}</a>
-        )}
+        {anchor ?? content}
       </DropdownMenuItem>
     ) : (
       <DropdownMenuCheckboxItem
@@ -466,8 +470,8 @@ function usageName(t: TFunction<"suite">, rowName: string, count: number): strin
     : t("usage.actionNamed", { name: rowName, count, interpolation: { escapeValue: false } });
 }
 
-// An action folded into the ⋯ menu (`SUI-FEATURE-067`): its icon and shortcut, its hint "‹label›
-// ‹rowName›", or its reason while locked; a running action's entry is locked while it runs and marks
+// An action folded into the ⋯ menu (`SUI-FEATURE-067`): its icon and shortcut, its `hint` or else
+// "‹label› ‹rowName›", or its reason while locked (`SUI-FEATURE-332`); a running action's entry is locked while it runs and marks
 // the ⋯ button as working (`SUI-FEATURE-072`). A link action stays a link (`SUI-FEATURE-331`).
 function foldRowAction(action: RowAction, rowName: string): RowMenuItem {
   const Icon = action.icon;
@@ -475,7 +479,7 @@ function foldRowAction(action: RowAction, rowName: string): RowMenuItem {
     label: action.label,
     icon: <Icon aria-hidden="true" />,
     ...(action.shortcut === undefined ? {} : { shortcut: action.shortcut }),
-    hint: action.disabledText ?? `${action.label} ${rowName}`,
+    hint: action.disabledText ?? action.hint ?? `${action.label} ${rowName}`,
   };
   if (action.href !== undefined) {
     return {

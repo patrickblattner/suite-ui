@@ -1331,6 +1331,21 @@ function uniqueIds(describedBy: string | undefined): string | undefined {
   return ids.length === 0 ? undefined : ids.join(" ");
 }
 
+// The text of an icon button's bubble: `label` alone, or with a description `second` (a lock's reason
+// or a hint) below it, or that description `alone` where the control's name is its visible text.
+function bubbleText(label: string, second: string | undefined, alone: boolean): React.ReactNode {
+  if (second === undefined) return label;
+  if (alone) return second;
+  return (
+    <>
+      <span className="block">{label}</span>
+      <span className="mt-1 block opacity-90" data-slot="tooltip-hint">
+        {second}
+      </span>
+    </>
+  );
+}
+
 // The description hint of an icon-only control: shows `label`, which
 // is also the control's `aria-label` (`GL-UI-016`); the component sets it. A child carrying a different
 // `aria-label` means two texts were intended for one meaning: outside production that throws, in
@@ -1348,16 +1363,24 @@ function uniqueIds(describedBy: string | undefined): string | undefined {
 // sits in that span as well: while it runs it is locked, and its hint, still `label`, opens on hover
 // over the span (`SUI-FEATURE-072`). With `named`, a disabled control's bubble shows `label` above `disabledText`,
 // for an icon-only control that would otherwise lose its name to the eye (`SUI-FEATURE-090`).
+// `hint` describes what happens next (`SUI-FEATURE-332`): on a usable or running control the bubble
+// shows it below `label`, or alone with `labelled` (the label is the control's visible text), before the
+// key hint; it reaches assistive tech only through `aria-describedby`, the name staying `label`. Locked
+// with a reason, `disabledText` takes its place.
 function IconButtonTooltip({
   label,
   shortcut,
   disabledText,
+  hint,
+  labelled = false,
   named = false,
   children: ownChildren,
 }: {
   label: string;
   shortcut?: Shortcut | undefined;
   disabledText?: string | undefined;
+  hint?: string | undefined;
+  labelled?: boolean;
   named?: boolean;
   children: React.ReactElement<{
     disabled?: boolean;
@@ -1391,11 +1414,15 @@ function IconButtonTooltip({
   // Locked, with or without a reason of its own, the control offers no shortcut (`GL-UI-006` rev 4
   // §Sichtbarkeit): on a surface locked as a whole, its hint names the reason once (#461).
   const offered = children.props.disabled === true || ariaDisabled ? undefined : variants;
+  // Locked, with or without a reason, the control shows no hint (`SUI-FEATURE-332`).
+  const hinted = hint !== undefined && children.props.disabled !== true && !ariaDisabled;
+  // The description: the lock's reason, else the hint of a usable or running control.
+  const described = disabled ? disabledText : hinted ? hint : undefined;
   // The explicit `aria-describedby` key, even undefined, wins over the one radix points at the bubble.
   const control = React.cloneElement(children, {
     "aria-label": label,
     "aria-describedby": uniqueIds(
-      `${children.props["aria-describedby"] ?? ""} ${ariaLocked ? id : ""}`,
+      `${children.props["aria-describedby"] ?? ""} ${ariaLocked || hinted ? id : ""}`,
     ),
     "aria-keyshortcuts": offered === undefined ? undefined : ariaKeyShortcuts(offered),
   });
@@ -1421,27 +1448,16 @@ function IconButtonTooltip({
             {trigger}
           </TooltipTrigger>
           <TooltipContent>
-            {disabled && named ? (
-              <>
-                <span className="block">{label}</span>
-                <span className="mt-1 block opacity-90" data-slot="tooltip-hint">
-                  {disabledText}
-                </span>
-              </>
-            ) : disabled ? (
-              disabledText
-            ) : (
-              label
-            )}
+            {bubbleText(label, described, disabled ? !named : labelled)}
             {offered === undefined ? null : <ShortcutChip variants={offered} />}
           </TooltipContent>
         </TooltipPrimitive.Root>
       </TooltipProvider>
-      {disabled ? (
+      {described === undefined ? null : (
         <span id={id} hidden>
-          {disabledText}
+          {described}
         </span>
-      ) : null}
+      )}
     </>
   );
 }

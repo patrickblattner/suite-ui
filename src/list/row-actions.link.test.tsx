@@ -227,6 +227,29 @@ describe("RowAction link folded into ⋯ (SUI-FEATURE-331 AC 4)", () => {
     expect(entry).not.toHaveAttribute("target");
   });
 
+  // #637: the router's Link entry carries the classes and data-* attributes of every other entry.
+  it("same-tab link: the same classes and data-* attributes as a plain entry", () => {
+    const menu = renderMenu([
+      foldRowAction(topUp({ href: ROUTE }), "Ada"),
+      foldRowAction(copy, "Ada"),
+    ]).open();
+    const link = within(menu).getByRole("menuitem", { name: "Top up" });
+    const plain = within(menu).getByRole("menuitem", { name: "Copy" });
+    expect(link.tagName).toBe("A");
+    expect(plain.tagName).toBe("DIV");
+    expect(link.className).toBe(plain.className);
+    const data = (element: HTMLElement) =>
+      Object.fromEntries(
+        Array.from(element.attributes)
+          // `data-discover` is the router's own mark on every `Link`, not the menu's.
+          .filter(
+            (attribute) => attribute.name.startsWith("data-") && attribute.name !== "data-discover",
+          )
+          .map((attribute) => [attribute.name, attribute.value]),
+      );
+    expect(data(link)).toEqual(data(plain));
+  });
+
   it("locked: an <a> without href, aria-disabled, the reason as description, no navigation", () => {
     const menu = openFolded(topUp({ external: true, disabledText: "No account yet." }));
     const entry = within(menu).getByRole("menuitem");

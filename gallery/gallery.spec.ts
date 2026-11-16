@@ -13,6 +13,7 @@ import {
 } from "../src/testing/index.js";
 import { phoneFrame } from "../src/slides/phone-frame.js";
 import { shellTexts } from "./shell-labels.js";
+import { openMediaPanel, openViewModePanel } from "./media-panel.js";
 import { de } from "../src/strings/de.js";
 import { en } from "../src/strings/en.js";
 import { es } from "../src/strings/es.js";
@@ -3729,30 +3730,6 @@ test("upload step: the rejected file is named above the rows", async ({ page }) 
     (await box(frame.getByTestId("upload-rows"))).y,
   );
 });
-
-// The media panel with its preview picture loaded.
-async function openMediaPanel(page: Page, query = "") {
-  await page.goto(`/?page=edit-panel${query}`);
-  await page.getByTestId("media-panel-trigger").click();
-  const picture = page.getByTestId("media-panel-picture");
-  await expect(picture).toBeVisible();
-  await expect
-    .poll(() => picture.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth))
-    .toBeGreaterThan(0);
-  return page.getByTestId("media-panel");
-}
-
-// `SUI-FEATURE-097`: the view mode panel, its preview loaded.
-async function openViewModePanel(page: Page, query = "") {
-  await page.goto(`/?page=edit-panel${query}`);
-  await page.getByTestId("view-mode-panel-trigger").click();
-  const picture = page.getByTestId("view-mode-panel-picture");
-  await expect(picture).toBeVisible();
-  await expect
-    .poll(() => picture.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth))
-    .toBeGreaterThan(0);
-  return page.getByTestId("view-mode-panel");
-}
 
 // The crop editor of the components page, with its frame over the loaded image.
 async function openCropEditor(page: Page, query = "") {
@@ -21177,3 +21154,34 @@ for (const theme of THEMES) {
     await expect(rail).toHaveScreenshot(`slide-editor-host-drawers-document-${theme}.png`);
   });
 }
+
+// SUI-FEATURE-332: a RowAction's description hint `hint`. A labelled head action's bubble shows the
+// hint alone; an icon-only row action's shows "‹label› ‹rowName›" over it. Both reach assistive tech
+// as the description, the name unchanged.
+test("edit panel head action hint", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openMediaPanel(page, "&headActions=1&headHints=1&lng=en&theme=light");
+  const take = page.getByTestId("head-take");
+  await expect(take).toHaveAccessibleName("Take");
+  await expect(take).toHaveAccessibleDescription("Uses this draft and closes the review.");
+  await parkPointer(page);
+  await take.hover();
+  await expect(page.getByRole("tooltip")).toHaveText("Uses this draft and closes the review.");
+  await expect(page).toHaveScreenshot("edit-panel-head-action-hint-en-light.png", {
+    fullPage: true,
+  });
+});
+
+test("row action hint", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/?page=list&actions=1&hints=1&lng=en&theme=light");
+  const copy = page.getByTestId("list-actions").first().getByRole("button", { name: /^Copy/ });
+  await expect(copy).toHaveAccessibleName("Copy Event 1");
+  await expect(copy).toHaveAccessibleDescription("Copies the event with its attendees and notes.");
+  await parkPointer(page);
+  await copy.hover();
+  await expect(page.getByRole("tooltip")).toHaveText(
+    "Copy Event 1Copies the event with its attendees and notes.",
+  );
+  await expect(page).toHaveScreenshot("list-row-action-hint-en-light.png");
+});

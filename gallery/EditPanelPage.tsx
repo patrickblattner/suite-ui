@@ -1,4 +1,4 @@
-import { CheckIcon, PencilIcon, RefreshCwIcon, SendIcon, XIcon } from "lucide-react";
+import { ArchiveIcon, CheckIcon, PencilIcon, RefreshCwIcon, SendIcon, XIcon } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation } from "react-router-dom";
@@ -111,8 +111,12 @@ const LABELS = {
     messageFirst: "Write a message first",
     noSlash: "Remove the slash: a name can't contain “/”.",
     take: "Take",
+    takeHint: "Uses this draft and closes the review.",
+    dropHint: "Discards this draft for good.",
+    regenerateHint: "Writes a new draft from the same brief.",
     drop: "Drop",
     regenerate: "Regenerate",
+    archive: "Archive",
   },
   de: {
     saveCloseHint: "Speichert die Eingaben und schließt das Panel.",
@@ -121,8 +125,12 @@ const LABELS = {
     messageFirst: "Zuerst eine Nachricht schreiben",
     noSlash: "Schrägstrich entfernen: Ein Name darf kein „/“ enthalten.",
     take: "Übernehmen",
+    takeHint: "Übernimmt diesen Entwurf und schließt die Prüfung.",
+    dropHint: "Verwirft diesen Entwurf endgültig.",
+    regenerateHint: "Schreibt aus demselben Briefing einen neuen Entwurf.",
     drop: "Verwerfen",
     regenerate: "Neu erzeugen",
+    archive: "Archivieren",
   },
   es: {
     saveCloseHint: "Guarda los datos y cierra el panel.",
@@ -131,8 +139,12 @@ const LABELS = {
     messageFirst: "Primero escribe un mensaje",
     noSlash: "Quita la barra: un nombre no puede contener «/».",
     take: "Aceptar",
+    takeHint: "Usa este borrador y cierra la revisión.",
+    dropHint: "Descarta este borrador definitivamente.",
+    regenerateHint: "Escribe un borrador nuevo con el mismo encargo.",
     drop: "Descartar",
     regenerate: "Regenerar",
+    archive: "Archivar",
   },
 };
 // `?step=1` gives the media detail shell its next lifecycle step (`SUI-FEATURE-330`), outside pick
@@ -147,6 +159,10 @@ const MEDIA_REASON = new URLSearchParams(window.location.search).get("mediaReaso
 // `?headActions=1` gives the media panel (edit, with pager) and the view-mode panel a record's
 // decision actions in the head (`SUI-FEATURE-420`): Drop and Regenerate `outline`, Take `success`.
 const HEAD_ACTIONS = new URLSearchParams(window.location.search).get("headActions") === "1";
+// `?headHints=1` (with `headActions=1`) gives each head action its description hint
+// (`SUI-FEATURE-332`); `?headMore=1` adds two more secondaries, so a narrow panel wraps the group.
+const HEAD_HINTS = new URLSearchParams(window.location.search).get("headHints") === "1";
+const HEAD_MORE = new URLSearchParams(window.location.search).get("headMore") === "1";
 const FIELDS = Array.from({ length: 24 }, (_, index) => `Field ${index + 1}`);
 
 // `SUI-FEATURE-093` (#264): a record picker in a panel creates a missing contact in the compact
@@ -416,15 +432,29 @@ function Demo() {
               icon: CheckIcon,
               onClick: close,
               "data-testid": "head-take",
+              ...(HEAD_HINTS ? { hint: labels.takeHint } : {}),
             },
             secondary: [
-              { label: labels.drop, icon: XIcon, onClick: close, "data-testid": "head-drop" },
+              {
+                label: labels.drop,
+                icon: XIcon,
+                onClick: close,
+                "data-testid": "head-drop",
+                ...(HEAD_HINTS ? { hint: labels.dropHint } : {}),
+              },
               {
                 label: labels.regenerate,
                 icon: RefreshCwIcon,
                 onClick: () => {},
                 "data-testid": "head-regenerate",
+                ...(HEAD_HINTS ? { hint: labels.regenerateHint } : {}),
               },
+              ...(HEAD_MORE
+                ? [
+                    { label: labels.publish, icon: SendIcon, onClick: () => {} },
+                    { label: labels.archive, icon: ArchiveIcon, onClick: () => {} },
+                  ]
+                : []),
             ],
           },
         }

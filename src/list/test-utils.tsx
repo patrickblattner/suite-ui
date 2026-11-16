@@ -19,14 +19,7 @@ export function hintOf(control: HTMLElement): {
   hover1500: string | null;
 } {
   vi.useFakeTimers();
-  vi.stubGlobal(
-    "ResizeObserver",
-    class {
-      observe() {}
-      unobserve() {}
-      disconnect() {}
-    },
-  );
+  stubResizeObserver();
   const text = () => screen.queryByRole("tooltip")?.textContent ?? null;
   try {
     // Hover first: a hint closed a moment ago reopens at once, which would hide the delay.
@@ -47,5 +40,34 @@ export function hintOf(control: HTMLElement): {
   } finally {
     vi.useRealTimers();
     vi.unstubAllGlobals();
+  }
+}
+
+// jsdom has no ResizeObserver; the step fold and an open tooltip's popper use one. Undo with
+// `vi.unstubAllGlobals()`.
+export function stubResizeObserver(): void {
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  );
+}
+
+// The open bubble of `control` once the hover delay has run (`GL-UI-016`), for its structure: the
+// lines, the shortcut chip. Leaves real timers behind; the caller undoes the stub.
+export function openBubble(control: HTMLElement): HTMLElement {
+  stubResizeObserver();
+  vi.useFakeTimers();
+  try {
+    fireEvent.pointerMove(control, { pointerType: "mouse" });
+    act(() => {
+      vi.advanceTimersByTime(1500);
+    });
+    return screen.getByRole("tooltip");
+  } finally {
+    vi.useRealTimers();
   }
 }

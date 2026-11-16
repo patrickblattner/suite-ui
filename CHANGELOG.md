@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — #918: `RowAction` description hint `hint` (minor)
+
+- **Added (#918, SUI-FEATURE-332 rev 2):** `RowAction` takes an optional `hint?: string` (already translated, one sentence) saying what happens next. A labelled button (`EditPanel` head action, `RowActionSet.step`, the `MediaDetailShell` step) shows the hint as its bubble, before the shortcut chip; an icon-only one (row `extra`, `PreviewToolbar`, `MediaTile`) shows "‹label› ‹rowName›" with the hint below it, then the chip. The hint reaches assistive tech only through `aria-describedby` (never `aria-description`); the accessible name is unchanged. `disabledText` wins over `hint` in bubble and description; `busy` changes nothing about it. Folded into the ⋯ menu, `hint` becomes the entry's `RowMenuItem.hint` (a locked entry shows `disabledText`). `IconButtonTooltip` takes the matching `hint` and `labelled`. Without `hint` nothing changes.
+- **Changed (#918, finding #639):** a folded link entry decides router `Link` vs `<a>` in one helper. Tests: the folded same-tab entry carries the classes and `data-*` attributes of a plain entry (finding #637); a 360 px gallery panel keeps every head button inside the header (finding #575).
+
 ## 0.243.0 — #915: same-tab `RowAction`/`EditorHeaderTool` links through the router and the leave guard (minor)
 
 - **Changed (#915, SUI-FEATURE-331 rev 3):** a same-tab link action (`href` without `external`) on `RowAction` and `EditorHeaderTool`, inline and folded into the ⋯ menu, renders as the router's `Link` (`react-router-dom`) instead of a plain `<a>`: it navigates client-side, so in a dirty editor the leave guard (`SUI-FEATURE-064`) asks first and the route stays until Discard or Save, and the SPA never reloads. Look, name and hint unchanged; a relative `href` now resolves against the current route rather than the document URL; a same-tab link action now needs a router around it, as every in-app route does (outside a router it throws). External links (`external`) stay a plain `<a>` with `target="_blank"` and `rel="noopener noreferrer"`, without the leave guard; locked links and actions without `href` are unchanged.

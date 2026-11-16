@@ -5,6 +5,7 @@ import { Link, MemoryRouter, useLocation, useNavigate } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { type RowAction } from "../list/row-actions.js";
+import { openBubble } from "../list/test-utils.js";
 import { SidebarProvider, useSidebar } from "../shell/sidebar-provider.js";
 import { Button } from "./button.js";
 import { EditPanel, type EditPanelProps } from "./edit-panel.js";
@@ -2088,6 +2089,30 @@ describe("EditPanel headActions", () => {
     fireEvent.click(screen.getByTestId("head-regenerate"));
     expect(regenerate).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId("edit-panel-submit")).not.toHaveAttribute("aria-busy");
+  });
+});
+
+// #918 (SUI-FEATURE-332): a head action's description hint.
+describe("EditPanel headActions hint", () => {
+  it("AC1: the hint is the bubble's text before the chip and the description; the name is label", () => {
+    try {
+      const { value } = headActions({
+        take: { hint: "Uses this draft and closes the review.", shortcut: ["Ctrl+Enter"] },
+      });
+      renderPanel({ headActions: value });
+      const take = screen.getByTestId("head-take");
+      expect(take).toHaveAccessibleName("Take");
+      expect(take).toHaveAccessibleDescription("Uses this draft and closes the review.");
+      expect(take).not.toHaveAttribute("aria-description");
+      const tooltip = openBubble(take);
+      expect(tooltip.firstChild?.textContent).toBe("Uses this draft and closes the review.");
+      expect(tooltip.lastElementChild?.tagName).toBe("KBD");
+      expect(tooltip.textContent).not.toMatch(/^Take/);
+      // Without hint, Drop stays as before: its name in the bubble, no description.
+      expect(screen.getByTestId("head-drop")).not.toHaveAttribute("aria-describedby");
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
 
