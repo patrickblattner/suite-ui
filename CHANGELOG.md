@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.245.1 — #923: `EditPanel`/`MediaDetailShell` return focus to the trigger when a field has `autoFocus` (patch)
 
 - **Fixed (#923, GL-UI-050, patch):** `EditPanel` and `MediaDetailShell` return the focus to the trigger on close (Cancel, `Esc`, Save) also when a field in the panel takes the focus with `autoFocus`, and when a panel mounted already open runs its effects twice under React StrictMode; before, the focus dropped to `<body>`. The trigger is recorded before `autoFocus` and `inert` act, never overwritten by `<body>`, and cleared when the panel closes.
 
