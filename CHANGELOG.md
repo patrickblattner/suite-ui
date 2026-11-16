@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — #914: `RowAction` and `EditorHeaderTool` link variant with `href` and `external` (minor)
+## 0.242.0 — #914: `RowAction` and `EditorHeaderTool` link variant with `href` and `external` (minor)
 
 - **Added (#914, SUI-FEATURE-331 rev 2):** `RowAction` and `EditorHeaderTool` take either `onClick` or `href: string` (the type rejects both and neither); with `href` an optional `external?: boolean`. A link action renders as `<a href>` in the look, size, icon, name, hint, tooltip and shortcut display of the button form; `external` adds `target="_blank"` and `rel="noopener noreferrer"` and appends the screen-reader-only text `suite:action.opensInNewTab` to the name (tooltip unchanged, no extra icon). With `disabledText` the link has no `href`, carries `aria-disabled="true"`, stays a tab stop and its hint names the reason. Folded into the ⋯ (`SUI-FEATURE-067`, `SUI-FEATURE-090` stage 3) the entry stays an `<a>` with the same `href`/`target`/`rel`. `RowMenuItem` takes `href`/`external` in place of `onSelect` for such an entry. Not combinable with `href` (type error): `busy`, `pressed` on a head tool, and `RowActionSet.step` (as well as the `step` of `MediaTile` and `MediaDetailShell`). Every `useRowActionButtons` consumer (`PreviewToolbar`, `MediaDetailShell`, `MediaTile`) renders the link form the same way. Without `href` nothing changes.
 - **Added (#914):** new package text `action.opensInNewTab` (de/en/es: "öffnet in neuem Tab" / "opens in a new tab" / "se abre en una pestaña nueva").
