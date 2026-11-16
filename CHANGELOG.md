@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.244.1 — #920: `EditPanel` preview scroller is a positioning anchor (patch)
 
 - **Fixed (#920, GL-UI-018):** the `EditPanel` preview frame makes its non-media child (the scroller) `relative`, so absolutely positioned content inside a preview stays anchored to the scroller instead of escaping to an outer ancestor, in `mode="edit"` and `mode="view"`.
 
