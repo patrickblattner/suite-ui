@@ -1,8 +1,8 @@
 # Changelog
 
-## Unreleased — #915: same-tab `RowAction`/`EditorHeaderTool` links through the router and the leave guard
+## 0.243.0 — #915: same-tab `RowAction`/`EditorHeaderTool` links through the router and the leave guard (minor)
 
-- **Fixed (#915, SUI-FEATURE-331 rev 3):** a same-tab link action (`href` without `external`) on `RowAction` and `EditorHeaderTool`, inline and folded into the ⋯ menu, renders as the router's `Link` (`react-router-dom`) instead of a plain `<a>`: it navigates client-side, so in a dirty editor the leave guard (`SUI-FEATURE-064`) asks first and the route stays until Discard or Save, and the SPA never reloads. Look, `href`, name and hint unchanged; a same-tab link action now needs a router around it, as every in-app route does. External links (`external`) stay a plain `<a>` with `target="_blank"` and `rel="noopener noreferrer"`, without the leave guard; locked links and actions without `href` are unchanged.
+- **Changed (#915, SUI-FEATURE-331 rev 3):** a same-tab link action (`href` without `external`) on `RowAction` and `EditorHeaderTool`, inline and folded into the ⋯ menu, renders as the router's `Link` (`react-router-dom`) instead of a plain `<a>`: it navigates client-side, so in a dirty editor the leave guard (`SUI-FEATURE-064`) asks first and the route stays until Discard or Save, and the SPA never reloads. Look, name and hint unchanged; a relative `href` now resolves against the current route rather than the document URL; a same-tab link action now needs a router around it, as every in-app route does (outside a router it throws). External links (`external`) stay a plain `<a>` with `target="_blank"` and `rel="noopener noreferrer"`, without the leave guard; locked links and actions without `href` are unchanged.
 
 ## 0.242.0 — #914: `RowAction` and `EditorHeaderTool` link variant with `href` and `external` (minor)
 
