@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Fixed (#923, GL-UI-050, patch):** `EditPanel` and `MediaDetailShell` return the focus to the trigger on close (Cancel, `Esc`, Save) also when a field in the panel takes the focus with `autoFocus`, and when a panel mounted already open runs its effects twice under React StrictMode; before, the focus dropped to `<body>`. The trigger is recorded before `autoFocus` and `inert` act, never overwritten by `<body>`, and cleared when the panel closes.
+
 ## 0.245.0 — #921: `EditPanel`/`MediaDetailShell` make the covered content area inert while open; `Toaster` portals to `document.body` (minor)
 
 - **Added (#921, SUI-FEATURE-142 rev 3, minor):** while an `EditPanel` or `MediaDetailShell` is open, the package marks the content area it covers `inert`: the highest ancestor of the page's `<main>` (a `<main>` inside a dialog, such as the help drawer's, does not count) that does not contain `#suite-app-sidebar`; without a sidebar, `<main>` itself; with `<main>` containing the sidebar, or without `<main>`, nothing. Covered controls leave the Tab order and the accessibility tree; the sidebar, the panel and everything portaled to the body (dialogs, menus, tooltips, toasts) stay operable. `inert` is set before the opening focus lands (also when a field takes it with `autoFocus`) and lifted as soon as the panel closes, before the focus returns to the trigger, in every mode, also while paging; several open panels (a view handing over to its edit panel) hold it until the last one closes, and an `inert` the app set itself is never removed. No new prop. Apps can drop an interim call-site `inert` on the content.

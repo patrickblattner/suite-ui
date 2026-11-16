@@ -435,6 +435,18 @@ describe("MediaDetailShell: the covered content area is inert while open (SUI-FE
   });
 });
 
+// jsdom keeps the focus on an inert element; emulate the browser's blur.
+function blurOnInert() {
+  const region = content();
+  const set = region.setAttribute.bind(region);
+  vi.spyOn(region, "setAttribute").mockImplementation((name, value) => {
+    set(name, value);
+    if (name === "inert" && region.contains(document.activeElement)) {
+      (document.activeElement as HTMLElement).blur();
+    }
+  });
+}
+
 // GL-UI-050: a browser blurs the focused trigger once its region goes `inert`; an open not driven by
 // a user event in the same task (after an await) still returns the focus to it.
 describe("focus return after a programmatic open (SUI-FEATURE-142)", () => {
@@ -456,15 +468,8 @@ describe("focus return after a programmatic open (SUI-FEATURE-142)", () => {
     }
     focusedWhileInert.length = 0;
     render(<Shell>{<Page />}</Shell>);
-    // jsdom keeps the focus on an inert element; emulate the browser's blur.
+    blurOnInert();
     const region = content();
-    const set = region.setAttribute.bind(region);
-    vi.spyOn(region, "setAttribute").mockImplementation((name, value) => {
-      set(name, value);
-      if (name === "inert" && region.contains(document.activeElement)) {
-        (document.activeElement as HTMLElement).blur();
-      }
-    });
     act(() => screen.getByTestId("trigger").focus());
     focusedWhileInert.length = 0;
     await Promise.resolve();
@@ -473,5 +478,157 @@ describe("focus return after a programmatic open (SUI-FEATURE-142)", () => {
     expect(screen.getByTestId("trigger")).not.toHaveFocus();
     fireEvent.keyDown(screen.getByTestId("edit-panel"), { key: "Escape" });
     await expectLiftedBeforeFocus();
+  });
+});
+
+// A view panel with an autoFocus field, opened from `trigger` or `other`.
+function ViewPage() {
+  const [open, setOpen] = React.useState(false);
+  return (
+    <>
+      <Trigger onClick={() => setOpen(true)} />
+      <button type="button" data-testid="other" onClick={() => setOpen(true)}>
+        Other
+      </button>
+      <EditPanel open={open} onOpenChange={setOpen} title="Item" mode="view">
+        <Input aria-label="Name" autoFocus />
+      </EditPanel>
+    </>
+  );
+}
+
+// Renders `ui` in the shell with the browser's blur-on-inert and opens it from the trigger.
+function open(ui: React.ReactElement) {
+  focusedWhileInert.length = 0;
+  render(<Shell>{ui}</Shell>);
+  blurOnInert();
+  openFrom("trigger");
+  focusedWhileInert.length = 0;
+}
+
+// GL-UI-050, #923: the return target is recorded before a field's `autoFocus` takes the focus (React
+// applies it in the layout phase, and Radix then skips its opening focus) and survives a StrictMode
+// re-run of the effects, which the browser's blur-on-inert would otherwise record as `<body>`.
+describe("focus return with an autoFocus field and under StrictMode (#923)", () => {
+  function EditPage({ mountOpen = false }: { mountOpen?: boolean }) {
+    const [open, setOpen] = React.useState(false);
+    const panel = (
+      <EditPanel
+        open={open}
+        onOpenChange={setOpen}
+        title="Item"
+        mode="edit"
+        onSubmit={() => {
+          setOpen(false);
+          return true;
+        }}
+      >
+        <Input aria-label="Name" autoFocus={!mountOpen} />
+      </EditPanel>
+    );
+    return (
+      <>
+        <Trigger onClick={() => setOpen(true)} />
+        {mountOpen ? (open ? panel : null) : panel}
+      </>
+    );
+  }
+
+  function MediaPage({ autoFocus = false }: { autoFocus?: boolean }) {
+    const [open, setOpen] = React.useState(false);
+    return (
+      <>
+        <Trigger onClick={() => setOpen(true)} />
+        {open ? (
+          <MediaDetailShell
+            open
+            position={3}
+            total={65}
+            kind="image"
+            src="/media/team-photo.jpg"
+            alt="team-photo.jpg"
+            dirty={false}
+            saving={false}
+            fields={<Input aria-label="Name" autoFocus={autoFocus} />}
+            onPrev={vi.fn()}
+            onNext={vi.fn()}
+            onClose={() => setOpen(false)}
+            onSave={vi.fn()}
+            onReset={vi.fn()}
+          />
+        ) : null}
+      </>
+    );
+  }
+
+  // AC 1, 3
+  it.each([
+    ["Cancel", () => fireEvent.click(screen.getByTestId("edit-panel-cancel"))],
+    ["Esc", () => fireEvent.keyDown(screen.getByTestId("edit-panel"), { key: "Escape" })],
+    ["Save", () => fireEvent.click(screen.getByTestId("edit-panel-submit"))],
+  ])("EditPanel with an autoFocus field: %s returns the focus to the trigger", async (_, close) => {
+    open(<EditPage />);
+    expect(screen.getByLabelText("Name")).toHaveFocus();
+    close();
+    await expectLiftedBeforeFocus();
+  });
+
+  it.each([
+    ["Close", () => fireEvent.click(screen.getByTestId("media-detail-close"))],
+    ["Esc", () => fireEvent.keyDown(screen.getByTestId("media-detail"), { key: "Escape" })],
+  ])(
+    "MediaDetailShell with an autoFocus field: %s returns the focus to the trigger",
+    async (_, close) => {
+      open(<MediaPage autoFocus />);
+      expect(screen.getByLabelText("Name")).toHaveFocus();
+      close();
+      await expectLiftedBeforeFocus();
+    },
+  );
+
+  // AC 4
+  it("EditPanel mounted open under StrictMode: Esc returns the focus to the trigger", async () => {
+    open(
+      <React.StrictMode>
+        <EditPage mountOpen />
+      </React.StrictMode>,
+    );
+    fireEvent.keyDown(screen.getByTestId("edit-panel"), { key: "Escape" });
+    await expectLiftedBeforeFocus();
+  });
+
+  it("MediaDetailShell mounted open under StrictMode: Esc returns the focus to the trigger", async () => {
+    open(
+      <React.StrictMode>
+        <MediaPage />
+      </React.StrictMode>,
+    );
+    fireEvent.keyDown(screen.getByTestId("media-detail"), { key: "Escape" });
+    await expectLiftedBeforeFocus();
+  });
+
+  // AC 4: the record is cleared when `open` ends, so a second open records its own trigger.
+  it("a second open from another trigger returns there, not to the first", async () => {
+    open(<ViewPage />);
+    fireEvent.keyDown(screen.getByTestId("edit-panel"), { key: "Escape" });
+    await expectLiftedBeforeFocus();
+    openFrom("other");
+    fireEvent.keyDown(screen.getByTestId("edit-panel"), { key: "Escape" });
+    await waitFor(() => expect(screen.getByTestId("other")).toHaveFocus());
+  });
+});
+
+describe("focus return after a reopen during the close (#923)", () => {
+  // Code lens: a reopen before the close returned the focus (Radix returns it on a later tick, after
+  // the exit animation) keeps the trigger as the return target for the reopened panel's close.
+  it("a reopen before the close returned the focus keeps the trigger as the return target", async () => {
+    open(<ViewPage />);
+    fireEvent.keyDown(screen.getByTestId("edit-panel"), { key: "Escape" });
+    fireEvent.click(screen.getByTestId("trigger"));
+    // The first close's focus return runs now and leaves the focus in the reopened panel.
+    await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+    expect(screen.getByLabelText("Name")).toHaveFocus();
+    fireEvent.keyDown(screen.getByTestId("edit-panel"), { key: "Escape" });
+    await waitFor(() => expect(screen.getByTestId("trigger")).toHaveFocus());
   });
 });

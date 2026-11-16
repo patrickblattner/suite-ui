@@ -428,8 +428,7 @@ function MediaDetailShell({
     givenState === undefined && kind !== "text" && kind !== "other" && !loadable(src ?? "");
   const previewState = refused ? "noRenderer" : givenState;
   const geometry = usePanelGeometry();
-  const opener = useCoveredInert(open);
-  const returnFocus = React.useRef<HTMLElement | null>(null);
+  const returnFocusRef = useCoveredInert(open);
   const preview = React.useRef<HTMLDivElement>(null);
   // A submit shows every field's error and focuses the first invalid field (`GL-UI-038`).
   const [submits, submitted, endSubmits, submitEnds] = useFieldSubmits();
@@ -749,15 +748,13 @@ function MediaDetailShell({
           className={PANEL_SURFACE_CLASS}
           style={geometry}
           onOpenAutoFocus={(event) => {
-            // Read before the covered region went `inert` (`SUI-FEATURE-142`, `GL-UI-050`).
-            returnFocus.current = opener.current;
             event.preventDefault();
             (event.currentTarget as HTMLElement).focus();
           }}
           onCloseAutoFocus={(event) => {
             event.preventDefault();
-            returnFocus.current?.focus({ preventScroll: true });
-            returnFocus.current = null;
+            returnFocusRef.current?.focus({ preventScroll: true });
+            returnFocusRef.current = null;
           }}
           onInteractOutside={(event) => event.preventDefault()}
           onEscapeKeyDown={(event) => {

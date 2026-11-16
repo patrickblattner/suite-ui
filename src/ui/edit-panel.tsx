@@ -210,7 +210,6 @@ function EditPanel({
     next: t("editPanel.nextCancelHint"),
     send: t("editPanel.sendCancelHint"),
   }[submitKind];
-  const returnFocus = React.useRef<HTMLElement | null>(null);
   const submit = React.useRef<HTMLButtonElement>(null);
   // The typed but uncommitted entries of the panel's own fields (`SUI-FEATURE-118` rev 6).
   const [fieldDrafts] = React.useState(createFieldDrafts);
@@ -292,7 +291,7 @@ function EditPanel({
   }, [open, guard, onOpenChange]);
 
   const geometry = usePanelGeometry();
-  const opener = useCoveredInert(open);
+  const returnFocusRef = useCoveredInert(open);
   const Body = view ? "div" : "form";
   const fields = (
     <FieldSubmitContext.Provider value={view ? null : submits}>
@@ -433,8 +432,6 @@ function EditPanel({
           className={cn(PANEL_SURFACE_CLASS, className)}
           style={{ ...style, ...geometry }}
           onOpenAutoFocus={(event) => {
-            // Read before the covered region went `inert` (`SUI-FEATURE-142`, `GL-UI-050`).
-            returnFocus.current = opener.current;
             event.preventDefault();
             const content = event.currentTarget as HTMLElement;
             const field =
@@ -448,7 +445,7 @@ function EditPanel({
           onCloseAutoFocus={(event) => {
             event.preventDefault();
             const self = event.currentTarget as HTMLElement;
-            const target = handedOver.get(self) ?? returnFocus.current;
+            const target = handedOver.get(self) ?? returnFocusRef.current;
             handedOver.delete(self);
             // A panel this one handed over to (a view's Edit opening an edit panel) already holds
             // the focus: it stays there and returns it to this panel's target when it closes.
@@ -458,7 +455,7 @@ function EditPanel({
             } else if (target !== null) {
               handedOver.set(holder, target);
             }
-            returnFocus.current = null;
+            returnFocusRef.current = null;
           }}
           onInteractOutside={(event) => event.preventDefault()}
           onEscapeKeyDown={(event) => {

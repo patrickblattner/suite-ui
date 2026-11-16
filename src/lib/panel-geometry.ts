@@ -60,15 +60,29 @@ function contentRegion(): HTMLElement | null {
  * Holds the covered content region `inert` while `open`: set in a layout effect, so before the
  * opening focus lands (Radix focuses in a passive effect), whether or not a field takes it itself.
  * Released as soon as `open` ends or the panel unmounts, so before the focus returns to the trigger
- * (Radix returns it on a later tick, after the exit animation). Returns the element that held the
- * focus before `inert` was set: making the region `inert` blurs a trigger inside it, so the panel
- * reads its return target here, not from `document.activeElement` later (`GL-UI-050`).
+ * (Radix returns it on a later tick, after the exit animation). Returns the panel's return target
+ * (`GL-UI-050`), for the panel to consume and clear on close: the element that held the focus when
+ * `open` began, recorded in an insertion effect, so before a field's `autoFocus` (React applies it
+ * in the layout phase) and before `inert` blurs a trigger inside the region; `<body>` is never
+ * recorded, and the record is cleared when `open` ends. The layout effect copies the record, not
+ * `document.activeElement`, so a StrictMode re-run after `inert` blurred the trigger still finds it.
+ * It fills the return target only while empty: a reopen before the close consumed it (during the
+ * exit animation) keeps the trigger, not an element of the closing panel (#923).
  */
 function useCoveredInert(open: boolean): React.RefObject<HTMLElement | null> {
-  const opener = React.useRef<HTMLElement | null>(null);
+  const recorded = React.useRef<HTMLElement | null>(null);
+  const returnTarget = React.useRef<HTMLElement | null>(null);
+  React.useInsertionEffect(() => {
+    if (!open) {
+      recorded.current = null;
+      return;
+    }
+    const active = document.activeElement;
+    recorded.current = active instanceof HTMLElement && active !== document.body ? active : null;
+  }, [open]);
   React.useLayoutEffect(() => {
     if (!open) return;
-    opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    if (returnTarget.current === null) returnTarget.current = recorded.current;
     const region = contentRegion();
     if (region === null) return;
     let entry = covered.get(region);
@@ -90,7 +104,7 @@ function useCoveredInert(open: boolean): React.RefObject<HTMLElement | null> {
       });
     };
   }, [open]);
-  return opener;
+  return returnTarget;
 }
 
 export { PANEL_SURFACE_CLASS, useCoveredInert, usePanelGeometry };
