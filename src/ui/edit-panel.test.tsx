@@ -1413,17 +1413,14 @@ describe("EditPanel", () => {
     });
 
     it.each(["edit", "view"] as const)(
-      "the non-media preview scroller anchors absolutely positioned content in %s mode (#920, GL-UI-018)",
+      "the slot makes the non-media preview scroller a positioning anchor in %s mode (class check, #920, GL-UI-018)",
       (mode) => {
         const preview = (
-          <article data-testid="scroller">
-            <span data-testid="overlay" className="absolute inset-0" />
+          <article>
+            <span className="absolute inset-0" />
           </article>
         );
-        if (mode === "view") renderPreview({ mode, preview });
-        else renderPreview({ mode, preview });
-        const scroller = screen.getByTestId("scroller");
-        expect(screen.getByTestId("overlay").offsetParent ?? scroller).toBe(scroller);
+        renderPreview(mode === "view" ? { mode, preview } : { mode, preview });
         expect(screen.getByTestId("edit-panel-preview")).toHaveClass(
           "[&>:not(img,video)]:relative",
           "[&>:not(img,video)]:overflow-y-auto",

@@ -1,6 +1,6 @@
-import type * as React from "react";
+import * as React from "react";
 
-import { useOptionalSidebar } from "../shell/sidebar-provider.js";
+import { SIDEBAR_ID, useOptionalSidebar } from "../shell/sidebar-provider.js";
 
 // The surface of every panel over the content area (`EditPanel`, `MediaDetailShell`).
 const PANEL_SURFACE_CLASS =
@@ -31,4 +31,66 @@ function usePanelGeometry(): React.CSSProperties {
   };
 }
 
-export { PANEL_SURFACE_CLASS, usePanelGeometry };
+// The content area a panel covers is `inert` while the panel is open (`SUI-FEATURE-142` rev 3): its
+// controls leave the Tab order and the accessibility tree. One count per region, so it stays
+// `inert` until the last panel over it closes; an `inert` the app set itself is never removed.
+const covered = new Map<HTMLElement, { holds: number; appSet: boolean }>();
+
+/**
+ * The app shell's content region beside the sidebar: the highest ancestor of the page's `<main>` (not
+ * one inside a dialog, such as the help drawer's) that does not contain `#suite-app-sidebar`;
+ * without a sidebar `<main>` itself. With `<main>` containing the sidebar, or without `<main>`, none.
+ */
+function contentRegion(): HTMLElement | null {
+  const main = [...document.querySelectorAll("main")].find(
+    (node) => node.closest('[role="dialog"], [role="alertdialog"]') === null,
+  );
+  if (main === undefined) return null;
+  const sidebar = document.getElementById(SIDEBAR_ID);
+  if (sidebar === null) return main;
+  if (main.contains(sidebar)) return null;
+  let region: HTMLElement = main;
+  while (region.parentElement !== null && !region.parentElement.contains(sidebar)) {
+    region = region.parentElement;
+  }
+  return region;
+}
+
+/**
+ * Holds the covered content region `inert` while `open`: set in a layout effect, so before the
+ * opening focus lands (Radix focuses in a passive effect), whether or not a field takes it itself.
+ * Released as soon as `open` ends or the panel unmounts, so before the focus returns to the trigger
+ * (Radix returns it on a later tick, after the exit animation). Returns the element that held the
+ * focus before `inert` was set: making the region `inert` blurs a trigger inside it, so the panel
+ * reads its return target here, not from `document.activeElement` later (`GL-UI-050`).
+ */
+function useCoveredInert(open: boolean): React.RefObject<HTMLElement | null> {
+  const opener = React.useRef<HTMLElement | null>(null);
+  React.useLayoutEffect(() => {
+    if (!open) return;
+    opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const region = contentRegion();
+    if (region === null) return;
+    let entry = covered.get(region);
+    if (entry === undefined) {
+      entry = { holds: 0, appSet: region.hasAttribute("inert") };
+      covered.set(region, entry);
+      if (!entry.appSet) region.setAttribute("inert", "");
+    }
+    entry.holds += 1;
+    const held = entry;
+    return () => {
+      held.holds -= 1;
+      // Lifted after the current update's effects: a panel replaced by the next in the same update
+      // (a view handing over to its edit panel) keeps the region `inert` throughout.
+      queueMicrotask(() => {
+        if (held.holds > 0 || covered.get(region) !== held) return;
+        covered.delete(region);
+        if (!held.appSet) region.removeAttribute("inert");
+      });
+    };
+  }, [open]);
+  return opener;
+}
+
+export { PANEL_SURFACE_CLASS, useCoveredInert, usePanelGeometry };

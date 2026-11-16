@@ -13,7 +13,7 @@ import { useTranslation } from "react-i18next";
 import { cn } from "../lib/cn.js";
 import { type RowAction, RowActionButton } from "../list/row-actions.js";
 import { isCompositionKey } from "./composition.js";
-import { PANEL_SURFACE_CLASS, usePanelGeometry } from "../lib/panel-geometry.js";
+import { PANEL_SURFACE_CLASS, useCoveredInert, usePanelGeometry } from "../lib/panel-geometry.js";
 import { Button } from "./button.js";
 import { CompositionTabBoundary } from "./composition-tab-internal.js";
 import { DisabledReasonRow, type SubmitLock } from "../lib/disabled-reason-row.js";
@@ -61,6 +61,10 @@ type EditPanelProps = {
   // left of the fields, as large as its column allows; below the package's `panel-split` width it
   // stacks on top. An `img` or `video` as the direct child fills the frame and keeps its ratio; any
   // other preview (post, page, template) takes the frame's width and scrolls inside it when taller.
+  /**
+   * The slot makes its non-media direct child `relative` + `overflow-y-auto`, overriding a
+   * consumer's own position utility on that child.
+   */
   preview?: React.ReactNode;
   // Without `onSubmit` the panel has no save target: the footer carries Close alone.
   submitLabel?: string;
@@ -288,6 +292,7 @@ function EditPanel({
   }, [open, guard, onOpenChange]);
 
   const geometry = usePanelGeometry();
+  const opener = useCoveredInert(open);
   const Body = view ? "div" : "form";
   const fields = (
     <FieldSubmitContext.Provider value={view ? null : submits}>
@@ -428,8 +433,8 @@ function EditPanel({
           className={cn(PANEL_SURFACE_CLASS, className)}
           style={{ ...style, ...geometry }}
           onOpenAutoFocus={(event) => {
-            returnFocus.current =
-              document.activeElement instanceof HTMLElement ? document.activeElement : null;
+            // Read before the covered region went `inert` (`SUI-FEATURE-142`, `GL-UI-050`).
+            returnFocus.current = opener.current;
             event.preventDefault();
             const content = event.currentTarget as HTMLElement;
             const field =

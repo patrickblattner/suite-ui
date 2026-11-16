@@ -6,6 +6,7 @@ import {
   TriangleAlertIcon,
 } from "lucide-react";
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { getI18n, useTranslation } from "react-i18next";
 import {
   type ExternalToast,
@@ -1226,7 +1227,10 @@ function Toaster({ theme = "light", toastOptions, ...props }: ToasterAppProps) {
       <span className="sr-only">{name}</span>
     </>
   );
-  return (
+  if (typeof document === "undefined") return null;
+  // Portaled into the body wherever the app places it, so a content region gone `inert` under an
+  // open panel never swallows a toast (`SUI-FEATURE-142` rev 3); sonner positions the toasts fixed.
+  return createPortal(
     <div ref={toasts} onClick={dismissAllOnToastClick}>
       <Sonner
         theme={theme}
@@ -1261,7 +1265,8 @@ function Toaster({ theme = "light", toastOptions, ...props }: ToasterAppProps) {
         offset={TOAST_OFFSET}
         mobileOffset={TOAST_OFFSET}
       />
-    </div>
+    </div>,
+    document.body,
   );
 }
 

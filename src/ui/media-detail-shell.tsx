@@ -18,7 +18,7 @@ import { Link } from "react-router-dom";
 import { isTextField } from "../lib/keyboard.js";
 import { isCompositionKey } from "./composition.js";
 import { type RowActionSet, type RowUsage, useRowActionButtons } from "../list/row-actions.js";
-import { PANEL_SURFACE_CLASS, usePanelGeometry } from "../lib/panel-geometry.js";
+import { PANEL_SURFACE_CLASS, useCoveredInert, usePanelGeometry } from "../lib/panel-geometry.js";
 import { Button } from "./button.js";
 import { CompositionTabBoundary } from "./composition-tab-internal.js";
 import {
@@ -428,6 +428,7 @@ function MediaDetailShell({
     givenState === undefined && kind !== "text" && kind !== "other" && !loadable(src ?? "");
   const previewState = refused ? "noRenderer" : givenState;
   const geometry = usePanelGeometry();
+  const opener = useCoveredInert(open);
   const returnFocus = React.useRef<HTMLElement | null>(null);
   const preview = React.useRef<HTMLDivElement>(null);
   // A submit shows every field's error and focuses the first invalid field (`GL-UI-038`).
@@ -748,8 +749,8 @@ function MediaDetailShell({
           className={PANEL_SURFACE_CLASS}
           style={geometry}
           onOpenAutoFocus={(event) => {
-            returnFocus.current =
-              document.activeElement instanceof HTMLElement ? document.activeElement : null;
+            // Read before the covered region went `inert` (`SUI-FEATURE-142`, `GL-UI-050`).
+            returnFocus.current = opener.current;
             event.preventDefault();
             (event.currentTarget as HTMLElement).focus();
           }}

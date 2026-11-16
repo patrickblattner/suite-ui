@@ -1,0 +1,477 @@
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import * as React from "react";
+import { describe, expect, it, vi } from "vitest";
+
+import { AppSidebar } from "../shell/app-sidebar.js";
+import { SIDEBAR_ID } from "../shell/sidebar-provider.js";
+import { ShellHarness, TEST_NAV } from "../shell/test-utils.js";
+import { EditPanel } from "./edit-panel.js";
+import { Input } from "./input.js";
+import { MediaDetailShell } from "./media-detail-shell.js";
+import { toast, Toaster } from "./toaster.js";
+
+// SUI-FEATURE-142: while an `EditPanel` or `MediaDetailShell` is open, the app shell's content
+// region beside the sidebar is `inert`. jsdom does not enforce `inert` (Tab order, accessibility
+// tree); the attribute is the binding checked here.
+
+// Whether the trigger had the content region `inert` at the moment it took the focus back.
+const focusedWhileInert: boolean[] = [];
+
+// The cockpit's layout: the sidebar beside a wrapper that holds `main`.
+function Shell({ children }: { children: React.ReactNode }) {
+  return (
+    <ShellHarness>
+      <div className="flex">
+        <AppSidebar
+          instanceName="Test instance"
+          nav={TEST_NAV}
+          isAllowed={() => true}
+          userMenu={<div data-testid="user-block" />}
+        />
+        <div data-testid="content">
+          <main>{children}</main>
+        </div>
+      </div>
+    </ShellHarness>
+  );
+}
+
+function Trigger({ onClick, id = "trigger" }: { onClick: () => void; id?: string }) {
+  return (
+    <button
+      type="button"
+      data-testid={id}
+      onClick={onClick}
+      onFocus={() => focusedWhileInert.push(screen.getByTestId("content").hasAttribute("inert"))}
+    >
+      Open
+    </button>
+  );
+}
+
+const content = () => screen.getByTestId("content");
+const sidebar = () => document.getElementById(SIDEBAR_ID)!;
+
+function openFrom(id: string) {
+  const trigger = screen.getByTestId(id);
+  act(() => trigger.focus());
+  fireEvent.click(trigger);
+}
+
+// The trigger took the focus back once, with the content region no longer `inert` (AC 4).
+async function expectLiftedBeforeFocus() {
+  await waitFor(() => expect(screen.getByTestId("trigger")).toHaveFocus());
+  expect(focusedWhileInert).toEqual([false]);
+  expect(content()).not.toHaveAttribute("inert");
+}
+
+type Mode = "add" | "edit" | "view";
+
+function PanelPage({ mode, dirty = false }: { mode: Mode; dirty?: boolean }) {
+  const [open, setOpen] = React.useState(false);
+  const panel =
+    mode === "view" ? (
+      <EditPanel open={open} onOpenChange={setOpen} title="Item" mode="view">
+        <Input aria-label="Name" />
+      </EditPanel>
+    ) : (
+      <EditPanel
+        open={open}
+        onOpenChange={setOpen}
+        title="Item"
+        mode={mode}
+        dirty={dirty}
+        onSubmit={() => {
+          setOpen(false);
+          return true;
+        }}
+      >
+        <Input aria-label="Name" />
+      </EditPanel>
+    );
+  return (
+    <>
+      <Trigger onClick={() => setOpen(true)} />
+      {panel}
+    </>
+  );
+}
+
+function renderPanel(mode: Mode, dirty = false) {
+  focusedWhileInert.length = 0;
+  render(<Shell>{<PanelPage mode={mode} dirty={dirty} />}</Shell>);
+  openFrom("trigger");
+}
+
+describe("EditPanel: the covered content area is inert while open (SUI-FEATURE-142)", () => {
+  // AC 1, 2, 7
+  it.each(["add", "edit", "view"] as const)(
+    "in %s mode the content region is inert, the sidebar and the panel are not",
+    (mode) => {
+      renderPanel(mode);
+      expect(content()).toHaveAttribute("inert");
+      expect(sidebar().closest("[inert]")).toBeNull();
+      expect(screen.getByTestId("edit-panel").closest("[inert]")).toBeNull();
+      expect(screen.getByTestId("edit-panel")).toContainElement(
+        document.activeElement as HTMLElement,
+      );
+      // The sidebar stays operable (SUI-FEATURE-030 AC 1).
+      const entry = sidebar().querySelector<HTMLElement>("a[href]")!;
+      act(() => entry.focus());
+      expect(entry).toHaveFocus();
+    },
+  );
+
+  // AC 4
+  it.each([
+    ["Cancel", () => fireEvent.click(screen.getByTestId("edit-panel-cancel"))],
+    ["Esc", () => fireEvent.keyDown(screen.getByTestId("edit-panel"), { key: "Escape" })],
+    ["Save", () => fireEvent.click(screen.getByTestId("edit-panel-submit"))],
+  ])("%s lifts inert before the focus returns to the trigger", async (_, close) => {
+    renderPanel("edit");
+    focusedWhileInert.length = 0;
+    close();
+    await expectLiftedBeforeFocus();
+  });
+
+  // AC 3
+  it("the leave dialog opened from the panel is not inert", () => {
+    renderPanel("edit", true);
+    fireEvent.click(screen.getByTestId("edit-panel-cancel"));
+    const dialog = screen.getByTestId("leave-guard");
+    expect(dialog.closest("[inert]")).toBeNull();
+    expect(content()).toHaveAttribute("inert");
+  });
+
+  // AC 6
+  it("with two panels open the region stays inert until the last one closes", async () => {
+    function TwoPanels() {
+      const [a, setA] = React.useState(false);
+      const [b, setB] = React.useState(false);
+      return (
+        <>
+          <Trigger id="open-a" onClick={() => setA(true)} />
+          <Trigger id="open-b" onClick={() => setB(true)} />
+          <EditPanel open={a} onOpenChange={setA} title="A" testIdPrefix="panel-a">
+            x
+          </EditPanel>
+          <EditPanel open={b} onOpenChange={setB} title="B" testIdPrefix="panel-b">
+            y
+          </EditPanel>
+        </>
+      );
+    }
+    render(<Shell>{<TwoPanels />}</Shell>);
+    openFrom("open-a");
+    openFrom("open-b");
+    fireEvent.click(screen.getByTestId("panel-a-cancel"));
+    await waitFor(() => expect(screen.queryByTestId("panel-a")).toBeNull());
+    expect(content()).toHaveAttribute("inert");
+    fireEvent.click(screen.getByTestId("panel-b-cancel"));
+    await waitFor(() => expect(screen.queryByTestId("panel-b")).toBeNull());
+    expect(content()).not.toHaveAttribute("inert");
+  });
+
+  // AC 6
+  it("an inert the app set itself survives open and close", async () => {
+    focusedWhileInert.length = 0;
+    render(<Shell>{<PanelPage mode="edit" />}</Shell>);
+    content().setAttribute("inert", "");
+    openFrom("trigger");
+    fireEvent.click(screen.getByTestId("edit-panel-cancel"));
+    await waitFor(() => expect(screen.queryByTestId("edit-panel")).toBeNull());
+    expect(content()).toHaveAttribute("inert");
+  });
+
+  it("a panel unmounted while open releases its hold", async () => {
+    function Page() {
+      const [shown, setShown] = React.useState(true);
+      return (
+        <>
+          <button type="button" data-testid="drop" onClick={() => setShown(false)} />
+          {shown ? (
+            <EditPanel open onOpenChange={() => {}} title="Item">
+              x
+            </EditPanel>
+          ) : null}
+        </>
+      );
+    }
+    render(<Shell>{<Page />}</Shell>);
+    expect(content()).toHaveAttribute("inert");
+    fireEvent.click(screen.getByTestId("drop"));
+    await waitFor(() => expect(content()).not.toHaveAttribute("inert"));
+  });
+
+  // Radix skips its opening focus when a field already took it (`autoFocus`).
+  it("an autoFocus field in the panel does not keep the region from going inert", () => {
+    function Page() {
+      const [open, setOpen] = React.useState(false);
+      return (
+        <>
+          <Trigger onClick={() => setOpen(true)} />
+          <EditPanel open={open} onOpenChange={setOpen} title="Item" onSubmit={() => {}}>
+            <Input aria-label="Name" autoFocus />
+          </EditPanel>
+        </>
+      );
+    }
+    render(<Shell>{<Page />}</Shell>);
+    openFrom("trigger");
+    expect(screen.getByLabelText("Name")).toHaveFocus();
+    expect(content()).toHaveAttribute("inert");
+  });
+
+  // The ux lens: inert goes with `open`, not after the exit animation.
+  it("closing lifts inert with the closing update, not on the later unmount tick", async () => {
+    renderPanel("edit");
+    focusedWhileInert.length = 0;
+    fireEvent.click(screen.getByTestId("edit-panel-cancel"));
+    await Promise.resolve();
+    expect(content()).not.toHaveAttribute("inert");
+    await expectLiftedBeforeFocus();
+  });
+});
+
+describe("EditPanel hand-over and toasts under the inert region (SUI-FEATURE-142)", () => {
+  // AC 6: a view handing over to its edit panel in one update.
+  it("the view's Edit opening the edit panel keeps the region inert throughout", async () => {
+    function ViewThenEdit() {
+      const [shown, setShown] = React.useState<"none" | "view" | "edit">("none");
+      const close = (open: boolean) => {
+        if (!open) setShown("none");
+      };
+      const edit = (
+        <button type="button" data-testid="view-edit" onClick={() => setShown("edit")}>
+          Edit
+        </button>
+      );
+      return (
+        <>
+          <Trigger onClick={() => setShown("view")} />
+          <EditPanel
+            open={shown === "view"}
+            onOpenChange={close}
+            title="Avatar"
+            mode="view"
+            testIdPrefix="view-panel"
+            actions={edit}
+          >
+            x
+          </EditPanel>
+          <EditPanel open={shown === "edit"} onOpenChange={close} title="Avatar" mode="edit">
+            y
+          </EditPanel>
+        </>
+      );
+    }
+    focusedWhileInert.length = 0;
+    render(<Shell>{<ViewThenEdit />}</Shell>);
+    openFrom("trigger");
+    focusedWhileInert.length = 0;
+    const changes: (string | null)[] = [];
+    const observer = new MutationObserver((records) =>
+      records.forEach((record) => changes.push(record.oldValue)),
+    );
+    observer.observe(content(), {
+      attributes: true,
+      attributeFilter: ["inert"],
+      attributeOldValue: true,
+    });
+    fireEvent.click(screen.getByTestId("view-edit"));
+    await waitFor(() => expect(screen.queryByTestId("view-panel")).toBeNull());
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(changes).toEqual([]);
+    expect(content()).toHaveAttribute("inert");
+    fireEvent.click(screen.getByTestId("edit-panel-cancel"));
+    await expectLiftedBeforeFocus();
+    observer.disconnect();
+  });
+
+  // AC 8: a toast raised with a panel open is operable, though the Toaster sits inside `<main>`.
+  it("a Toaster inside main renders its toasts under the body, outside the inert region", async () => {
+    render(
+      <Shell>
+        <Toaster closeButton />
+        <PanelPage mode="edit" />
+      </Shell>,
+    );
+    openFrom("trigger");
+    act(() => {
+      toast.info("Saved elsewhere");
+    });
+    const item = (await screen.findByText("Saved elsewhere")).closest<HTMLElement>(
+      "[data-sonner-toast]",
+    )!;
+    expect(content()).toHaveAttribute("inert");
+    expect(content()).not.toContainElement(item);
+    expect(item.closest("[inert]")).toBeNull();
+    fireEvent.click(item.querySelector<HTMLElement>("[data-close-button]")!);
+    await waitFor(() => expect(screen.queryByText("Saved elsewhere")).toBeNull());
+  });
+});
+
+// AC 7: the region rule, and a `<main>` inside a dialog (the help drawer's) is never the page's.
+describe("the covered region (SUI-FEATURE-142 rev 3 AC 7)", () => {
+  function Panel() {
+    return (
+      <EditPanel open onOpenChange={() => {}} title="Item">
+        x
+      </EditPanel>
+    );
+  }
+
+  it("without the sidebar, main itself goes inert", () => {
+    render(
+      <div data-testid="wrapper">
+        <main data-testid="main">
+          <Panel />
+        </main>
+      </div>,
+    );
+    expect(screen.getByTestId("main")).toHaveAttribute("inert");
+    expect(screen.getByTestId("wrapper")).not.toHaveAttribute("inert");
+  });
+
+  it("with main containing the sidebar, nothing goes inert", () => {
+    render(
+      <ShellHarness>
+        <main data-testid="main">
+          <AppSidebar
+            instanceName="Test instance"
+            nav={TEST_NAV}
+            isAllowed={() => true}
+            userMenu={null}
+          />
+          <Panel />
+        </main>
+      </ShellHarness>,
+    );
+    expect(document.querySelector("[inert]")).toBeNull();
+  });
+
+  it("without main, nothing goes inert", () => {
+    render(
+      <div data-testid="page">
+        <Panel />
+      </div>,
+    );
+    expect(document.querySelector("[inert]")).toBeNull();
+  });
+
+  it("a main inside a dialog is skipped for the page's main", () => {
+    render(
+      <>
+        <div role="dialog" data-testid="drawer">
+          <main data-testid="drawer-main" />
+        </div>
+        <main data-testid="main">
+          <Panel />
+        </main>
+      </>,
+    );
+    expect(screen.getByTestId("main")).toHaveAttribute("inert");
+    expect(screen.getByTestId("drawer-main")).not.toHaveAttribute("inert");
+  });
+});
+
+describe("MediaDetailShell: the covered content area is inert while open (SUI-FEATURE-142)", () => {
+  // `kept`: the shell stays mounted and follows its `open` prop.
+  function MediaPage({ kept = false }: { kept?: boolean }) {
+    const [open, setOpen] = React.useState(false);
+    const [position, setPosition] = React.useState(3);
+    return (
+      <>
+        <Trigger onClick={() => setOpen(true)} />
+        {kept || open ? (
+          <MediaDetailShell
+            open={open}
+            position={position}
+            total={65}
+            kind="image"
+            src="/media/team-photo.jpg"
+            alt="team-photo.jpg"
+            dirty={false}
+            saving={false}
+            fields={<Input aria-label="Name" />}
+            onPrev={() => setPosition((p) => p - 1)}
+            onNext={() => setPosition((p) => p + 1)}
+            onClose={() => setOpen(false)}
+            onSave={vi.fn()}
+            onReset={vi.fn()}
+          />
+        ) : null}
+      </>
+    );
+  }
+
+  // AC 5
+  it("is inert while open and paging, lifted before the focus returns", async () => {
+    focusedWhileInert.length = 0;
+    render(<Shell>{<MediaPage />}</Shell>);
+    openFrom("trigger");
+    focusedWhileInert.length = 0;
+    const panel = screen.getByTestId("media-detail");
+    expect(content()).toHaveAttribute("inert");
+    expect(panel.closest("[inert]")).toBeNull();
+    expect(sidebar().closest("[inert]")).toBeNull();
+    fireEvent.keyDown(panel, { key: "ArrowRight" });
+    fireEvent.keyDown(panel, { key: "ArrowLeft" });
+    expect(content()).toHaveAttribute("inert");
+    fireEvent.keyDown(panel, { key: "Escape" });
+    await expectLiftedBeforeFocus();
+  });
+  it("a shell kept mounted follows its open prop", async () => {
+    focusedWhileInert.length = 0;
+    render(<Shell>{<MediaPage kept />}</Shell>);
+    expect(content()).not.toHaveAttribute("inert");
+    openFrom("trigger");
+    expect(content()).toHaveAttribute("inert");
+    focusedWhileInert.length = 0;
+    fireEvent.keyDown(screen.getByTestId("media-detail"), { key: "Escape" });
+    await expectLiftedBeforeFocus();
+    openFrom("trigger");
+    expect(content()).toHaveAttribute("inert");
+  });
+});
+
+// GL-UI-050: a browser blurs the focused trigger once its region goes `inert`; an open not driven by
+// a user event in the same task (after an await) still returns the focus to it.
+describe("focus return after a programmatic open (SUI-FEATURE-142)", () => {
+  it("Esc returns the focus to the trigger that held it before the region went inert", async () => {
+    const opener: { open?: () => void } = {};
+    function Page() {
+      const [open, setOpen] = React.useState(false);
+      React.useEffect(() => {
+        opener.open = () => setOpen(true);
+      }, []);
+      return (
+        <>
+          <Trigger onClick={() => {}} />
+          <EditPanel open={open} onOpenChange={setOpen} title="Item" mode="view">
+            x
+          </EditPanel>
+        </>
+      );
+    }
+    focusedWhileInert.length = 0;
+    render(<Shell>{<Page />}</Shell>);
+    // jsdom keeps the focus on an inert element; emulate the browser's blur.
+    const region = content();
+    const set = region.setAttribute.bind(region);
+    vi.spyOn(region, "setAttribute").mockImplementation((name, value) => {
+      set(name, value);
+      if (name === "inert" && region.contains(document.activeElement)) {
+        (document.activeElement as HTMLElement).blur();
+      }
+    });
+    act(() => screen.getByTestId("trigger").focus());
+    focusedWhileInert.length = 0;
+    await Promise.resolve();
+    act(() => opener.open!());
+    expect(region).toHaveAttribute("inert");
+    expect(screen.getByTestId("trigger")).not.toHaveFocus();
+    fireEvent.keyDown(screen.getByTestId("edit-panel"), { key: "Escape" });
+    await expectLiftedBeforeFocus();
+  });
+});
