@@ -114,13 +114,13 @@ body {
 
 /* The list page stands in for an app's fixed full-height frame (`GL-UI-018`): the document never
    scrolls, the PageScroll inside the frame does. */
-#root:has(> main.frame) {
+#root:has(> .frame) {
   display: flex;
   flex-direction: column;
   height: 100dvh;
 }
 
-#root > main.frame {
+#root > .frame {
   display: flex;
   flex: 1;
   flex-direction: column;

@@ -21185,3 +21185,76 @@ test("row action hint", async ({ page }) => {
   );
   await expect(page).toHaveScreenshot("list-row-action-hint-en-light.png");
 });
+
+// `SUI-FEATURE-142` rev 4 AC 9: with a 40 px band above the sidebar row the panel covers exactly the
+// inert region. Its top edge is the region's; the band stays visible, focusable and not inert; at
+// every covered control the panel is hit, at every band control the band.
+async function expectRegionGeometry(page: Page, panel: Locator) {
+  const band = page.getByTestId("status-band");
+  const main = page.locator("main");
+  await expect(main).toHaveAttribute("inert", "");
+  await expect.poll(() => panel.evaluate((node) => node.getAnimations().length)).toBe(0);
+  const bandBox = await box(band);
+  expect(bandBox.height).toBe(40);
+  const panelBox = await box(panel);
+  expect(Math.abs(panelBox.y - (await box(main)).y)).toBeLessThanOrEqual(1);
+  expect(panelBox.y).toBeGreaterThanOrEqual(bandBox.y + bandBox.height - 1);
+  expect(await band.evaluate((node) => node.closest("[inert]") === null)).toBe(true);
+  const misses = await panel.evaluate((surface) => {
+    const center = (node: Element) => {
+      const rect = node.getBoundingClientRect();
+      return [rect.x + rect.width / 2, rect.y + rect.height / 2] as const;
+    };
+    const controls = (root: Element) =>
+      [...root.querySelectorAll("button, a[href], input, select, textarea, [tabindex]")].filter(
+        (node) => {
+          const [x, y] = center(node);
+          const rect = node.getBoundingClientRect();
+          return rect.width > 0 && y >= 0 && y < innerHeight && x >= 0 && x < innerWidth;
+        },
+      );
+    const band = document.querySelector("[data-testid=status-band]")!;
+    const covered = controls(document.querySelector("main")!);
+    const missed = covered.filter(
+      (node) => !surface.contains(document.elementFromPoint(...center(node))),
+    );
+    const bandMissed = controls(band).filter(
+      (node) => !band.contains(document.elementFromPoint(...center(node))),
+    );
+    return { covered: covered.length, missed: missed.length, bandMissed: bandMissed.length };
+  });
+  expect(misses.covered).toBeGreaterThan(0);
+  expect(misses).toMatchObject({ missed: 0, bandMissed: 0 });
+  const hide = band.getByTestId("status-band-hide");
+  await hide.focus();
+  await expect(hide).toBeFocused();
+  await expect(panel).toBeVisible();
+}
+
+test("edit panel: the top edge follows the region below a band, also when the band leaves", async ({
+  page,
+}) => {
+  await page.goto("/?page=edit-panel&band=1&lng=en");
+  await page.getByTestId("view-panel-trigger").click();
+  const panel = page.getByTestId("view-panel");
+  await expectRegionGeometry(page, panel);
+  const before = (await box(panel)).y;
+  await page.getByTestId("status-band-hide").click();
+  await expect(page.getByTestId("status-band")).toHaveCount(0);
+  await expect(panel).toBeVisible();
+  await expect.poll(async () => before - (await box(panel)).y).toBe(40);
+  expect(Math.abs((await box(panel)).y - (await box(page.locator("main"))).y)).toBeLessThanOrEqual(
+    1,
+  );
+});
+
+test("media detail shell: the top edge is the region's below a band, also while paging", async ({
+  page,
+}) => {
+  const shell = await openMediaDetail(page, "&band=1&lng=en");
+  await expectRegionGeometry(page, shell);
+  await shell.getByTestId("media-detail-next").focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(shell.getByTestId("media-detail-position")).toHaveText("2 of 3");
+  await expectRegionGeometry(page, shell);
+});

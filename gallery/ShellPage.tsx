@@ -231,6 +231,10 @@ export function ShellPage({ content }: { content?: ReactNode } = {}) {
   // are no catalogue keys, so they show as written; the role comes from the gallery's labels per
   // language.
   const longName = params.get("longName") === "1";
+  // `?band=1` (`SUI-FEATURE-142` rev 4): a 40 px dev-mode band above the sidebar row, removable with
+  // its own button, and the content column as the app's `<main>`.
+  const [band, setBand] = useState(params.get("band") === "1");
+  const Column = params.get("band") === "1" ? "main" : "div";
   const instanceName = longName ? "Suite gallery community" : SHELL_DATA.instanceName;
   const userName = longName ? "Ada Augusta King, Countess of Lovelace" : SHELL_DATA.userName;
   const role = t(longName ? "longRole" : "role");
@@ -248,6 +252,23 @@ export function ShellPage({ content }: { content?: ReactNode } = {}) {
   return (
     <MemoryRouter initialEntries={[route]}>
       <SidebarProvider storageKey="gallery.sidebar.open">
+        {band && (
+          <div
+            className="flex h-10 shrink-0 items-center gap-2 border-b bg-muted px-4 text-sm"
+            data-testid="status-band"
+          >
+            Dev mode
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setBand(false)}
+              data-testid="status-band-hide"
+            >
+              Hide band
+            </Button>
+          </div>
+        )}
         <div className="flex min-h-0 flex-1" data-testid="shell-frame">
           <AppSidebar
             instanceName={instanceName}
@@ -286,7 +307,7 @@ export function ShellPage({ content }: { content?: ReactNode } = {}) {
               </UserMenu>
             }
           />
-          <div className="flex min-w-0 flex-1 flex-col">{content ?? <Content />}</div>
+          <Column className="flex min-w-0 flex-1 flex-col">{content ?? <Content />}</Column>
         </div>
       </SidebarProvider>
     </MemoryRouter>

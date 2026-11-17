@@ -296,7 +296,7 @@ function EditPanel({
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [open, guard, onOpenChange]);
 
-  const geometry = usePanelGeometry();
+  const geometry = usePanelGeometry(open);
   const { returnTarget: returnTargetRef } = useCoveredInert(open);
   const Body = view ? "div" : "form";
   const fields = (

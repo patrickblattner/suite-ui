@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import * as React from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AppSidebar } from "../shell/app-sidebar.js";
 import { SIDEBAR_ID } from "../shell/sidebar-provider.js";
@@ -372,6 +372,123 @@ describe("the covered region (SUI-FEATURE-142 rev 3 AC 7)", () => {
     );
     expect(screen.getByTestId("main")).toHaveAttribute("inert");
     expect(screen.getByTestId("drawer-main")).not.toHaveAttribute("inert");
+  });
+});
+
+// SUI-FEATURE-142 rev 4: the panel's top edge is the covered region's (a band above the sidebar row
+// stays frame) and follows it while open; without a located region the panel keeps full height.
+// jsdom does no layout, so the region's top is stubbed; the real geometry is gallery AC 9.
+describe("the panel's top edge follows the covered region (SUI-FEATURE-142 rev 4)", () => {
+  let regionTop = 40;
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+  function stubRegionTop() {
+    // jsdom measures every other element as an empty rect at 0.
+    return vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      return this.dataset.testid === "content"
+        ? new DOMRect(224, regionTop, 800, 600 - regionTop)
+        : new DOMRect();
+    });
+  }
+
+  it.each(["edit", "media"] as const)(
+    "%s: top edge at the region's top, following it when the band leaves",
+    (kind) => {
+      regionTop = 40;
+      stubRegionTop();
+      render(
+        <Shell>
+          {kind === "edit" ? (
+            <EditPanel open onOpenChange={() => {}} title="Item" mode="view">
+              x
+            </EditPanel>
+          ) : (
+            <MediaDetailShell
+              open
+              position={1}
+              total={2}
+              kind="image"
+              src="/media/team-photo.jpg"
+              alt="team-photo.jpg"
+              dirty={false}
+              saving={false}
+              fields={null}
+              onPrev={vi.fn()}
+              onNext={vi.fn()}
+              onClose={vi.fn()}
+              onSave={vi.fn()}
+              onReset={vi.fn()}
+            />
+          )}
+        </Shell>,
+      );
+      const panel = screen.getByRole("dialog");
+      expect(panel.style.top).toBe("40px");
+      expect(panel.style.bottom).toBe("0px");
+      regionTop = 0;
+      act(() => {
+        window.dispatchEvent(new Event("resize"));
+      });
+      expect(panel.style.top).toBe("0px");
+    },
+  );
+
+  // An app's own scroll container scrolling moves the region; scroll does not bubble, so the
+  // listener captures it.
+  it("follows a scroll inside an app's own scroll container", () => {
+    regionTop = 40;
+    stubRegionTop();
+    render(
+      <Shell>
+        <div data-testid="scroller">
+          <EditPanel open onOpenChange={() => {}} title="Item" mode="view">
+            x
+          </EditPanel>
+        </div>
+      </Shell>,
+    );
+    const panel = screen.getByRole("dialog");
+    expect(panel.style.top).toBe("40px");
+    regionTop = 12;
+    act(() => {
+      screen.getByTestId("scroller").dispatchEvent(new Event("scroll"));
+    });
+    expect(panel.style.top).toBe("12px");
+  });
+
+  it("without a located region the panel keeps full height", () => {
+    render(
+      <div data-testid="content">
+        <EditPanel open onOpenChange={() => {}} title="Item">
+          x
+        </EditPanel>
+      </div>,
+    );
+    expect(screen.getByRole("dialog").style.top).toBe("0px");
+  });
+
+  it("with main containing the sidebar the panel keeps full height", () => {
+    regionTop = 40;
+    stubRegionTop();
+    render(
+      <ShellHarness>
+        <main data-testid="content">
+          <AppSidebar
+            instanceName="Test instance"
+            nav={TEST_NAV}
+            isAllowed={() => true}
+            userMenu={null}
+          />
+          <EditPanel open onOpenChange={() => {}} title="Item">
+            x
+          </EditPanel>
+        </main>
+      </ShellHarness>,
+    );
+    expect(screen.getByRole("dialog").style.top).toBe("0px");
   });
 });
 

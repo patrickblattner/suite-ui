@@ -10,9 +10,57 @@ const PANEL_SURFACE_CLASS =
 // Edges and width belong to the package (`GL-UI-027`): set inline after the caller's style, they win
 // over every width or inset class and style of the call site. The left edge sits at the current
 // sidebar width, so the navigation stays visible and operable; below `md`, where the sidebar is an
-// overlay, at 0 (`--sidebar-inset`, `SUI-FEATURE-110`).
-function usePanelGeometry(): React.CSSProperties {
+// overlay, at 0 (`--sidebar-inset`, `SUI-FEATURE-110`). The top edge is the covered region's top edge
+// (`SUI-FEATURE-142` rev 4): app chrome above it (a status or dev-mode band) is frame like the sidebar,
+// never covered. It follows the region live while open; without a located region it is 0.
+function usePanelGeometry(open: boolean): React.CSSProperties {
   const sidebar = useOptionalSidebar();
+  // The top edge measured last, read by every render: measured once on open and on every change of
+  // the region; a closing panel keeps it through its exit animation.
+  const measured = React.useRef<{ top: number; fresh: boolean }>({ top: 0, fresh: false });
+  const subscribe = React.useCallback(
+    (changed: () => void) => {
+      if (!open) return () => {};
+      const measure = () => {
+        const top = regionTop();
+        if (top === measured.current.top) return;
+        measured.current.top = top;
+        changed();
+      };
+      // The region may only now be in the document (a panel mounted open).
+      measure();
+      const region = contentRegion();
+      if (region === null) return () => {};
+      // A band appearing, leaving or changing height resizes the region (a fixed-height frame) or one
+      // of its ancestors (a scrolling document); a scroll of the document or of an app's own scroll
+      // container moves it.
+      const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
+      for (let node: Element | null = region; node !== null; node = node.parentElement) {
+        observer?.observe(node);
+      }
+      window.addEventListener("resize", measure);
+      window.addEventListener("scroll", measure, { capture: true, passive: true });
+      return () => {
+        observer?.disconnect();
+        window.removeEventListener("resize", measure);
+        window.removeEventListener("scroll", measure, { capture: true });
+      };
+    },
+    [open],
+  );
+  const top = React.useSyncExternalStore(
+    subscribe,
+    () => {
+      const cache = measured.current;
+      if (!open) cache.fresh = false;
+      else if (!cache.fresh) {
+        cache.top = regionTop();
+        cache.fresh = true;
+      }
+      return cache.top;
+    },
+    () => 0,
+  );
   const left =
     sidebar === null
       ? 0
@@ -20,7 +68,7 @@ function usePanelGeometry(): React.CSSProperties {
         ? "calc(var(--sidebar-width) * var(--sidebar-inset))"
         : "calc(var(--sidebar-width-collapsed) * var(--sidebar-inset))";
   return {
-    top: 0,
+    top,
     right: 0,
     bottom: 0,
     left,
@@ -55,6 +103,12 @@ function contentRegion(): HTMLElement | null {
     region = region.parentElement;
   }
   return region;
+}
+
+/** The covered region's top edge in the viewport, 0 without a located region. */
+function regionTop(): number {
+  const region = contentRegion();
+  return region === null ? 0 : Math.max(0, region.getBoundingClientRect().top);
 }
 
 /**

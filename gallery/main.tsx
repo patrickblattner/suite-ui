@@ -91,6 +91,9 @@ const initialTheme: Theme = params.get("theme") === "dark" ? "dark" : "light";
 const initialPage: Page = (PAGES as readonly string[]).includes(params.get("page") ?? "")
   ? (params.get("page") as Page)
   : "strings";
+// `?band=1` (`SUI-FEATURE-142` rev 4): the shell as an app mounts it, with its own `<main>` beside the
+// sidebar and a band above the sidebar row, so the gallery's wrapper is no `<main>` there.
+const GalleryMain = params.get("band") === "1" ? "div" : "main";
 
 await i18n.use(initReactI18next).init({ lng: initialLng, fallbackLng: "en", resources: {} });
 registerSuiteStrings(i18n);
@@ -197,7 +200,7 @@ function Gallery() {
           </select>
         </label>
       </header>
-      <main
+      <GalleryMain
         className={
           page === "list" ||
           page === "settings" ||
@@ -231,7 +234,7 @@ function Gallery() {
         ) : (
           PAGE_CONTENT[page](theme)
         )}
-      </main>
+      </GalleryMain>
     </>
   );
 }

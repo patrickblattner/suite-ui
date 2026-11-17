@@ -428,7 +428,7 @@ function MediaDetailShell({
   const refused =
     givenState === undefined && kind !== "text" && kind !== "other" && !loadable(src ?? "");
   const previewState = refused ? "noRenderer" : givenState;
-  const geometry = usePanelGeometry();
+  const geometry = usePanelGeometry(open);
   const { returnTarget: returnTargetRef, isOpen: panelOpenRef } = useCoveredInert(open);
   const preview = React.useRef<HTMLDivElement>(null);
   // A submit shows every field's error and focuses the first invalid field (`GL-UI-038`).
