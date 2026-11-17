@@ -21,6 +21,7 @@ import { type RowActionSet, type RowUsage, useRowActionButtons } from "../list/r
 import { PANEL_SURFACE_CLASS, useCoveredInert, usePanelGeometry } from "../lib/panel-geometry.js";
 import { Button } from "./button.js";
 import { CompositionTabBoundary } from "./composition-tab-internal.js";
+import { returnFocus } from "./focus-return.js";
 import {
   createFieldDrafts,
   FieldDraftsContext,
@@ -428,7 +429,7 @@ function MediaDetailShell({
     givenState === undefined && kind !== "text" && kind !== "other" && !loadable(src ?? "");
   const previewState = refused ? "noRenderer" : givenState;
   const geometry = usePanelGeometry();
-  const returnFocusRef = useCoveredInert(open);
+  const { returnTarget: returnTargetRef, isOpen: panelOpenRef } = useCoveredInert(open);
   const preview = React.useRef<HTMLDivElement>(null);
   // A submit shows every field's error and focuses the first invalid field (`GL-UI-038`).
   const [submits, submitted, endSubmits, submitEnds] = useFieldSubmits();
@@ -753,8 +754,13 @@ function MediaDetailShell({
           }}
           onCloseAutoFocus={(event) => {
             event.preventDefault();
-            returnFocusRef.current?.focus({ preventScroll: true });
-            returnFocusRef.current = null;
+            // Reopened before this close's return ran: the reopened panel holds the focus and keeps
+            // the return target for its own close (#924).
+            if (panelOpenRef.current) return;
+            const target = returnTargetRef.current;
+            returnTargetRef.current = null;
+            // `GL-UI-050`: the trigger, else its group, the main content, the nearest container.
+            if (target !== null && target.moved !== true) returnFocus(target.opener);
           }}
           onInteractOutside={(event) => event.preventDefault()}
           onEscapeKeyDown={(event) => {

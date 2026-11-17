@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Fixed (#924, GL-UI-050, patch):** `EditPanel` and `MediaDetailShell` return the focus on close by `GL-UI-050`'s full order, through the dialogs' shared helper (`focus-return.ts`): the trigger (the menu trigger for a panel opened from a menu entry), else, when it is gone or `disabled`, the next usable control of its group after it, then before it, else the surface's main content (`data-focus-main`, else `<main>` without a tab stop), else the nearest remaining container without a tab stop; never `<body>`, never a navigation element. Without a focused trigger (a click in Safari) the clicked control counts; without any, the chain starts at the main content. `MediaDetailShell` keeps its return target across a close→reopen before the focus returned, and a shell the app remounts per item while paging hands the target to the next one.
+
 ## 0.245.1 — #923: `EditPanel`/`MediaDetailShell` return focus to the trigger when a field has `autoFocus` (patch)
 
 - **Fixed (#923, GL-UI-050, patch):** `EditPanel` and `MediaDetailShell` return the focus to the trigger on close (Cancel, `Esc`, Save) also when a field in the panel takes the focus with `autoFocus`, and when a panel mounted already open runs its effects twice under React StrictMode; before, the focus dropped to `<body>`. The trigger is recorded before `autoFocus` and `inert` act, never overwritten by `<body>`, and cleared when the panel closes.

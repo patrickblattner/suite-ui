@@ -1,6 +1,7 @@
 import * as React from "react";
 
 import { SIDEBAR_ID, useOptionalSidebar } from "../shell/sidebar-provider.js";
+import { captureOpener, type Opener, trackFocus } from "../ui/focus-return.js";
 
 // The surface of every panel over the content area (`EditPanel`, `MediaDetailShell`).
 const PANEL_SURFACE_CLASS =
@@ -57,32 +58,70 @@ function contentRegion(): HTMLElement | null {
 }
 
 /**
+ * The return target a panel holds while open (`GL-UI-050`): the opener noted when `open` began, `null`
+ * inside when nothing had the focus (the fallback chain then starts at the main content). `moved` once
+ * a panel opening in the same update took it over: the unmounted panel's close leaves the focus alone.
+ */
+type PanelReturn = { opener: Opener | null; moved?: true };
+
+// The return target of a panel unmounted while open, for a panel opening in the same update (an app
+// that remounts its panel per item while paging); cleared after the update. Unclaimed, the unmounted
+// panel's close returns the focus with it as usual.
+let handedOn: PanelReturn | null = null;
+
+/**
  * Holds the covered content region `inert` while `open`: set in a layout effect, so before the
  * opening focus lands (Radix focuses in a passive effect), whether or not a field takes it itself.
- * Released as soon as `open` ends or the panel unmounts, so before the focus returns to the trigger
- * (Radix returns it on a later tick, after the exit animation). Returns the panel's return target
- * (`GL-UI-050`), for the panel to consume and clear on close: the element that held the focus when
- * `open` began, recorded in an insertion effect, so before a field's `autoFocus` (React applies it
- * in the layout phase) and before `inert` blurs a trigger inside the region; `<body>` is never
- * recorded, and the record is cleared when `open` ends. The layout effect copies the record, not
- * `document.activeElement`, so a StrictMode re-run after `inert` blurred the trigger still finds it.
- * It fills the return target only while empty: a reopen before the close consumed it (during the
- * exit animation) keeps the trigger, not an element of the closing panel (#923).
+ * Released as soon as `open` ends or the panel unmounts, so before the focus returns (Radix returns
+ * it on a later tick, after the exit animation). Returns the panel's return target (`GL-UI-050`), for
+ * the panel to consume and clear on close with `returnFocus` (`focus-return.ts`: the trigger, the
+ * menu trigger for a menu entry, else targets 2–4), and whether the panel is open now. The opener is
+ * noted in an insertion effect, so before a field's `autoFocus` (React applies it in the layout phase)
+ * and before `inert` blurs a trigger inside the region; with the focus on `<body>` the last control
+ * acted on stands in (a click in Safari does not focus a button). The record is cleared when `open`
+ * ends. The layout effect copies the record, so a StrictMode re-run after `inert` blurred the trigger
+ * still finds it. It fills the return target only while empty: a reopen before the close consumed it
+ * (during the exit animation) keeps the trigger, not an element of the closing panel (#923).
  */
-function useCoveredInert(open: boolean): React.RefObject<HTMLElement | null> {
-  const recorded = React.useRef<HTMLElement | null>(null);
-  const returnTarget = React.useRef<HTMLElement | null>(null);
+function useCoveredInert(open: boolean): {
+  returnTarget: React.RefObject<PanelReturn | null>;
+  isOpen: React.RefObject<boolean>;
+} {
+  trackFocus();
+  const recorded = React.useRef<PanelReturn | null>(null);
+  const returnTarget = React.useRef<PanelReturn | null>(null);
+  const isOpen = React.useRef(false);
   React.useInsertionEffect(() => {
-    if (!open) {
-      recorded.current = null;
-      return;
-    }
-    const active = document.activeElement;
-    recorded.current = active instanceof HTMLElement && active !== document.body ? active : null;
+    recorded.current = open ? { opener: captureOpener() } : null;
+  }, [open]);
+  // Declared before the effect below, so its cleanup on unmount still sees `isOpen`.
+  React.useLayoutEffect(() => {
+    // A StrictMode re-run: the panel is still here, so it handed nothing on.
+    if (handedOn !== null && handedOn === returnTarget.current) handedOn = null;
+    return () => {
+      const target = returnTarget.current;
+      if (!isOpen.current || target === null) return;
+      handedOn = target;
+      queueMicrotask(() => {
+        if (handedOn === target) handedOn = null;
+      });
+    };
+  }, []);
+  React.useLayoutEffect(() => {
+    if (!open) return;
+    isOpen.current = true;
+    return () => {
+      isOpen.current = false;
+    };
   }, [open]);
   React.useLayoutEffect(() => {
     if (!open) return;
-    if (returnTarget.current === null) returnTarget.current = recorded.current;
+    if (returnTarget.current === null) {
+      const previous = handedOn;
+      handedOn = null;
+      if (previous !== null) previous.moved = true;
+      returnTarget.current = previous === null ? recorded.current : { opener: previous.opener };
+    }
     const region = contentRegion();
     if (region === null) return;
     let entry = covered.get(region);
@@ -104,7 +143,7 @@ function useCoveredInert(open: boolean): React.RefObject<HTMLElement | null> {
       });
     };
   }, [open]);
-  return returnTarget;
+  return { returnTarget, isOpen };
 }
 
-export { PANEL_SURFACE_CLASS, useCoveredInert, usePanelGeometry };
+export { PANEL_SURFACE_CLASS, type PanelReturn, useCoveredInert, usePanelGeometry };

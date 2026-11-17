@@ -13,11 +13,17 @@ import { useTranslation } from "react-i18next";
 import { cn } from "../lib/cn.js";
 import { type RowAction, RowActionButton } from "../list/row-actions.js";
 import { isCompositionKey } from "./composition.js";
-import { PANEL_SURFACE_CLASS, useCoveredInert, usePanelGeometry } from "../lib/panel-geometry.js";
+import {
+  PANEL_SURFACE_CLASS,
+  type PanelReturn,
+  useCoveredInert,
+  usePanelGeometry,
+} from "../lib/panel-geometry.js";
 import { Button } from "./button.js";
 import { CompositionTabBoundary } from "./composition-tab-internal.js";
 import { DisabledReasonRow, type SubmitLock } from "../lib/disabled-reason-row.js";
 import { FIELD_SELECTOR } from "./dialog.js";
+import { returnFocus } from "./focus-return.js";
 import { createFieldDrafts, FieldDraftsContext } from "./field-drafts-internal.js";
 import {
   FieldSubmitContext,
@@ -33,7 +39,7 @@ import { IconButtonTooltip } from "./tooltip.js";
 
 // The return target a closing panel hands to the panel it handed over to (a view's Edit opening an
 // edit panel): that panel's own target, the view's Edit, is gone once the view has closed.
-const handedOver = new WeakMap<HTMLElement, HTMLElement>();
+const handedOver = new WeakMap<HTMLElement, PanelReturn>();
 
 // A record's decision actions in the panel head (`SUI-FEATURE-420`): `secondary` as `outline` in array
 // order, then the one `primary` as `success` rightmost; each labelled, size `sm`, never folded.
@@ -291,7 +297,7 @@ function EditPanel({
   }, [open, guard, onOpenChange]);
 
   const geometry = usePanelGeometry();
-  const returnFocusRef = useCoveredInert(open);
+  const { returnTarget: returnTargetRef } = useCoveredInert(open);
   const Body = view ? "div" : "form";
   const fields = (
     <FieldSubmitContext.Provider value={view ? null : submits}>
@@ -445,17 +451,19 @@ function EditPanel({
           onCloseAutoFocus={(event) => {
             event.preventDefault();
             const self = event.currentTarget as HTMLElement;
-            const target = handedOver.get(self) ?? returnFocusRef.current;
+            const target = handedOver.get(self) ?? returnTargetRef.current;
             handedOver.delete(self);
             // A panel this one handed over to (a view's Edit opening an edit panel) already holds
             // the focus: it stays there and returns it to this panel's target when it closes.
             const holder = document.activeElement?.closest<HTMLElement>("[data-slot=edit-panel]");
             if (holder == null || holder === self) {
-              target?.focus({ preventScroll: true });
-            } else if (target !== null) {
+              // `GL-UI-050`: the trigger, else its group, the main content, the nearest container.
+              if (target !== null && target.moved !== true) returnFocus(target.opener);
+            } else if (target !== null && target.moved !== true) {
+              // A target already moved to a panel opening in the same update is that panel's own.
               handedOver.set(holder, target);
             }
-            returnFocusRef.current = null;
+            returnTargetRef.current = null;
           }}
           onInteractOutside={(event) => event.preventDefault()}
           onEscapeKeyDown={(event) => {
