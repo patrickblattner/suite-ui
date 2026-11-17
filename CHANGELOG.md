@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — #936: `EditPanel`/`MediaDetailShell` geometry follows the inert region (minor)
+## 0.246.0 — #936: `EditPanel`/`MediaDetailShell` geometry follows the inert region (minor)
 
 - **Changed (#936, SUI-FEATURE-142 rev 4):** an open `EditPanel` or `MediaDetailShell` covers exactly the content region it makes `inert`: its top edge is the region's top edge, so app chrome above the sidebar row (a status or dev-mode band) stays visible and operable, like the sidebar. The edge follows the region live while open (a band appearing, leaving or changing height; also while paging). Without a located region (no `<main>`, or `<main>` containing the sidebar) the panel keeps full height. No new prop. Apps can drop a call-site `inert` or offset on such a band.
 
