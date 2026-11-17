@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased — #934: raise spec-sync-toolkit pin to v0.50.1 (patch)
+
+- **Changed (#934, register #2080):** spec-sync-toolkit pin raised v0.50.0 → v0.50.1; `allowScripts` key carries the new resolved SHA.
+
 ## 0.245.4 — #931: `PreviewFrame` no longer crashes on server render (patch)
 
 - **Fixed (#931, patch):** `PreviewFrame` creates its host element on the client only, so a server render (`renderToString`) no longer throws on `document`. The server and the hydrating client render leave the frame's anchor empty; once hydrated the frame portals into the host, inline in the anchor or in `document.body` while maximized, as before. A client-only render mounts it at once. It shares the hydration hook of `Toaster` (#926) and `Hint`/`LabelWithHelp` (#930).
