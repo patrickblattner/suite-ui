@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — #934: raise spec-sync-toolkit pin to v0.50.1 (patch)
+## 0.245.5 — #934: raise spec-sync-toolkit pin to v0.50.1 (patch)
 
 - **Changed (#934, register #2080):** spec-sync-toolkit pin raised v0.50.0 → v0.50.1; `allowScripts` key carries the new resolved SHA.
 
