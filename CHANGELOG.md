@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — #931: `PreviewFrame` no longer crashes on server render (patch)
+
+- **Fixed (#931, patch):** `PreviewFrame` creates its host element on the client only, so a server render (`renderToString`) no longer throws on `document`. The server and the hydrating client render leave the frame's anchor empty; once hydrated the frame portals into the host, inline in the anchor or in `document.body` while maximized, as before. A client-only render mounts it at once. It shares the hydration hook of `Toaster` (#926) and `Hint`/`LabelWithHelp` (#930).
+- **Size (#931, GL-CODE-021, register #1998):** `./ui/preview-frame` maximum 3612 → 3794 B (measured 3613 B + 5 %); cause: the entry now imports the shared hydration hook.
+
 ## 0.245.3 — #930: `Hint`/`LabelWithHelp` description no longer breaks hydration in server-rendered apps (patch)
 
 - **Fixed (#930, GL-UI-017, patch):** the hidden description of `Hint` and of `LabelWithHelp` renders nothing on the server and on the hydrating client render, and mounts into `document.body` once hydrated; a client-only render mounts it at once. Before, the first client render portaled while the server had rendered nothing, React reported a hydration mismatch and regenerated the tree, discarding text typed before hydration. The field's `aria-describedby` resolves once hydrated. `Toaster` (#926) and both components share one internal hook for this.

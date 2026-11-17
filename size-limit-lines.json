@@ -57,7 +57,7 @@
     "./ui/operation-status": { "recommended": 45263, "maximum": 47527 },
     "./ui/popover": { "recommended": 1307, "maximum": 1373 },
     "./ui/press-keeps-closed": { "recommended": 265, "maximum": 279 },
-    "./ui/preview-frame": { "recommended": 3440, "maximum": 3612 },
+    "./ui/preview-frame": { "recommended": 3440, "maximum": 3794 },
     "./ui/preview-toolbar": { "recommended": 61380, "maximum": 67751 },
     "./ui/property-panel": { "recommended": 6175, "maximum": 6484 },
     "./ui/prose-link": { "recommended": 361, "maximum": 380 },

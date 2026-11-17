@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import { cn } from "../lib/cn.js";
 import { useEscapeLayer } from "../lib/escape-layers.js";
 import { useOptionalSidebar } from "../shell/sidebar-provider.js";
+import { useHydrated } from "./hydrated-internal.js";
 import type { PreviewDevice } from "./preview-toolbar.js";
 
 // The page width each device renders at, in CSS pixels.
@@ -56,7 +57,11 @@ function PreviewFrame({
   const [frameElement, setFrameElement] = React.useState<HTMLDivElement | null>(null);
   const showUsage = usage?.active === true;
   useEscapeLayer(showUsage, () => usage?.onClose(), frameElement);
+  // The server has no `document`: the host exists on the client only, and the frame portals into it
+  // once hydrated, so the server and the hydrating render both leave the anchor empty (#931).
+  const hydrated = useHydrated();
   const [host] = React.useState(() => {
+    if (typeof document === "undefined") return null;
     const element = document.createElement("div");
     element.dataset.slot = "preview-frame-host";
     element.style.display = "contents";
@@ -66,7 +71,7 @@ function PreviewFrame({
   // Inline the host sits in the frame's place in the column; maximized it moves to the body.
   React.useLayoutEffect(() => {
     const target = maximized ? document.body : anchor;
-    if (target === null || host.parentNode === target) return;
+    if (host === null || target === null || host.parentNode === target) return;
     const focused = document.activeElement;
     moveInto(target, host);
     if (
@@ -76,7 +81,7 @@ function PreviewFrame({
     )
       focused.focus({ preventScroll: true });
   }, [maximized, anchor, host]);
-  React.useEffect(() => () => host.remove(), [host]);
+  React.useEffect(() => () => host?.remove(), [host]);
 
   React.useLayoutEffect(() => {
     if (column === null || page === null) return;
@@ -155,7 +160,7 @@ function PreviewFrame({
 
   return (
     <div ref={setAnchor} data-slot="preview-frame-anchor" className="contents">
-      {createPortal(frame, host)}
+      {hydrated && host !== null ? createPortal(frame, host) : null}
     </div>
   );
 }
