@@ -41,6 +41,7 @@
     "./ui/grid-core": { "recommended": 906, "maximum": 952 },
     "./ui/grid": { "recommended": 58237, "maximum": 61149 },
     "./ui/hint": { "recommended": 32337, "maximum": 33954 },
+    "./ui/hydrated-internal": { "recommended": 115, "maximum": 121 },
     "./ui/index": { "recommended": 242996, "maximum": 269544 },
     "./ui/inline-message": { "recommended": 822, "maximum": 864 },
     "./ui/inline-status": { "recommended": 35754, "maximum": 37542 },

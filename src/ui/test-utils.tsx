@@ -1,5 +1,8 @@
-import { screen } from "@testing-library/react";
-import { expect } from "vitest";
+import { act, screen } from "@testing-library/react";
+import type * as React from "react";
+import { hydrateRoot, type Root } from "react-dom/client";
+import { renderToString } from "react-dom/server";
+import { expect, vi } from "vitest";
 
 // React's ids count across a test file, so a snapshot numbers them by first appearance instead.
 export function stableIds(html: string): string {
@@ -33,4 +36,50 @@ export function expectEveryTabControlsAPanel(
     }
   }
   expect(screen.getAllByRole("tabpanel")).toEqual([screen.getByTestId(panelTestId)]);
+}
+
+// Server-side render of `app` without a document, then a hydration (#926, #930): text is typed into
+// the server's first input before hydrating, and the recoverable errors and console errors of the
+// hydration are returned. The caller unmounts `root`.
+export async function hydrateFromServer(app: React.ReactElement) {
+  vi.stubGlobal("document", undefined);
+  let html: string;
+  try {
+    html = renderToString(app);
+  } finally {
+    vi.unstubAllGlobals();
+  }
+  const container = document.createElement("div");
+  container.innerHTML = html;
+  document.body.appendChild(container);
+  const input = container.querySelector("input");
+  if (input === null) throw new Error("no server-rendered input");
+  input.value = "typed before hydration";
+
+  const errors: unknown[] = [];
+  const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+  let root: Root | undefined;
+  await act(async () => {
+    root = hydrateRoot(container, app, {
+      onRecoverableError: (error) => errors.push(error),
+    });
+    await Promise.resolve();
+  });
+  const logged = [...consoleError.mock.calls];
+  consoleError.mockRestore();
+  return { root: root as Root, container, input, errors, logged };
+}
+
+// The hydration of `hydrateFromServer` reported no mismatch and kept the server's input, so the text
+// typed before hydration survives.
+export function expectHydratedIntact({
+  container,
+  input,
+  errors,
+  logged,
+}: Awaited<ReturnType<typeof hydrateFromServer>>) {
+  expect(errors).toEqual([]);
+  expect(logged).toEqual([]);
+  expect(container.querySelector("input")).toBe(input);
+  expect(input.value).toBe("typed before hydration");
 }

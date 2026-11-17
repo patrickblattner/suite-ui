@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased — #930: `Hint`/`LabelWithHelp` description no longer breaks hydration in server-rendered apps (patch)
+
+- **Fixed (#930, GL-UI-017, patch):** the hidden description of `Hint` and of `LabelWithHelp` renders nothing on the server and on the hydrating client render, and mounts into `document.body` once hydrated; a client-only render mounts it at once. Before, the first client render portaled while the server had rendered nothing, React reported a hydration mismatch and regenerated the tree, discarding text typed before hydration. The field's `aria-describedby` resolves once hydrated. `Toaster` (#926) and both components share one internal hook for this.
+
 ## Unreleased — #927: settings sweep (findings #73, #343, #345, #442) (patch)
 
 - **Fixed (#927, finding #73, GL-UI-013):** the `SettingsScaffold` body scroller covers its 6 px top ring room with a sticky strip in the page background while it is scrolled, so scrolled content stops at the old edge and the gap under the header or tab row stays 16 px; at the top the room stays open for a focus ring. The strip never covers the scrollbar, and a control brought into view stops 10 px below the top (`scroll-pt-2.5`), so its ring and forced-colors outline stay whole.

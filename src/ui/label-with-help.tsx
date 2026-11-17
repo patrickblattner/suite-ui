@@ -3,6 +3,7 @@ import type * as React from "react";
 import { createPortal } from "react-dom";
 
 import { cn } from "../lib/cn.js";
+import { useHydrated } from "./hydrated-internal.js";
 import { usePressKeepsClosed } from "./press-keeps-closed.js";
 import { TooltipContent, TooltipProvider, TooltipTrigger } from "./tooltip.js";
 
@@ -43,6 +44,8 @@ function LabelWithHelp({
   // A press (a click on the label focuses its field) keeps the help closed until the pointer leaves
   // (`GL-UI-016`, #190).
   const press = usePressKeepsClosed();
+  // The hidden description mounts only once hydrated (#930).
+  const hydrated = useHydrated();
   return (
     <>
       <label
@@ -60,7 +63,7 @@ function LabelWithHelp({
           </TooltipPrimitive.Root>
         </TooltipProvider>
       </label>
-      {typeof document === "undefined" || description === null
+      {!hydrated || description === null
         ? null
         : createPortal(
             <span id={helpIdFor(htmlFor)} hidden>

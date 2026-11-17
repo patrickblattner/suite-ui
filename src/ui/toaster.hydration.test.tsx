@@ -1,8 +1,8 @@
 import { act } from "@testing-library/react";
-import { hydrateRoot, type Root } from "react-dom/client";
-import { renderToString } from "react-dom/server";
+import type { Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { expectHydratedIntact, hydrateFromServer } from "./test-utils.js";
 import { toast, Toaster } from "./toaster.js";
 
 // A server-rendered app with the Toaster inside `<main>` hydrates without a mismatch (#926): the
@@ -29,33 +29,10 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-// Renders the app on a server without a document, types into the server's input, then hydrates.
 async function hydrate() {
-  vi.stubGlobal("document", undefined);
-  let html: string;
-  try {
-    html = renderToString(<App />);
-  } finally {
-    vi.unstubAllGlobals();
-  }
-  const container = document.createElement("div");
-  container.innerHTML = html;
-  document.body.appendChild(container);
-  const input = container.querySelector("input");
-  if (input === null) throw new Error("no server-rendered input");
-  input.value = "typed before hydration";
-
-  const errors: unknown[] = [];
-  const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
-  await act(async () => {
-    root = hydrateRoot(container, <App />, {
-      onRecoverableError: (error) => errors.push(error),
-    });
-    await Promise.resolve();
-  });
-  const logged = [...consoleError.mock.calls];
-  consoleError.mockRestore();
-  return { container, input, errors, logged };
+  const hydrated = await hydrateFromServer(<App />);
+  root = hydrated.root;
+  return hydrated;
 }
 
 const raisedToast = () =>
@@ -67,13 +44,10 @@ const raisedToast = () =>
 
 describe("Toaster hydration", () => {
   it("hydrates without a mismatch and keeps the typed input value", async () => {
-    const { container, input, errors, logged } = await hydrate();
+    const hydrated = await hydrate();
+    const { container } = hydrated;
 
-    expect(errors).toEqual([]);
-    expect(logged).toEqual([]);
-    // The server node was kept, not replaced, so the typed value survives.
-    expect(container.querySelector("input")).toBe(input);
-    expect(input.value).toBe("typed before hydration");
+    expectHydratedIntact(hydrated);
     // After hydration the toaster portal sits under `document.body`, outside `<main>`
     // (`SUI-FEATURE-142` AC 8).
     act(() => {

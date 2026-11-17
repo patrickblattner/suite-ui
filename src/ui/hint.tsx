@@ -7,6 +7,7 @@ import { ariaKeyShortcuts } from "../lib/keyboard.js";
 import { lockedWithReason } from "./button-lock-internal.js";
 import { FieldValueHintContext } from "./field-value-hint-context.js";
 import { FullTexts } from "./full-texts-internal.js";
+import { useHydrated } from "./hydrated-internal.js";
 import {
   inDocumentOrder,
   overflowOf,
@@ -107,8 +108,9 @@ function describedBy(
 
 // The hint text is a description, never part of a name: it lives hidden outside every subtree of the
 // page and reaches assistive tech only through the control's `aria-describedby`.
+// It mounts only once hydrated (#930).
 function DescriptionText({ id, text }: { id: string; text: string }) {
-  if (typeof document === "undefined") return null;
+  if (!useHydrated()) return null;
   return createPortal(
     <span id={id} hidden>
       {text}

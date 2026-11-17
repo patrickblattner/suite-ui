@@ -20,6 +20,7 @@ import {
 import { cn } from "../lib/cn.js";
 import { isCompositionKey } from "./composition.js";
 import { captureOpener, type Opener, returnFocus } from "./focus-return.js";
+import { useHydrated } from "./hydrated-internal.js";
 import { dropHeld, holdToast, toastsHeld } from "./toast-hold-internal.js";
 
 type ToastVariant = "info" | "success" | "warning" | "error";
@@ -1220,24 +1221,14 @@ function useToasterFocus(
   }, [toasts, mounted, id]);
 }
 
-// Whether the app is hydrated never changes once it is, so there is nothing to subscribe to.
-const subscribeNothing = () => () => undefined;
-
 type ToasterAppProps = Omit<ToasterProps, "position" | "offset" | "mobileOffset">;
 
 // `theme` follows the app: pass its resolved theme ("light" or "dark").
 function Toaster({ theme = "light", toastOptions, ...props }: ToasterAppProps) {
   const { t } = useTranslation("suite");
   const toasts = React.useRef<HTMLDivElement>(null);
-  // The portal mounts only once hydrated: the server has no `document.body` to portal into, so it
-  // renders nothing, and so does the hydrating client render; anything else would not match the
-  // server's HTML, and React would regenerate the tree, input typed before hydration lost (#926).
-  // A client-only render has nothing to match and mounts it at once.
-  const mounted = React.useSyncExternalStore(
-    subscribeNothing,
-    () => true,
-    () => false,
-  );
+  // The portal mounts only once hydrated (#926).
+  const mounted = useHydrated();
   useDismissToastsUnderFocus(toasts, mounted);
   useToasterFocus(toasts, mounted, props.id);
   // The symbol shows the variant; its name is read before the message, so the variant does not rest
