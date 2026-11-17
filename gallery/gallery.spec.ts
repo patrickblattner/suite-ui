@@ -21258,3 +21258,135 @@ test("media detail shell: the top edge is the region's below a band, also while 
   await expect(shell.getByTestId("media-detail-position")).toHaveText("2 of 3");
   await expectRegionGeometry(page, shell);
 });
+
+// `SUI-FEATURE-142` AC 1–5 (#937): the panel is non-modal, so Tab never wraps inside it. Tab on its
+// last control leaves it, Shift+Tab on its first reaches the sidebar, Tab from there comes back; `Esc`
+// returns the focus to the trigger. A dialog opened from the panel still keeps Tab inside itself. `band=1`
+// mounts the shell as an app does, its `<main>` beside the sidebar, so the covered region is `inert`.
+// No focus on a radix focus guard or another element drawn at opacity 0 (WCAG 2.4.7, #937).
+async function expectNoInvisibleFocus(page: Page) {
+  expect(
+    await page.evaluate(() => {
+      const active = document.activeElement;
+      if (active === null || active === document.body) return "none";
+      if (active.hasAttribute("data-radix-focus-guard")) return "guard";
+      return getComputedStyle(active).opacity === "0" ? "transparent" : "visible";
+    }),
+  ).not.toMatch(/guard|transparent/);
+}
+
+async function expectTabLeavesPanel(page: Page, panel: Locator) {
+  const where = () =>
+    page.evaluate(() => {
+      const active = document.activeElement;
+      const surface = document.querySelector("[data-slot=edit-panel], [data-slot=media-detail]");
+      if (active !== null && surface?.contains(active)) return "panel";
+      if (active?.closest("#suite-app-sidebar")) return "sidebar";
+      return active?.tagName.toLowerCase() ?? "none";
+    });
+  const edges = () =>
+    panel.evaluate((surface) => {
+      const tabbable = [...surface.querySelectorAll<HTMLElement>("*")].filter(
+        (node) =>
+          node.tabIndex >= 0 &&
+          !(node as HTMLButtonElement).disabled &&
+          node.checkVisibility({ checkVisibilityCSS: true }),
+      );
+      tabbable.forEach((node) => node.removeAttribute("data-edge"));
+      tabbable[0]!.setAttribute("data-edge", "first");
+      tabbable.at(-1)!.setAttribute("data-edge", "last");
+    });
+  await edges();
+  const first = panel.locator("[data-edge=first]");
+  const last = panel.locator("[data-edge=last]");
+  // AC 1: Tab on the last control leaves the panel, never onto its first control or a covered one.
+  await last.focus();
+  await page.keyboard.press("Tab");
+  await expect(first).not.toBeFocused();
+  expect(await where()).not.toBe("panel");
+  expect(await page.evaluate(() => document.activeElement?.closest("[inert]") ?? null)).toBeNull();
+  // Never onto radix's invisible focus guards: while the panel is open they are no stops, so the
+  // focus is on no element of the page (the browser), and Shift+Tab comes back to the last control.
+  await expect(page.locator("[data-radix-focus-guard]")).toHaveCount(2);
+  for (const guard of await page.locator("[data-radix-focus-guard]").all()) {
+    await expect(guard).toHaveAttribute("tabindex", "-1");
+  }
+  await expectNoInvisibleFocus(page);
+  await page.keyboard.press("Shift+Tab");
+  await expect(last).toBeFocused();
+  // The way in from the page's start: Shift+Tab before the first control and Tab back in land on no
+  // invisible element.
+  await page.evaluate(() =>
+    [...document.querySelectorAll<HTMLElement>("button, a[href], input, select, textarea")]
+      .find((node) => node.closest("[inert]") === null && node.tabIndex >= 0)!
+      .focus(),
+  );
+  const start = await page.evaluate(() => document.activeElement?.outerHTML.slice(0, 80));
+  await page.keyboard.press("Shift+Tab");
+  await expectNoInvisibleFocus(page);
+  await page.keyboard.press("Tab");
+  await expectNoInvisibleFocus(page);
+  expect(await page.evaluate(() => document.activeElement?.outerHTML.slice(0, 80))).toBe(start);
+  // AC 2: Shift+Tab on the first control reaches the sidebar.
+  await first.focus();
+  await page.keyboard.press("Shift+Tab");
+  await expect(last).not.toBeFocused();
+  expect(await where()).toBe("sidebar");
+  // AC 3: Tab from the sidebar reaches the panel again.
+  await page.keyboard.press("Tab");
+  expect(await where()).toBe("panel");
+}
+
+test("edit panel: Tab leaves the panel at both ends, Esc returns to the trigger", async ({
+  page,
+}) => {
+  await page.goto("/?page=edit-panel&band=1&lng=en");
+  const trigger = page.getByTestId("edit-panel-trigger-1");
+  await trigger.click();
+  const panel = page.getByTestId("edit-panel");
+  await expect(panel).toBeVisible();
+  await expectTabLeavesPanel(page, panel);
+  await panel.getByRole("textbox").first().focus();
+  await page.keyboard.press("Escape");
+  await expect(panel).toBeHidden();
+  await expect(trigger).toBeFocused();
+});
+
+test("edit panel: the leave guard opened from the panel keeps Tab inside", async ({ page }) => {
+  await page.goto("/?page=edit-panel&band=1&lng=en");
+  await page.getByTestId("note-panel-trigger").click();
+  const panel = page.getByTestId("note-panel");
+  await panel.getByLabel("Comment").fill("Needs a second look.");
+  await expectTabLeavesPanel(page, panel);
+  await panel.getByLabel("Comment").focus();
+  await page.keyboard.press("Escape");
+  const dialog = page.getByTestId("leave-guard");
+  await expect(dialog).toBeVisible();
+  // With a dialog over the panel the guards are radix's again.
+  for (const guard of await page.locator("[data-radix-focus-guard]").all()) {
+    await expect(guard).toHaveAttribute("tabindex", "0");
+  }
+  // AC 5: the dialog traps: Tab and Shift+Tab past its ends wrap inside it.
+  for (const key of ["Tab", "Tab", "Tab", "Shift+Tab", "Shift+Tab", "Shift+Tab"]) {
+    await page.keyboard.press(key);
+    expect(await dialog.evaluate((node) => node.contains(document.activeElement))).toBe(true);
+  }
+  await page.getByTestId("leave-guard-discard").click();
+  await expect(panel).toBeHidden();
+  await expect(page.getByTestId("note-panel-trigger")).toBeFocused();
+});
+
+test("media detail shell: Tab leaves the panel at both ends, also after paging", async ({
+  page,
+}) => {
+  const shell = await openMediaDetail(page, "&band=1&lng=en");
+  await expectTabLeavesPanel(page, shell);
+  await shell.getByTestId("media-detail-next").focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(shell.getByTestId("media-detail-position")).toHaveText("2 of 3");
+  await expectTabLeavesPanel(page, shell);
+  await shell.getByTestId("media-detail-next").focus();
+  await page.keyboard.press("Escape");
+  await expect(shell).toBeHidden();
+  await expect(page.getByTestId("media-detail-trigger")).toBeFocused();
+});

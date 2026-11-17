@@ -20,7 +20,7 @@ import {
   usePanelGeometry,
 } from "../lib/panel-geometry.js";
 import { Button } from "./button.js";
-import { CompositionTabBoundary } from "./composition-tab-internal.js";
+import { PanelTabBoundary } from "../lib/panel-tab.js";
 import { DisabledReasonRow, type SubmitLock } from "../lib/disabled-reason-row.js";
 import { FIELD_SELECTOR } from "./dialog.js";
 import { returnFocus } from "./focus-return.js";
@@ -473,7 +473,7 @@ function EditPanel({
             escape.current = event;
           }}
         >
-          <CompositionTabBoundary>
+          <PanelTabBoundary>
             {headActions === undefined ||
             (headActions.primary === undefined && !headActions.secondary?.length) ? (
               <div
@@ -647,7 +647,7 @@ function EditPanel({
                 )}
               </div>
             </Body>
-          </CompositionTabBoundary>
+          </PanelTabBoundary>
         </SheetPrimitive.Content>
       </SheetPrimitive.Portal>
       {dialog}

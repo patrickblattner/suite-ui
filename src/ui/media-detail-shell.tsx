@@ -20,7 +20,7 @@ import { isCompositionKey } from "./composition.js";
 import { type RowActionSet, type RowUsage, useRowActionButtons } from "../list/row-actions.js";
 import { PANEL_SURFACE_CLASS, useCoveredInert, usePanelGeometry } from "../lib/panel-geometry.js";
 import { Button } from "./button.js";
-import { CompositionTabBoundary } from "./composition-tab-internal.js";
+import { PanelTabBoundary } from "../lib/panel-tab.js";
 import { returnFocus } from "./focus-return.js";
 import {
   createFieldDrafts,
@@ -792,7 +792,7 @@ function MediaDetailShell({
             else next();
           }}
         >
-          <CompositionTabBoundary>
+          <PanelTabBoundary>
             {/* Validation belongs to the call site (`GL-UI-027`); Enter in a field saves. A `view`
               shell has nothing to submit and so no form, as `EditPanel` (`SUI-FEATURE-061` rev 4). */}
             {view ? (
@@ -815,7 +815,7 @@ function MediaDetailShell({
                 {body}
               </form>
             )}
-          </CompositionTabBoundary>
+          </PanelTabBoundary>
         </SheetPrimitive.Content>
       </SheetPrimitive.Portal>
       {dialog}

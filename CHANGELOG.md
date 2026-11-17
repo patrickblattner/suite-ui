@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased — #937: `EditPanel`/`MediaDetailShell` Tab no longer loops inside the panel (patch)
+
+- **Fixed (#937, SUI-FEATURE-142 AC 1+2):** an open `EditPanel` or `MediaDetailShell` no longer keeps Tab inside itself. Radix's `FocusScope` looped even with `modal={false}`, so Tab on the panel's last control wrapped to its first and Shift+Tab on the first to the last, and the sidebar was reachable by pointer only. Now Tab on the last control leaves the panel to the browser (never onto radix's invisible focus guards), Shift+Tab on the first reaches the sidebar, and Tab from there comes back into the panel. `Esc` and the focus return (`GL-UI-050`) are unchanged; dialogs opened from the panel (confirm, leave guard) still keep Tab inside themselves. No new prop.
+
 ## 0.246.0 — #936: `EditPanel`/`MediaDetailShell` geometry follows the inert region (minor)
 
 - **Changed (#936, SUI-FEATURE-142 rev 4):** an open `EditPanel` or `MediaDetailShell` covers exactly the content region it makes `inert`: its top edge is the region's top edge, so app chrome above the sidebar row (a status or dev-mode band) stays visible and operable, like the sidebar. The edge follows the region live while open (a band appearing, leaving or changing height; also while paging). Without a located region (no `<main>`, or `<main>` containing the sidebar) the panel keeps full height. No new prop. Apps can drop a call-site `inert` or offset on such a band.

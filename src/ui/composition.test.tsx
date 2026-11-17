@@ -1,5 +1,5 @@
 import { act, createEvent, fireEvent, render, screen } from "@testing-library/react";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { useModalOverlay } from "../lib/modal-overlay.js";
@@ -36,8 +36,9 @@ function firstTabbable(root: HTMLElement): HTMLElement {
 }
 
 // A composition's Tab from `from` moves no focus: the IME's (key code 229) keeps its default, one
-// passed on with `isComposing` loses it; the next plain Tab is the trap's again and cycles.
-function expectCompositionTabHeld(from: HTMLElement, shiftKey: boolean) {
+// passed on with `isComposing` loses it; the next plain Tab is the trap's again and cycles. A
+// non-modal panel has no trap (#937): there the next plain Tab keeps its default, the browser's move.
+function expectCompositionTabHeld(from: HTMLElement, shiftKey: boolean, trap = true) {
   act(() => from.focus());
   const ime = createEvent.keyDown(from, { key: "Tab", shiftKey, keyCode: 229 });
   fireEvent(from, ime);
@@ -47,8 +48,11 @@ function expectCompositionTabHeld(from: HTMLElement, shiftKey: boolean) {
   fireEvent(from, passed);
   expect(from).toHaveFocus();
   expect(passed.defaultPrevented).toBe(true);
-  fireEvent.keyDown(from, { key: "Tab", shiftKey });
-  expect(from).not.toHaveFocus();
+  const plain = createEvent.keyDown(from, { key: "Tab", shiftKey });
+  fireEvent(from, plain);
+  expect(plain.defaultPrevented).toBe(trap);
+  if (trap) expect(from).not.toHaveFocus();
+  else expect(from).toHaveFocus();
 }
 
 describe("isCompositionKey", () => {
@@ -158,6 +162,35 @@ describe("useModalOverlay keeps a composition's Tab", () => {
   });
 });
 
+// The two non-modal panels with one field each.
+function renderEditPanel(children: ReactNode = <Input aria-label="Name" />) {
+  render(
+    <EditPanel open onOpenChange={() => {}} title="Channel" onSubmit={() => {}} submitLabel="Save">
+      {children}
+    </EditPanel>,
+  );
+}
+
+function renderMediaDetail() {
+  render(
+    <MediaDetailShell
+      position={3}
+      total={65}
+      kind="image"
+      src="/media/team-photo.jpg"
+      alt="team-photo.jpg"
+      dirty={false}
+      saving={false}
+      fields={<Input aria-label="Name" />}
+      onPrev={() => {}}
+      onNext={() => {}}
+      onClose={() => {}}
+      onSave={() => {}}
+      onReset={() => {}}
+    />,
+  );
+}
+
 describe("radix focus traps keep a composition's Tab", () => {
   it("Dialog: Shift+Tab of a composition in the first field stays there; the next one cycles", () => {
     render(
@@ -190,38 +223,142 @@ describe("radix focus traps keep a composition's Tab", () => {
   });
 
   it("EditPanel: a composition's Shift+Tab at the panel's first stop stays there", () => {
-    render(
-      <EditPanel
-        open
-        onOpenChange={() => {}}
-        title="Channel"
-        onSubmit={() => {}}
-        submitLabel="Save"
-      >
-        <Input aria-label="Name" />
-      </EditPanel>,
-    );
-    expectCompositionTabHeld(firstTabbable(screen.getByTestId("edit-panel")), true);
+    renderEditPanel();
+    expectCompositionTabHeld(firstTabbable(screen.getByTestId("edit-panel")), true, false);
   });
 
   it("MediaDetailShell: a composition's Shift+Tab at the panel's first stop stays there", () => {
-    render(
-      <MediaDetailShell
-        position={3}
-        total={65}
-        kind="image"
-        src="/media/team-photo.jpg"
-        alt="team-photo.jpg"
-        dirty={false}
-        saving={false}
-        fields={<Input aria-label="Name" />}
-        onPrev={() => {}}
-        onNext={() => {}}
-        onClose={() => {}}
-        onSave={() => {}}
-        onReset={() => {}}
-      />,
+    renderMediaDetail();
+    expectCompositionTabHeld(firstTabbable(screen.getByTestId("media-detail")), true, false);
+  });
+});
+
+// `SUI-FEATURE-142` AC 1–5 (#937): radix's `FocusScope` loops even when non-modal. `EditPanel` and
+// `MediaDetailShell` keep no Tab at their edges: Tab on the last stop and Shift+Tab on the first keep
+// their default (the browser leaves the panel), for that one Tab radix's focus guards are no stops.
+// A dialog opened from the panel still cycles.
+function tabbables(root: HTMLElement): HTMLElement[] {
+  return [...root.querySelectorAll<HTMLElement>(TABBABLE)].filter(
+    (node) => !(node as HTMLButtonElement).disabled && node.tabIndex >= 0,
+  );
+}
+
+const guardStops = () =>
+  [...document.querySelectorAll<HTMLElement>("[data-radix-focus-guard]")].map(
+    (guard) => guard.tabIndex,
+  );
+
+// A Tab from `from` keeps its default and the focus where it is, for the browser to move.
+function expectTabPassed(from: HTMLElement, shiftKey: boolean) {
+  act(() => from.focus());
+  const tab = createEvent.keyDown(from, { key: "Tab", shiftKey });
+  fireEvent(from, tab);
+  expect(tab.defaultPrevented).toBe(false);
+  expect(from).toHaveFocus();
+}
+
+async function expectEdgesReleased(root: HTMLElement) {
+  const stops = tabbables(root);
+  expect(stops.length).toBeGreaterThan(1);
+  // While the panel is open radix's invisible focus guards are no Tab stops.
+  await act(async () => {});
+  expect(guardStops()).toEqual([-1, -1]);
+  expectTabPassed(stops.at(-1)!, false);
+  expectTabPassed(stops[0]!, true);
+  // Inside the panel, Tab is the browser's as before.
+  expectTabPassed(stops[0]!, false);
+  expect(guardStops()).toEqual([-1, -1]);
+}
+
+describe("non-modal panels keep no Tab at their edges", () => {
+  it("EditPanel: Tab on the last stop and Shift+Tab on the first leave the panel", async () => {
+    renderEditPanel();
+    await expectEdgesReleased(screen.getByTestId("edit-panel"));
+  });
+
+  it("MediaDetailShell: Tab on the last stop and Shift+Tab on the first leave the panel", async () => {
+    renderMediaDetail();
+    await expectEdgesReleased(screen.getByTestId("media-detail"));
+  });
+
+  it("a dialog opened from an EditPanel still cycles Tab at its edges", async () => {
+    renderEditPanel(
+      <>
+        <Input aria-label="Name" />
+        <Dialog open>
+          <DialogContent>
+            <DialogTitle>Rename</DialogTitle>
+            <DialogDescription>Name</DialogDescription>
+            <Input aria-label="New name" />
+          </DialogContent>
+        </Dialog>
+      </>,
     );
-    expectCompositionTabHeld(firstTabbable(screen.getByTestId("media-detail")), true);
+    const dialog = screen.getByRole("dialog", { name: "Rename" });
+    // With a dialog over the panel the guards are radix's again.
+    await act(async () => {});
+    expect(guardStops()).toEqual([0, 0]);
+    const stops = tabbables(dialog);
+    act(() => stops.at(-1)!.focus());
+    const tab = createEvent.keyDown(stops.at(-1)!, { key: "Tab" });
+    fireEvent(stops.at(-1)!, tab);
+    expect(tab.defaultPrevented).toBe(true);
+    expect(stops[0]).toHaveFocus();
+    act(() => stops[0]!.focus());
+    const back = createEvent.keyDown(stops[0]!, { key: "Tab", shiftKey: true });
+    fireEvent(stops[0]!, back);
+    expect(back.defaultPrevented).toBe(true);
+    expect(stops.at(-1)).toHaveFocus();
+  });
+
+  it("a native radio group as the last field: Tab from its checked radio leaves the panel", async () => {
+    renderEditPanel(
+      <>
+        <Input aria-label="Name" />
+        <fieldset>
+          <legend>Size</legend>
+          <input type="radio" name="size" value="s" aria-label="Small" defaultChecked />
+          <input type="radio" name="size" value="l" aria-label="Large" />
+        </fieldset>
+      </>,
+    );
+    await act(async () => {});
+    // Only the checked radio is a Tab stop, though radix counts the last radio as the edge: the
+    // guards being no stops is what lets this Tab out to the browser.
+    expect(guardStops()).toEqual([-1, -1]);
+    const small = screen.getByLabelText("Small");
+    expectTabPassed(small, false);
+  });
+
+  it("closed and reopened: the guards go with radix, and are no stops again", async () => {
+    function Toggle() {
+      const [open, setOpen] = useState(true);
+      return (
+        <>
+          <button type="button" onClick={() => setOpen((value) => !value)}>
+            toggle
+          </button>
+          <EditPanel
+            open={open}
+            onOpenChange={() => {}}
+            title="Channel"
+            onSubmit={() => {}}
+            submitLabel="Save"
+          >
+            <Input aria-label="Name" />
+          </EditPanel>
+        </>
+      );
+    }
+    render(<Toggle />);
+    await act(async () => {});
+    expect(guardStops()).toEqual([-1, -1]);
+    fireEvent.click(screen.getByRole("button", { name: "toggle" }));
+    await act(async () => {});
+    expect(screen.queryByTestId("edit-panel")).toBeNull();
+    expect(guardStops()).toEqual([]);
+    fireEvent.click(screen.getByRole("button", { name: "toggle" }));
+    await act(async () => {});
+    expect(guardStops()).toEqual([-1, -1]);
   });
 });
