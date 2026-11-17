@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.245.2 — #924: `EditPanel`/`MediaDetailShell` focus fallback when the trigger is gone (GL-UI-050 targets 2–4) (patch)
 
 - **Fixed (#924, GL-UI-050, patch):** `EditPanel` and `MediaDetailShell` return the focus on close by `GL-UI-050`'s full order, through the dialogs' shared helper (`focus-return.ts`): the trigger (the menu trigger for a panel opened from a menu entry), else, when it is gone or `disabled`, the next usable control of its group after it, then before it, else the surface's main content (`data-focus-main`, else `<main>` without a tab stop), else the nearest remaining container without a tab stop; never `<body>`, never a navigation element. Without a focused trigger (a click in Safari) the clicked control counts; without any, the chain starts at the main content. `MediaDetailShell` keeps its return target across a close→reopen before the focus returned, and a shell the app remounts per item while paging hands the target to the next one.
 
