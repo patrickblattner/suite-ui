@@ -13,6 +13,18 @@ export function stableIds(html: string): string {
   });
 }
 
+// A sidebar entry beside an open panel (`#suite-app-sidebar` in the body), focused; `remove` takes the
+// sidebar out again.
+export function focusSidebarEntry(): { entry: HTMLButtonElement; remove: () => void } {
+  const sidebar = document.createElement("nav");
+  sidebar.id = "suite-app-sidebar";
+  const entry = document.createElement("button");
+  sidebar.append(entry);
+  document.body.append(sidebar);
+  entry.focus();
+  return { entry, remove: () => sidebar.remove() };
+}
+
 // WAI-ARIA tabs (`GL-UX-001`): every trigger's `aria-controls` names a `tabpanel` in the DOM; only the
 // active one (`panelTestId`) shows, holding `activeText`; the others are empty and hidden.
 export function expectEveryTabControlsAPanel(

@@ -12,7 +12,7 @@ import { EditPanel, type EditPanelProps } from "./edit-panel.js";
 import { Field } from "./field.js";
 import { Input } from "./input.js";
 import { TagInput } from "./tag-input.js";
-import { stableIds } from "./test-utils.js";
+import { focusSidebarEntry, stableIds } from "./test-utils.js";
 
 // A head action that runs a handler (`SUI-FEATURE-331`: `RowAction` also takes a link form).
 type ButtonAction = Extract<RowAction, { onClick: () => void }>;
@@ -615,6 +615,25 @@ describe("EditPanel", () => {
     expect(onOpenChange).not.toHaveBeenCalled();
     fireEvent.keyDown(screen.getByTestId("edit-panel"), { key: "Escape" });
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  // SUI-FEATURE-142 AC 10 (#940): keys belong to the focused surface. `Esc` with the focus in the
+  // sidebar neither closes the panel nor opens the leave guard; back in the panel it does.
+  it.each([false, true])("Escape from the sidebar leaves the panel open (dirty %s)", (dirty) => {
+    const { onOpenChange } = renderPanel({ dirty });
+    const { entry, remove } = focusSidebarEntry();
+    try {
+      fireEvent.keyDown(entry, { key: "Escape" });
+      expect(onOpenChange).not.toHaveBeenCalled();
+      expect(screen.queryByTestId("leave-guard")).toBeNull();
+      const name = screen.getByLabelText("Name");
+      name.focus();
+      fireEvent.keyDown(name, { key: "Escape" });
+      if (dirty) expect(screen.getByTestId("leave-guard")).toBeInTheDocument();
+      else expect(onOpenChange).toHaveBeenCalledWith(false);
+    } finally {
+      remove();
+    }
   });
 
   // AC4

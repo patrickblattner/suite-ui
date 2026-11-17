@@ -21352,11 +21352,41 @@ test("edit panel: Tab leaves the panel at both ends, Esc returns to the trigger"
   await expect(trigger).toBeFocused();
 });
 
-test("edit panel: the leave guard opened from the panel keeps Tab inside", async ({ page }) => {
+// #940: a listbox in the covered, `inert` content and a hidden one are no open layer, so the guards
+// stay no stops and Tab from the last panel control never lands on one.
+test("edit panel: a listbox behind the panel keeps the focus guards out of Tab", async ({
+  page,
+}) => {
+  await page.goto("/?page=edit-panel&band=1&lng=en");
+  await page.evaluate(() => {
+    const covered = document.createElement("ul");
+    covered.setAttribute("role", "listbox");
+    covered.innerHTML = '<li role="option" tabindex="0">Covered option</li>';
+    document.querySelector("main")!.append(covered);
+    const hidden = document.createElement("ul");
+    hidden.setAttribute("role", "listbox");
+    hidden.hidden = true;
+    document.body.append(hidden);
+  });
+  const trigger = page.getByTestId("edit-panel-trigger-1");
+  await trigger.click();
+  const panel = page.getByTestId("edit-panel");
+  await expect(panel).toBeVisible();
+  await expect(page.locator("main [role=listbox]")).toHaveCount(1);
+  await expectTabLeavesPanel(page, panel);
+});
+
+// The note panel on the band layout, made dirty.
+async function openDirtyNotePanel(page: Page) {
   await page.goto("/?page=edit-panel&band=1&lng=en");
   await page.getByTestId("note-panel-trigger").click();
   const panel = page.getByTestId("note-panel");
   await panel.getByLabel("Comment").fill("Needs a second look.");
+  return panel;
+}
+
+test("edit panel: the leave guard opened from the panel keeps Tab inside", async ({ page }) => {
+  const panel = await openDirtyNotePanel(page);
   await expectTabLeavesPanel(page, panel);
   await panel.getByLabel("Comment").focus();
   await page.keyboard.press("Escape");
@@ -21374,6 +21404,38 @@ test("edit panel: the leave guard opened from the panel keeps Tab inside", async
   await page.getByTestId("leave-guard-discard").click();
   await expect(panel).toBeHidden();
   await expect(page.getByTestId("note-panel-trigger")).toBeFocused();
+});
+
+// `SUI-FEATURE-142` AC 10 (#940): keys belong to the focused surface. With the focus in the sidebar
+// `Esc` neither closes the panel nor opens the leave guard, and ←/→ do not page; back in the panel
+// both work.
+test("edit panel: Esc from the sidebar leaves the dirty panel open", async ({ page }) => {
+  const panel = await openDirtyNotePanel(page);
+  await page.locator("#suite-app-sidebar :is(a[href], button)").first().focus();
+  await page.keyboard.press("Escape");
+  await expect(panel).toBeVisible();
+  await expect(page.getByTestId("leave-guard")).toHaveCount(0);
+  await panel.getByLabel("Comment").focus();
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("leave-guard")).toBeVisible();
+});
+
+test("media detail shell: Esc and arrows from the sidebar leave the panel alone", async ({
+  page,
+}) => {
+  const shell = await openMediaDetail(page, "&band=1&lng=en");
+  const position = shell.getByTestId("media-detail-position");
+  await expect(position).toHaveText("1 of 3");
+  await page.locator("#suite-app-sidebar :is(a[href], button)").first().focus();
+  for (const key of ["ArrowRight", "ArrowLeft", "Escape"]) await page.keyboard.press(key);
+  await expect(shell).toBeVisible();
+  await expect(position).toHaveText("1 of 3");
+  await shell.getByTestId("media-detail-next").focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(position).toHaveText("2 of 3");
+  await page.keyboard.press("Escape");
+  await expect(shell).toBeHidden();
+  await expect(page.getByTestId("media-detail-trigger")).toBeFocused();
 });
 
 test("media detail shell: Tab leaves the panel at both ends, also after paging", async ({

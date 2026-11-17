@@ -1,18 +1,10 @@
 import * as React from "react";
 
 import { holdCompositionTab } from "./keyboard.js";
+import { tabbables } from "./tabbable.js";
 
 const TABBABLE =
   "a[href], button, input:not([type=hidden]), select, textarea, [tabindex]:not([tabindex='-1'])";
-
-function tabbables(root: HTMLElement): HTMLElement[] {
-  return [...root.querySelectorAll<HTMLElement>(TABBABLE)].filter(
-    (node) =>
-      !(node as HTMLButtonElement).disabled &&
-      node.tabIndex >= 0 &&
-      (typeof node.checkVisibility !== "function" || node.checkVisibility()),
-  );
-}
 
 /**
  * Makes `element` modal while `active` (the WAI-ARIA dialog pattern): everything outside it is
@@ -51,7 +43,7 @@ function useModalOverlay(
       // A portaled layer the element opened (a dialog) reaches this handler through React; its Tab is
       // its own.
       if (!(event.target instanceof Node) || !element.contains(event.target)) return;
-      const order = tabbables(element);
+      const order = tabbables(element, TABBABLE);
       const first = order[0];
       const last = order.at(-1);
       if (first === undefined || last === undefined) return;

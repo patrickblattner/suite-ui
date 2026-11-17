@@ -26,7 +26,7 @@
     "./ui/dialog": { "recommended": 17866, "maximum": 18760 },
     "./ui/drawer-rail": { "recommended": 39203, "maximum": 54000 },
     "./ui/dropdown-menu": { "recommended": 3876, "maximum": 4070 },
-    "./ui/edit-panel": { "recommended": 70410, "maximum": 78852 },
+    "./ui/edit-panel": { "recommended": 70410, "maximum": 83090 },
     "./ui/editor-header": { "recommended": 90155, "maximum": 100365 },
     "./ui/field-drafts-internal": { "recommended": 1236, "maximum": 1298 },
     "./ui/field-error": { "recommended": 1899, "maximum": 1994 },

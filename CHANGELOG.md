@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — #940: `EditPanel`/`MediaDetailShell` keep invisible focus stops out of Tab, keys belong to the focused surface (patch)
+
+- **Fixed (#940, SUI-FEATURE-142 AC 1):** with an `EditPanel` or `MediaDetailShell` open, only a shown dialog, menu or listbox outside the panel and outside an `inert` region counts as an open layer. A hidden one, or one in the content the panel covers, no longer turns radix's invisible focus guards back into Tab stops, so Tab from the panel's last control never lands on one. A real layer opened over the panel (confirm, leave guard, menu, select) still gets the guards back for its focus trap. Only layers portaled into the body count: a listbox or menu in the sidebar or a band does not, and showing or hiding a layer through `hidden` or `inert` resyncs the guards. The panel's Tab edges and the modal overlay's Tab cycle now share one tabbable helper.
+- **Changed (#940, SUI-FEATURE-142 rev 5 AC 10):** keys belong to the focused surface. The panel's `Esc` (close, or the leave guard when dirty) and `MediaDetailShell`'s ←/→ paging act only while the focus is in the panel or a layer opened from it; with the focus in the sidebar `Esc` and the arrows do what the sidebar does and the panel stays open. The usages view's `Esc` follows the same rule.
+- **Size (#940, GL-CODE-021, finding #693):** `./ui/edit-panel` maximum 78852 → 83090 B (measured 79133 B + 5 %); cause: the panel's key ownership and body-portaled layer detection in the shared Tab boundary.
+
 ## 0.246.1 — #937: `EditPanel`/`MediaDetailShell` Tab no longer loops inside the panel (patch)
 
 - **Fixed (#937, SUI-FEATURE-142 AC 1+2):** an open `EditPanel` or `MediaDetailShell` no longer keeps Tab inside itself. Radix's `FocusScope` looped even with `modal={false}`, so Tab on the panel's last control wrapped to its first and Shift+Tab on the first to the last, and the sidebar was reachable by pointer only. Now Tab on the last control leaves the panel to the browser (never onto radix's invisible focus guards), Shift+Tab on the first reaches the sidebar, and Tab from there comes back into the panel. `Esc` and the focus return (`GL-UI-050`) are unchanged; dialogs opened from the panel (confirm, leave guard) still keep Tab inside themselves. No new prop.

@@ -16,7 +16,7 @@ import {
   MediaUsageList,
 } from "./media-detail-shell.js";
 import { TagInput } from "./tag-input.js";
-import { stableIds } from "./test-utils.js";
+import { focusSidebarEntry, stableIds } from "./test-utils.js";
 
 afterEach(async () => {
   cleanup();
@@ -83,6 +83,33 @@ describe("MediaDetailShell", () => {
     fireEvent.keyDown(panel(), { key: "Escape" });
     expect(onClose).toHaveBeenCalledTimes(1);
   });
+
+  // SUI-FEATURE-142 AC 10 (#940): keys belong to the focused surface. With the focus in the sidebar
+  // `Esc` neither closes nor opens the leave guard, and ←/→ do not page; back in the panel both work.
+  it.each([false, true])(
+    "keys from the sidebar leave the panel alone (dirty %s)",
+    async (dirty) => {
+      const { onPrev, onNext, onClose } = renderShell({ dirty });
+      const { entry, remove } = focusSidebarEntry();
+      try {
+        for (const key of ["Escape", "ArrowLeft", "ArrowRight"]) fireEvent.keyDown(entry, { key });
+        expect(onClose).not.toHaveBeenCalled();
+        expect(onPrev).not.toHaveBeenCalled();
+        expect(onNext).not.toHaveBeenCalled();
+        expect(screen.queryByTestId("leave-guard")).toBeNull();
+        panel().focus();
+        if (!dirty) {
+          fireEvent.keyDown(panel(), { key: "ArrowRight" });
+          expect(onNext).toHaveBeenCalledTimes(1);
+        }
+        fireEvent.keyDown(panel(), { key: "Escape" });
+        if (dirty) expect(await screen.findByTestId("leave-guard")).toBeInTheDocument();
+        else expect(onClose).toHaveBeenCalledTimes(1);
+      } finally {
+        remove();
+      }
+    },
+  );
 
   it("the head buttons page and close; at the ends ‹ and › stay locked", () => {
     const { onPrev, onNext, onClose } = renderShell({ position: 1, total: 2 });

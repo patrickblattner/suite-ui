@@ -20,7 +20,7 @@ import {
   usePanelGeometry,
 } from "../lib/panel-geometry.js";
 import { Button } from "./button.js";
-import { PanelTabBoundary } from "../lib/panel-tab.js";
+import { inAppFrame, PanelTabBoundary } from "../lib/panel-tab.js";
 import { DisabledReasonRow, type SubmitLock } from "../lib/disabled-reason-row.js";
 import { FIELD_SELECTOR } from "./dialog.js";
 import { returnFocus } from "./focus-return.js";
@@ -468,8 +468,9 @@ function EditPanel({
           onInteractOutside={(event) => event.preventDefault()}
           onEscapeKeyDown={(event) => {
             event.preventDefault();
-            // The Esc of a composition (dead key, IME) is the composition's (`GL-UI-039` rev 2, #737).
-            if (isCompositionKey(event)) return;
+            // The Esc of a composition (dead key, IME) is the composition's (`GL-UI-039` rev 2, #737);
+            // one from the sidebar or a band is theirs (`SUI-FEATURE-142` AC 10).
+            if (isCompositionKey(event) || inAppFrame(event.target)) return;
             escape.current = event;
           }}
         >

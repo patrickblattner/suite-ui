@@ -1,19 +1,11 @@
 import * as React from "react";
 
 import { CompositionTabBoundary } from "../ui/composition-tab-internal.js";
+import { isShown, tabbables } from "./tabbable.js";
 
-// The first and last tabbable element in `root`, as radix's `FocusScope` finds them: enabled, not
-// `hidden`, `tabIndex` ≥ 0, and visible.
+// The first and last tabbable element in `root`, as radix's `FocusScope` finds them.
 function tabEdges(root: HTMLElement): [HTMLElement | undefined, HTMLElement | undefined] {
-  const tabbable = [...root.querySelectorAll<HTMLElement>("*")].filter(
-    (node) =>
-      node.tabIndex >= 0 &&
-      !(node as HTMLButtonElement).disabled &&
-      !node.hidden &&
-      !(node instanceof HTMLInputElement && node.type === "hidden") &&
-      (typeof node.checkVisibility !== "function" ||
-        node.checkVisibility({ checkVisibilityCSS: true })),
-  );
+  const tabbable = tabbables(root, "*", true);
   return [tabbable[0], tabbable.at(-1)];
 }
 
@@ -22,14 +14,41 @@ function tabEdges(root: HTMLElement): [HTMLElement | undefined, HTMLElement | un
 // without a visible focus: after the panel's last control, on the way back in from the browser, and
 // before the page's first control. While a panel is open and no other radix layer (a dialog, menu,
 // popover or listbox) is, they are no stops; with such a layer, and once the last panel closes, they
-// are as radix made them. Layers portal into the body, so its children are watched.
+// are as radix made them. Layers portal into the body, so its children are watched, and `hidden` and
+// `inert` anywhere below it. Only a shown layer portaled into the body counts, outside the panel and
+// outside an `inert` region: a hidden listbox, or one in the app's frame (the body child that holds the
+// sidebar or `<main>`: the covered content, the sidebar, a band), is no layer (#940).
 const LAYER = "[role=dialog], [role=alertdialog], [role=menu], [role=listbox]";
 const PANEL = "[data-slot=edit-panel], [data-slot=media-detail]";
+const FRAME = "#suite-app-sidebar, main";
 let openPanels = 0;
 let watcher: MutationObserver | null = null;
 
+// The body child that holds the app's frame (the sidebar, `<main>`, a band); layers and panels
+// portal beside it.
+function appFrame(): Element | null | undefined {
+  return document.querySelector(FRAME)?.closest("body > *");
+}
+
+/**
+ * Whether `target` is in the app's frame, outside the panels: the sidebar, a band, the covered content.
+ * Keys from there are not the panel's (`SUI-FEATURE-142` AC 10).
+ */
+function inAppFrame(target: EventTarget | null): boolean {
+  return (
+    target instanceof Element && target.closest(PANEL) === null && !!appFrame()?.contains(target)
+  );
+}
+
 function syncGuards(): void {
-  const layer = [...document.querySelectorAll(LAYER)].some((node) => node.closest(PANEL) === null);
+  const frame = appFrame();
+  const layer = [...document.querySelectorAll<HTMLElement>(LAYER)].some(
+    (node) =>
+      !frame?.contains(node) &&
+      node.closest(PANEL) === null &&
+      node.closest("[inert]") === null &&
+      isShown(node),
+  );
   const stop = openPanels === 0 || layer ? 0 : -1;
   for (const guard of document.querySelectorAll<HTMLElement>("[data-radix-focus-guard]")) {
     if (guard.tabIndex !== stop) guard.tabIndex = stop;
@@ -42,6 +61,12 @@ function useNoGuardStops(): void {
     if (watcher === null) {
       watcher = new MutationObserver(syncGuards);
       watcher.observe(document.body, { childList: true });
+      // Not `subtree` on the body's childList: every render below would resync.
+      watcher.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ["hidden", "inert"],
+        subtree: true,
+      });
     }
     // Radix adds the guards in an effect of the content around this one, which runs after it.
     queueMicrotask(syncGuards);
@@ -85,4 +110,4 @@ function PanelTabBoundary({ children }: { children: React.ReactNode }) {
   );
 }
 
-export { PanelTabBoundary };
+export { inAppFrame, PanelTabBoundary };
