@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — #937: `EditPanel`/`MediaDetailShell` Tab no longer loops inside the panel (patch)
+## 0.246.1 — #937: `EditPanel`/`MediaDetailShell` Tab no longer loops inside the panel (patch)
 
 - **Fixed (#937, SUI-FEATURE-142 AC 1+2):** an open `EditPanel` or `MediaDetailShell` no longer keeps Tab inside itself. Radix's `FocusScope` looped even with `modal={false}`, so Tab on the panel's last control wrapped to its first and Shift+Tab on the first to the last, and the sidebar was reachable by pointer only. Now Tab on the last control leaves the panel to the browser (never onto radix's invisible focus guards), Shift+Tab on the first reaches the sidebar, and Tab from there comes back into the panel. `Esc` and the focus return (`GL-UI-050`) are unchanged; dialogs opened from the panel (confirm, leave guard) still keep Tab inside themselves. No new prop.
 
