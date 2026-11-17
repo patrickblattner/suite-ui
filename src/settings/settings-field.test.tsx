@@ -99,84 +99,96 @@ describe("SettingsField", () => {
     ).toBeNull();
   });
 
-  // #505: the group carries the hint as its description, its options do not repeat it.
-  it("with group and a hint describes the group by the hint, read once", () => {
-    const { rerender } = render(
-      <SettingsField label="Mode" htmlFor="mode" group="radio" hint="How it runs.">
-        <RadioGroup defaultValue="a">
-          <RadioGroupItem value="a" aria-label="A" />
-          <RadioGroupItem value="b" aria-label="B" />
-        </RadioGroup>
-      </SettingsField>,
+  // #505/#508 hold for both kinds of group: a plain group of checkboxes (role "group") and a package
+  // RadioGroup (role "radiogroup", SUI-FEATURE-400); #879 left the plain group untested (#927).
+  const groupKinds = [
+    { group: true, role: "group", option: "checkbox" },
+    { group: "radio", role: "radiogroup", option: "radio" },
+  ] as const;
+  const groupOptions = (group: true | "radio", labels: string[]) =>
+    group === "radio" ? (
+      <RadioGroup defaultValue="a">
+        {labels.map((label) => (
+          <RadioGroupItem key={label} value={label.toLowerCase()} aria-label={label} />
+        ))}
+      </RadioGroup>
+    ) : (
+      labels.map((label) => <Checkbox key={label} aria-label={label} />)
     );
-    const group = screen.getByRole("radiogroup", { name: "Mode" });
-    expect(group).toHaveAttribute("aria-describedby", "mode-help");
-    expect(group).toHaveAccessibleDescription("How it runs.");
-    for (const radio of screen.getAllByRole("radio")) {
-      expect(radio).not.toHaveAttribute("aria-describedby");
-    }
 
-    rerender(
-      <SettingsField label="Mode" htmlFor="mode" group="radio">
-        <RadioGroup defaultValue="a">
-          <RadioGroupItem value="a" aria-label="A" />
-        </RadioGroup>
-      </SettingsField>,
-    );
-    expect(screen.getByRole("radiogroup", { name: "Mode" })).not.toHaveAttribute(
-      "aria-describedby",
-    );
-  });
+  // #505: the group carries the hint as its description, its options do not repeat it.
+  it.each(groupKinds)(
+    "with group $group and a hint describes the group by the hint, read once",
+    ({ group, role, option }) => {
+      const { rerender } = render(
+        <SettingsField label="Mode" htmlFor="mode" group={group} hint="How it runs.">
+          {groupOptions(group, ["A", "B"])}
+        </SettingsField>,
+      );
+      const named = screen.getByRole(role, { name: "Mode" });
+      expect(named).toHaveAttribute("aria-describedby", "mode-help");
+      expect(named).toHaveAccessibleDescription("How it runs.");
+      for (const item of screen.getAllByRole(option)) {
+        expect(item).not.toHaveAttribute("aria-describedby");
+      }
+
+      rerender(
+        <SettingsField label="Mode" htmlFor="mode" group={group}>
+          {groupOptions(group, ["A"])}
+        </SettingsField>,
+      );
+      expect(screen.getByRole(role, { name: "Mode" })).not.toHaveAttribute("aria-describedby");
+    },
+  );
 
   // #508: the group carries the help text too, after the hint, each read once.
-  it.each([false, true])("with group describes the group by its help text (hint: %s)", (hinted) => {
-    const { rerender } = render(
-      <SettingsField
-        label="Mode"
-        htmlFor="mode"
-        group="radio"
-        hint={hinted ? "How it runs." : undefined}
-        help="Applies to new sessions."
-      >
-        <RadioGroup defaultValue="a">
-          <RadioGroupItem value="a" aria-label="A" />
-        </RadioGroup>
-      </SettingsField>,
-    );
-    const group = screen.getByRole("radiogroup", { name: "Mode" });
-    expect(group).toHaveAttribute(
-      "aria-describedby",
-      hinted ? "mode-help mode-description" : "mode-description",
-    );
-    expect(group).toHaveAccessibleDescription(
-      hinted ? "How it runs. Applies to new sessions." : "Applies to new sessions.",
-    );
-    expect(screen.getByRole("radio")).not.toHaveAttribute("aria-describedby");
+  it.each(groupKinds.flatMap((kind) => [false, true].map((hinted) => ({ ...kind, hinted }))))(
+    "with group $group describes the group by its help text (hint: $hinted)",
+    ({ group, role, option, hinted }) => {
+      const { rerender } = render(
+        <SettingsField
+          label="Mode"
+          htmlFor="mode"
+          group={group}
+          hint={hinted ? "How it runs." : undefined}
+          help="Applies to new sessions."
+        >
+          {groupOptions(group, ["A"])}
+        </SettingsField>,
+      );
+      const named = screen.getByRole(role, { name: "Mode" });
+      expect(named).toHaveAttribute(
+        "aria-describedby",
+        hinted ? "mode-help mode-description" : "mode-description",
+      );
+      expect(named).toHaveAccessibleDescription(
+        hinted ? "How it runs. Applies to new sessions." : "Applies to new sessions.",
+      );
+      expect(screen.getByRole(option)).not.toHaveAttribute("aria-describedby");
 
-    // The error replaces the help text in the description (SUI-FEATURE-400 AC3).
-    rerender(
-      <SettingsField
-        label="Mode"
-        htmlFor="mode"
-        group="radio"
-        hint={hinted ? "How it runs." : undefined}
-        help="Applies to new sessions."
-        error="Choose a mode."
-      >
-        <RadioGroup defaultValue="a">
-          <RadioGroupItem value="a" aria-label="A" />
-        </RadioGroup>
-      </SettingsField>,
-    );
-    expect(group).toHaveAttribute(
-      "aria-describedby",
-      hinted ? "mode-help mode-error" : "mode-error",
-    );
-    expect(group).toHaveAccessibleDescription(
-      hinted ? /^How it runs\. .*Choose a mode\.$/ : /Choose a mode\.$/,
-    );
-    expect(group).toHaveAttribute("aria-errormessage", "mode-error");
-  });
+      // The error replaces the help text in the description (SUI-FEATURE-400 AC3).
+      rerender(
+        <SettingsField
+          label="Mode"
+          htmlFor="mode"
+          group={group}
+          hint={hinted ? "How it runs." : undefined}
+          help="Applies to new sessions."
+          error="Choose a mode."
+        >
+          {groupOptions(group, ["A"])}
+        </SettingsField>,
+      );
+      expect(named).toHaveAttribute(
+        "aria-describedby",
+        hinted ? "mode-help mode-error" : "mode-error",
+      );
+      expect(named).toHaveAccessibleDescription(
+        hinted ? /^How it runs\. .*Choose a mode\.$/ : /Choose a mode\.$/,
+      );
+      expect(named).toHaveAttribute("aria-errormessage", "mode-error");
+    },
+  );
 
   // SUI-FEATURE-078 AC1–3: icon and text under the field in place of the help text, wired to the input.
   it("shows the error with its symbol in place of the help text and marks the input", () => {

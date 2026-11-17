@@ -175,20 +175,6 @@ describe("SettingsScaffold", () => {
     expect(screen.getByTestId("settings-general-save")).toHaveTextContent(save);
   });
 
-  it("positions the scrolling body, so hidden native inputs stay in it", () => {
-    render(<GeneralPage save={() => Promise.resolve()} />);
-    expect(screen.getByTestId("settings-body")).toHaveClass("relative", "overflow-y-auto");
-  });
-
-  // #864 (`GL-UI-018`): the host's bar-side floor owns the scroller's end side, so the package sets
-  // no inline-end padding there; ring room stays on the top and the start side only.
-  it("leaves the scroller's end side to the host: no px- or pe- utility", () => {
-    render(<GeneralPage save={() => Promise.resolve()} />);
-    const classes = [...screen.getByTestId("settings-body").classList];
-    expect(classes.filter((c) => /^-?(px|pe)-/.test(c))).toEqual([]);
-    expect(classes).toEqual(expect.arrayContaining(["-ms-1.5", "ps-1.5", "-mt-1.5", "pt-1.5"]));
-  });
-
   it("names the pair after testIdPrefix and keeps the footer testid", () => {
     render(
       <SettingsScaffold
@@ -204,6 +190,67 @@ describe("SettingsScaffold", () => {
     expect(screen.getByTestId("settings-reset")).toBeInTheDocument();
     expect(screen.queryByTestId("settings-general-save")).toBeNull();
     expect(screen.getByTestId("settings-footer")).toBeInTheDocument();
+  });
+});
+
+// The body scroller: positioned, ring room, end side, bar gutter (#850, #864, #927).
+describe("SettingsScaffold body scroller", () => {
+  it("positions the scrolling body, so hidden native inputs stay in it", () => {
+    render(<GeneralPage save={() => Promise.resolve()} />);
+    expect(screen.getByTestId("settings-body")).toHaveClass("relative", "overflow-y-auto");
+  });
+
+  // #864 (`GL-UI-018`): the host's bar-side floor owns the scroller's end side, so the package sets
+  // no inline-end padding there; ring room stays on the top and the start side only. Any padding
+  // utility that touches inline-end counts, variant-prefixed ones too (#927).
+  const endPadding = /(^|:)-?(p|px|pe|pr)-/;
+  it.each(["p-4", "px-2", "pe-1.5", "pr-6", "-pe-1", "md:px-2", "@panel-split:pe-0"])(
+    "counts %s as end padding",
+    (utility) => expect(endPadding.test(utility)).toBe(true),
+  );
+  it.each(["ps-1.5", "pt-1.5", "pb-4", "-ms-1.5", "py-2", "scroll-py-2", "pl-2"])(
+    "does not count %s as end padding",
+    (utility) => expect(endPadding.test(utility)).toBe(false),
+  );
+  it("leaves the scroller's end side to the host: no inline-end padding utility", () => {
+    render(<GeneralPage save={() => Promise.resolve()} />);
+    const classes = [...screen.getByTestId("settings-body").classList];
+    expect(classes.filter((c) => endPadding.test(c))).toEqual([]);
+    expect(classes).toEqual(expect.arrayContaining(["-ms-1.5", "ps-1.5", "-mt-1.5", "pt-1.5"]));
+  });
+
+  // #927 (`GL-UI-018`): the scroller reserves its bar's place, so the content width holds.
+  it("reserves the scroller's bar gutter", () => {
+    render(<GeneralPage save={() => Promise.resolve()} />);
+    expect(screen.getByTestId("settings-body")).toHaveClass("[scrollbar-gutter:stable]");
+  });
+
+  // #73: scrolled, a strip in the page background covers the top ring room, so content stops at the
+  // old edge; at the top the room is open again for the ring of a control at the edge. The strip sits
+  // in the content, never over the scrollbar, and takes no room (#927).
+  it("covers the top ring room only while the body is scrolled", () => {
+    render(<GeneralPage save={() => Promise.resolve()} />);
+    const scroller = screen.getByTestId("settings-body");
+    expect(screen.queryByTestId("settings-body-ring-cover")).toBeNull();
+    scroller.scrollTop = 40;
+    fireEvent.scroll(scroller);
+    const cover = screen.getByTestId("settings-body-ring-cover");
+    expect(scroller.firstElementChild).toBe(cover);
+    expect(cover).toHaveAttribute("aria-hidden", "true");
+    expect(cover).toHaveClass("sticky", "top-0", "h-1.5", "-mt-1.5", "-ms-1.5", "bg-background");
+    expect(scroller).not.toHaveClass("[clip-path:inset(0.375rem_0_0_0)]");
+    scroller.scrollTop = 0;
+    fireEvent.scroll(scroller);
+    expect(screen.queryByTestId("settings-body-ring-cover")).toBeNull();
+  });
+
+  // #927 (`GL-UI-013`): a control brought into view stops 10 px below the top edge, clear of the
+  // 6 px covered band with its 3 px ring and its 2 px + 2 px forced-colors outline.
+  it("brings a focused control into view below the covered band", () => {
+    render(<GeneralPage save={() => Promise.resolve()} />);
+    const classes = [...screen.getByTestId("settings-body").classList];
+    expect(classes).toEqual(expect.arrayContaining(["scroll-pt-2.5", "scroll-pb-2"]));
+    expect(classes).not.toContain("scroll-py-2");
   });
 });
 

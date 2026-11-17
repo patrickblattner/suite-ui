@@ -85,9 +85,36 @@ type SettingsScaffoldProps = {
 // head action of the first section) shows its whole ring, and the content keeps its place
 // (`GL-UI-013` rev 5, #850). The end side carries no padding utility: the host's `GL-UI-018` bar-side
 // floor (`padding-inline-end: var(--page-gutter)`) owns that edge and gives the ring its room there
-// (#864). The bottom keeps its 16 px.
+// (#864). The bottom keeps its 16 px. The bar's place is reserved (`GL-UI-018` stable gutter), so the
+// content width holds when the body starts or stops overflowing. The top scroll padding (10 px) lets a
+// control brought into view stop below the covered ring room with its ring and its forced-colors
+// outline (2 px + 2 px offset) whole (#927).
 const BODY_SCROLL_CLASS =
-  "relative -ms-1.5 -mt-1.5 min-h-0 flex-1 scroll-py-2 overflow-y-auto ps-1.5 pt-1.5 pb-4";
+  "relative -ms-1.5 -mt-1.5 min-h-0 flex-1 scroll-pt-2.5 scroll-pb-2 overflow-y-auto ps-1.5 pt-1.5 pb-4 [scrollbar-gutter:stable]";
+
+// The body scroller. While it is not at its top, a strip in the page background sticks over the top
+// ring room, so scrolled content stops at the old edge and the gap under the header or tab row stays
+// 16 px (#73); at the top the room is open for the ring of a control at the edge. The strip sits in
+// the content, so the scrollbar is never covered, and takes no room (its height is its negative margin).
+function BodyScroll({ testId, children }: { testId: string; children: React.ReactNode }) {
+  const [scrolled, setScrolled] = React.useState(false);
+  return (
+    <div
+      className={BODY_SCROLL_CLASS}
+      data-testid={testId}
+      onScroll={(event) => setScrolled(event.currentTarget.scrollTop > 0)}
+    >
+      {scrolled ? (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none sticky top-0 z-10 -ms-1.5 -mt-1.5 h-1.5 bg-background"
+          data-testid={`${testId}-ring-cover`}
+        />
+      ) : null}
+      {children}
+    </div>
+  );
+}
 
 // The frame of every settings subpage (`GL-UI-026`): title and subtitle, then directly the form body
 // as one full-width column (`body`), a tab row over it (`tabs`) or, for editors with a live preview,
@@ -161,15 +188,13 @@ function SettingsScaffold({
   ) : null;
   const content =
     state !== null ? (
-      <div className={BODY_SCROLL_CLASS} data-testid={scrollTestId}>
-        {state}
-      </div>
+      <BodyScroll testId={scrollTestId}>{state}</BodyScroll>
     ) : body !== undefined ? (
-      <div className={BODY_SCROLL_CLASS} data-testid={scrollTestId}>
+      <BodyScroll testId={scrollTestId}>
         <div className="flex flex-col gap-6" data-testid="settings-column">
           {body}
         </div>
-      </div>
+      </BodyScroll>
     ) : tabs !== undefined ? (
       <Tabs
         className="flex min-h-0 flex-1 flex-col gap-4"
@@ -179,12 +204,10 @@ function SettingsScaffold({
         data-testid="settings-tabs"
       >
         {tabs.list}
-        <div className={BODY_SCROLL_CLASS} data-testid={scrollTestId}>
-          {tabs.panels}
-        </div>
+        <BodyScroll testId={scrollTestId}>{tabs.panels}</BodyScroll>
       </Tabs>
     ) : (
-      <div className={BODY_SCROLL_CLASS} data-testid={scrollTestId}>
+      <BodyScroll testId={scrollTestId}>
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2" data-testid="settings-grid">
           <div className="flex min-w-0 flex-col gap-4" data-testid="settings-column-left">
             {left}
@@ -195,7 +218,7 @@ function SettingsScaffold({
             </div>
           ) : null}
         </div>
-      </div>
+      </BodyScroll>
     );
 
   return (
