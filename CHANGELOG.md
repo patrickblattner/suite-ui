@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased — #926: `Toaster` portal no longer breaks hydration in server-rendered apps (patch)
+
+- **Fixed (#926, SUI-FEATURE-142, patch):** `Toaster` renders nothing on the server and on the hydrating client render, and mounts its portal into `document.body` once hydrated (`useSyncExternalStore`); a client-only render mounts it at once. Before, the first client render portaled while the server had rendered nothing, React reported a hydration mismatch and regenerated the tree, discarding text typed before hydration. The toast effects bound to the portal (dismissal under the keyboard focus, focus return, pause of action toasts) initialise when it mounts. Toasts stay under `document.body` (`SUI-FEATURE-142` AC 8).
+
 ## 0.245.2 — #924: `EditPanel`/`MediaDetailShell` focus fallback when the trigger is gone (GL-UI-050 targets 2–4) (patch)
 
 - **Fixed (#924, GL-UI-050, patch):** `EditPanel` and `MediaDetailShell` return the focus on close by `GL-UI-050`'s full order, through the dialogs' shared helper (`focus-return.ts`): the trigger (the menu trigger for a panel opened from a menu entry), else, when it is gone or `disabled`, the next usable control of its group after it, then before it, else the surface's main content (`data-focus-main`, else `<main>` without a tab stop), else the nearest remaining container without a tab stop; never `<body>`, never a navigation element. Without a focused trigger (a click in Safari) the clicked control counts; without any, the chain starts at the main content. `MediaDetailShell` keeps its return target across a close→reopen before the focus returned, and a shell the app remounts per item while paging hands the target to the next one.

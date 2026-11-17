@@ -892,7 +892,11 @@ function coveredByToast(element: Element): boolean {
  * Only keyboard focus counts, as `:focus-visible` tells it (the pointer accepts the cover), and
  * focus inside the toasts, on an action or the close button, closes none.
  */
-function useDismissToastsUnderFocus(toasts: React.RefObject<HTMLElement | null>): void {
+function useDismissToastsUnderFocus(
+  toasts: React.RefObject<HTMLElement | null>,
+  // Whether the toaster's portal is mounted: `toasts` is filled only then (#926).
+  mounted: boolean,
+): void {
   React.useEffect(() => {
     // One timer for all: a toast that mounts restarts it, a dismissal clears it, so no earlier
     // toast's timer cuts a later one short.
@@ -944,7 +948,7 @@ function useDismissToastsUnderFocus(toasts: React.RefObject<HTMLElement | null>)
       document.removeEventListener("focusin", onFocusIn);
       document.removeEventListener("keydown", onKeyDown);
     };
-  }, [toasts]);
+  }, [toasts, mounted]);
 }
 
 // The Tab stops in the toasts: each toast and any focusable element in it, in document order.
@@ -985,7 +989,12 @@ const isFocusable = (node: unknown): node is Focusable =>
  * Meanwhile the close timers of the toasts with an action this toaster shows (`id`, sonner's toaster
  * id) stand still while pointer or focus is in it (`SUI-FEATURE-101` rev 6).
  */
-function useToasterFocus(toasts: React.RefObject<HTMLElement | null>, id?: string): void {
+function useToasterFocus(
+  toasts: React.RefObject<HTMLElement | null>,
+  // Whether the toaster's portal is mounted: `toasts` is filled only then (#926).
+  mounted: boolean,
+  id?: string,
+): void {
   // The toaster's copy of sonner's own record of the entry (its list's `isFocusWithinRef` and
   // `lastFocusedElementRef`), kept by its rules: set as the focus enters a list, unless on a toast
   // with `dismissible: false`; cleared, and returned to, as the focus leaves that list or the list
@@ -1208,8 +1217,11 @@ function useToasterFocus(toasts: React.RefObject<HTMLElement | null>, id?: strin
       wrapper.removeEventListener("pointerleave", onPointerLeave);
       pauseActionCloses(instance, id, false);
     };
-  }, [toasts, id]);
+  }, [toasts, mounted, id]);
 }
+
+// Whether the app is hydrated never changes once it is, so there is nothing to subscribe to.
+const subscribeNothing = () => () => undefined;
 
 type ToasterAppProps = Omit<ToasterProps, "position" | "offset" | "mobileOffset">;
 
@@ -1217,8 +1229,17 @@ type ToasterAppProps = Omit<ToasterProps, "position" | "offset" | "mobileOffset"
 function Toaster({ theme = "light", toastOptions, ...props }: ToasterAppProps) {
   const { t } = useTranslation("suite");
   const toasts = React.useRef<HTMLDivElement>(null);
-  useDismissToastsUnderFocus(toasts);
-  useToasterFocus(toasts, props.id);
+  // The portal mounts only once hydrated: the server has no `document.body` to portal into, so it
+  // renders nothing, and so does the hydrating client render; anything else would not match the
+  // server's HTML, and React would regenerate the tree, input typed before hydration lost (#926).
+  // A client-only render has nothing to match and mounts it at once.
+  const mounted = React.useSyncExternalStore(
+    subscribeNothing,
+    () => true,
+    () => false,
+  );
+  useDismissToastsUnderFocus(toasts, mounted);
+  useToasterFocus(toasts, mounted, props.id);
   // The symbol shows the variant; its name is read before the message, so the variant does not rest
   // on colour and symbol alone (`GL-UI-060`).
   const named = (icon: React.ReactNode, name: string) => (
@@ -1227,7 +1248,7 @@ function Toaster({ theme = "light", toastOptions, ...props }: ToasterAppProps) {
       <span className="sr-only">{name}</span>
     </>
   );
-  if (typeof document === "undefined") return null;
+  if (!mounted) return null;
   // Portaled into the body wherever the app places it, so a content region gone `inert` under an
   // open panel never swallows a toast (`SUI-FEATURE-142` rev 3); sonner positions the toasts fixed.
   return createPortal(
