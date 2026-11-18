@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Changed (#949):** the settings body scroller carries its own `GL-UI-018` bar-side floor (`pe-[var(--page-gutter)]`); the gallery stand-in is gone; the end-padding test regex also catches important forms (#668).
+
 ## 0.246.5 — #947: Semgrep pin 1.176.1 (patch)
 
 - **Changed (#947):** the Semgrep pin (`TOOL_VERSIONS` in `scripts/hygiene.ts`, headers of the vendored packs) moves to 1.176.1.

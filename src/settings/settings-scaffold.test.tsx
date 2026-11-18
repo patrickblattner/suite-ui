@@ -200,22 +200,29 @@ describe("SettingsScaffold body scroller", () => {
     expect(screen.getByTestId("settings-body")).toHaveClass("relative", "overflow-y-auto");
   });
 
-  // #864 (`GL-UI-018`): the host's bar-side floor owns the scroller's end side, so the package sets
-  // no inline-end padding there; ring room stays on the top and the start side only. Any padding
-  // utility that touches inline-end counts, variant-prefixed ones too (#927).
-  const endPadding = /(^|:)-?(p|px|pe|pr)-/;
-  it.each(["p-4", "px-2", "pe-1.5", "pr-6", "-pe-1", "md:px-2", "@panel-split:pe-0"])(
-    "counts %s as end padding",
-    (utility) => expect(endPadding.test(utility)).toBe(true),
-  );
+  // #949 (`GL-UI-018`): the scroller carries its own bar-side floor on the end side, as its only
+  // inline-end padding. Any padding utility that touches inline-end counts, variant-prefixed and
+  // important ones too (#927, #668).
+  const endPadding = /(^|:)!?-?(p|px|pe|pr)-/;
+  it.each([
+    "p-4",
+    "px-2",
+    "pe-1.5",
+    "pr-6",
+    "-pe-1",
+    "md:px-2",
+    "@panel-split:pe-0",
+    "!pe-2",
+    "md:!px-1",
+  ])("counts %s as end padding", (utility) => expect(endPadding.test(utility)).toBe(true));
   it.each(["ps-1.5", "pt-1.5", "pb-4", "-ms-1.5", "py-2", "scroll-py-2", "pl-2"])(
     "does not count %s as end padding",
     (utility) => expect(endPadding.test(utility)).toBe(false),
   );
-  it("leaves the scroller's end side to the host: no inline-end padding utility", () => {
+  it("carries its own bar-side floor as the scroller's only inline-end padding", () => {
     render(<GeneralPage save={() => Promise.resolve()} />);
     const classes = [...screen.getByTestId("settings-body").classList];
-    expect(classes.filter((c) => endPadding.test(c))).toEqual([]);
+    expect(classes.filter((c) => endPadding.test(c))).toEqual(["pe-[var(--page-gutter)]"]);
     expect(classes).toEqual(expect.arrayContaining(["-ms-1.5", "ps-1.5", "-mt-1.5", "pt-1.5"]));
   });
 

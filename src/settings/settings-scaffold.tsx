@@ -83,14 +83,14 @@ type SettingsScaffoldProps = {
 // The body scroller. It clips at its padding box, so it carries 6 px of room for the 3 px focus ring
 // on the top and the start side, taken back by an equal negative margin: a control at its edge (the
 // head action of the first section) shows its whole ring, and the content keeps its place
-// (`GL-UI-013` rev 5, #850). The end side carries no padding utility: the host's `GL-UI-018` bar-side
-// floor (`padding-inline-end: var(--page-gutter)`) owns that edge and gives the ring its room there
-// (#864). The bottom keeps its 16 px. The bar's place is reserved (`GL-UI-018` stable gutter), so the
+// (`GL-UI-013` rev 5, #850). The end side carries its own `GL-UI-018` bar-side floor
+// (`padding-inline-end: var(--page-gutter)`, beside the stable gutter), which also gives the ring its
+// room there (#864 → #949). The bottom keeps its 16 px. The bar's place is reserved (`GL-UI-018` stable gutter), so the
 // content width holds when the body starts or stops overflowing. The top scroll padding (10 px) lets a
 // control brought into view stop below the covered ring room with its ring and its forced-colors
 // outline (2 px + 2 px offset) whole (#927).
 const BODY_SCROLL_CLASS =
-  "relative -ms-1.5 -mt-1.5 min-h-0 flex-1 scroll-pt-2.5 scroll-pb-2 overflow-y-auto ps-1.5 pt-1.5 pb-4 [scrollbar-gutter:stable]";
+  "relative -ms-1.5 -mt-1.5 min-h-0 flex-1 scroll-pt-2.5 scroll-pb-2 overflow-y-auto ps-1.5 pe-[var(--page-gutter)] pt-1.5 pb-4 [scrollbar-gutter:stable]";
 
 // The body scroller. While it is not at its top, a strip in the page background sticks over the top
 // ring room, so scrolled content stops at the old edge and the gap under the header or tab row stays

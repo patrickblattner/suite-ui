@@ -127,14 +127,3 @@ body {
   min-height: 0;
   padding: 0;
 }
-
-/* The host's bar-side gap floor (`GL-UI-018`): an inner scroller gets `padding-inline-end:
-   var(--page-gutter)` from the app, never from the package. The settings body scroller leaves that
-   edge to the host (#864), so the gallery stands in for it there; `:where()` keeps the specificity
-   at 0. Scoped to the settings frame, so no other gallery page changes. In `@layer base` as the
-   cockpit carries it, so a package utility (`pe-*`, `px-*`) on a scroller still wins over it (#912). */
-@layer base {
-  :where([data-testid="settings-page"]) :where([class~="overflow-y-auto"]) {
-    padding-inline-end: var(--page-gutter);
-  }
-}

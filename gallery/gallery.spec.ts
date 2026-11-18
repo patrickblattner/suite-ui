@@ -7079,7 +7079,7 @@ test("label with help: 14 px at weight 500, 8 px to the field", async ({ page })
 });
 
 // `GL-UI-026`: the left column is half the content width, and nothing stands between the subtitle
-// and the form. The content width is the body's content box: the host's bar-side floor (#864) is
+// and the form. The content width is the body's content box: the scroller's own bar-side floor (#949) is
 // the gap to the bar, not content.
 test("settings: left column at half width, form directly under the subtitle", async ({ page }) => {
   await page.goto("/?page=settings");
@@ -8807,7 +8807,7 @@ test("settings tabs: tab row over one full-width scrolling body, one form", asyn
   const bodyBox = await box(body);
   expect(bodyBox.y).toBeGreaterThanOrEqual(row.y + row.height);
   // The body's start padding is ring room reaching past the form (#850); its end edge is the form's,
-  // where the host's bar-side floor gives the ring its room (#864).
+  // where the scroller's own bar-side floor gives the ring its room (#949).
   // Compared by x, so the overhang is pinned to the start side (#865).
   const room = await body.evaluate((el) => parseFloat(getComputedStyle(el).paddingLeft));
   const formBox = await box(form);
@@ -8944,7 +8944,7 @@ for (const width of [1280, 1920]) {
     const column = page.getByTestId("settings-column");
     const scroller = page.getByTestId("settings-body");
     // The inner width is the content box: the scroller's start and top padding are the ring room
-    // (#850); its end padding is the host's GL-UI-018 bar-side floor (#864).
+    // (#850); its end padding is its own GL-UI-018 bar-side floor (#949).
     const inner = await scroller.evaluate((el) => {
       const style = getComputedStyle(el);
       return el.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
