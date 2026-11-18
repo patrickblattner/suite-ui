@@ -1027,3 +1027,4 @@
 {"ts":"2026-11-17T20:22:14.136Z","key":"SUI-FEATURE-142","from":4,"to":5,"disposition":"ticket","ref":"940"}
 {"ts":"2026-11-18T00:34:54.612Z","key":"PROC-REL-032","from":null,"to":3,"disposition":"editorial","ref":"no code impact: suite-ui runs in local gate mode with no .github/workflows and no pr-gate, so the Mac pr-unit slot does not apply"}
 {"ts":"2026-11-18T06:00:19.325Z","key":"PROC-REL-032","from":3,"to":4,"disposition":"editorial","ref":"rev 4 Mac pr-unit host tooling/finding record; repo runs local gate mode, no pr-gate/pr-unit workflow"}
+{"ts":"2026-11-18T08:05:36.653Z","key":"PROC-REL-032","from":4,"to":5,"disposition":"editorial","ref":"rev 5 host-Node patch exception for pr-unit; suite-ui runs local gate mode without pr-unit/MAC_UNIT, no code impact"}
