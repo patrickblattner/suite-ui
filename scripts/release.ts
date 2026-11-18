@@ -164,11 +164,11 @@ function lockfileDrift(): string[] {
     const manifest = dir === undefined ? undefined : join(dir, "package.json");
     if (manifest === undefined) {
       drift.push(`${path} ${entry.version} ≠ outside node_modules/`);
-      // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: <cwd>/node_modules (operator root, the checkout gate:record runs in); form (3): resolveUnder + literal package.json
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: <cwd>/node_modules (cwd set by npm to the checkout gate:record runs in, operator or worker); form (3): resolveUnder + literal package.json
     } else if (!existsSync(manifest)) {
       if (!entry.optional) drift.push(`${path} ${entry.version} ≠ missing`);
     } else {
-      // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: <cwd>/node_modules (operator root, the checkout gate:record runs in); form (3): resolveUnder + literal package.json
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: <cwd>/node_modules (cwd set by npm to the checkout gate:record runs in, operator or worker); form (3): resolveUnder + literal package.json
       const { version } = JSON.parse(readFileSync(manifest, "utf8")) as { version?: string };
       if (version !== entry.version) drift.push(`${path} ${entry.version} ≠ ${version}`);
     }

@@ -19,6 +19,10 @@ export default tseslint.config(
       ".size-limit.cjs",
       // A stand-in app checkout for the parity tests, outside the typed project graph.
       "test/fixtures/**",
+      // Git-ignored (.claude/ in part) and holding no source: hygiene's tree fingerprint does not see them, so lint must not read them (#942).
+      "worklogs/**",
+      ".claude/**",
+      ".playwright-mcp/**",
     ],
   },
   js.configs.recommended,

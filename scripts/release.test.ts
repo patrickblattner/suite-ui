@@ -34,9 +34,13 @@ const git = (...args: string[]) => gitIn(repo, ...args);
 // fails here instead, naming the cause; a child that exited is returned as is, so a wrong status still
 // fails its assertion.
 const exited = <T extends SpawnSyncReturns<string>>(run: T, what: string): T => {
+  // spawnSync types `error` as Error; a spawn timeout's carries the errno code ETIMEDOUT.
+  const error: NodeJS.ErrnoException | undefined = run.error;
   if (run.signal)
     throw new Error(
-      `${what}: spawn timeout — the child was killed (${run.signal}) before it exited; host load, not a wrong exit status`,
+      error?.code === "ETIMEDOUT"
+        ? `${what}: spawn timeout — the child was killed (${run.signal}) before it exited; host load, not a wrong exit status`
+        : `${what}: child killed by ${run.signal} before it exited`,
     );
   if (run.error) throw run.error;
   return run;
@@ -902,6 +906,12 @@ describe("spawn helper", () => {
     expect(() => exited(node("setTimeout(() => {}, 30_000)", 200), "sleeper")).toThrow(
       /^sleeper: spawn timeout — the child was killed \(SIGTERM\)/,
     );
+  });
+
+  it("names a signal death without a timeout neutrally, not as a spawn timeout", () => {
+    expect(() =>
+      exited(node("process.kill(process.pid, 'SIGKILL')", SPAWN_TIMEOUT), "crash"),
+    ).toThrow(/^crash: child killed by SIGKILL before it exited$/);
   });
 
   it("returns a child that exited with its status, so a wrong status still fails the assertion", () => {

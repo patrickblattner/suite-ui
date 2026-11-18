@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — #942: scripts sweep (findings #243, #337, #571) (patch)
+
+- **Fixed (#942, finding #243):** the GL-CODE-020 reasons in `scripts/pre-push.ts` and `lockfileDrift` (`scripts/release.ts`) no longer call `process.cwd()` the "operator root" of "the human's git push": it is the checkout git or npm runs in, for the operator's and the worker's runs alike. The stale comment on `GITLEAKS_VERSION` no longer claims the hook imports no `.ts` file.
+- **Fixed (#942, finding #337):** ESLint ignores `worklogs/`, `.claude/` and `.playwright-mcp/`, which hygiene's tree fingerprint does not see, so a lintable file there can no longer leave a stale lint report reused.
+- **Fixed (#942, finding #571):** `release.test.ts`'s spawn helper names a signal death a spawn timeout only when the spawn reports `ETIMEDOUT`; any other signal (a crash, an OOM kill) reads "child killed by <signal>".
+
 ## 0.246.2 — #940: `EditPanel`/`MediaDetailShell` keep invisible focus stops out of Tab, keys belong to the focused surface (patch)
 
 - **Fixed (#940, SUI-FEATURE-142 AC 1):** with an `EditPanel` or `MediaDetailShell` open, only a shown dialog, menu or listbox outside the panel and outside an `inert` region counts as an open layer. A hidden one, or one in the content the panel covers, no longer turns radix's invisible focus guards back into Tab stops, so Tab from the panel's last control never lands on one. A real layer opened over the panel (confirm, leave guard, menu, select) still gets the guards back for its focus trap. Only layers portaled into the body count: a listbox or menu in the sidebar or a band does not, and showing or hiding a layer through `hidden` or `inert` resyncs the guards. The panel's Tab edges and the modal overlay's Tab cycle now share one tabbable helper.

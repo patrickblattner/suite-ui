@@ -17,8 +17,8 @@ import { pathToFileURL } from "node:url";
 
 import { resolveUnder } from "./resolve-under.ts";
 
-// The gitleaks hygiene pins (`TOOL_VERSIONS` in hygiene.ts; a test holds the two equal). Node needs a
-// `.ts` path to import hygiene.ts at run time and the typecheck forbids one, so the hook imports none.
+// The gitleaks hygiene pins (`TOOL_VERSIONS` in hygiene.ts). The hook keeps its own copy instead of
+// importing hygiene.ts (it imports only resolve-under.ts); a test holds the two equal.
 export const GITLEAKS_VERSION = "8.30.1";
 // gitleaks exits 1 on a leak and on its own errors alike; a code of our own tells them apart.
 const LEAK_EXIT = 42;
@@ -235,9 +235,9 @@ function withTree<T>(sha: string, check: (cwd: string) => T): T {
   const dir = join(mkdtempSync(join(tmpdir(), "suite-ui-pre-push-")), "tree");
   execFileSync("git", ["worktree", "add", "-q", "--detach", dir, sha], { stdio: "ignore" });
   try {
-    // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: process.cwd() (operator root, the checkout the human's git push runs the hook in); form (1): + literal node_modules
+    // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: process.cwd() (the checkout git runs the hook in, set by git for the operator's or the worker's push); form (1): + literal node_modules
     if (existsSync(join(here, "node_modules"))) {
-      // eslint-disable-next-line security/detect-non-literal-fs-filename -- roots: process.cwd() (operator root) and the mkdtemp dir this function created; form (1): each + literal node_modules (dir = mkdtemp + literal tree)
+      // eslint-disable-next-line security/detect-non-literal-fs-filename -- roots: process.cwd() (the checkout git runs the hook in) and the mkdtemp dir this function created; form (1): each + literal node_modules (dir = mkdtemp + literal tree)
       symlinkSync(join(here, "node_modules"), join(dir, "node_modules"));
     }
     return check(dir);
@@ -265,7 +265,7 @@ export function keptLogs(logDir: string, cwd: string): string {
   if (source === undefined) return resolve(cwd, logDir);
   const kept = resolveUnder(here, relative(cwd, source));
   if (kept === undefined) return source;
-  // eslint-disable-next-line security/detect-non-literal-fs-filename -- roots: cwd (the mkdtemp worktree) and process.cwd() (operator root, the checkout the hook runs in); form (3): source and kept both come from resolveUnder
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- roots: cwd (the mkdtemp worktree) and process.cwd() (the checkout git runs the hook in, operator or worker); form (3): source and kept both come from resolveUnder
   if (kept !== source && existsSync(source)) cpSync(source, kept, { recursive: true });
   return kept;
 }
