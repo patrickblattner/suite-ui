@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — #942: scripts sweep (findings #243, #337, #571) (patch)
+## 0.246.3 — #942: scripts sweep (findings #243, #337, #571) (patch)
 
 - **Fixed (#942, finding #243):** the GL-CODE-020 reasons in `scripts/pre-push.ts` and `lockfileDrift` (`scripts/release.ts`) no longer call `process.cwd()` the "operator root" of "the human's git push": it is the checkout git or npm runs in, for the operator's and the worker's runs alike. The stale comment on `GITLEAKS_VERSION` no longer claims the hook imports no `.ts` file.
 - **Fixed (#942, finding #337):** ESLint ignores `worklogs/`, `.claude/` and `.playwright-mcp/`, which hygiene's tree fingerprint does not see, so a lintable file there can no longer leave a stale lint report reused.
