@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.246.6 — #949: settings scroller carries its own bar-side floor (patch)
 
 - **Changed (#949):** the settings body scroller carries its own `GL-UI-018` bar-side floor (`pe-[var(--page-gutter)]`); the gallery stand-in is gone; the end-padding test regex also catches important forms (#668).
 
