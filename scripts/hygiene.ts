@@ -330,7 +330,7 @@ function run(command: string, args: string[], cwd = root): Ran {
 // The scanners are binaries outside npm (installed with mise/Homebrew). Their versions are pinned
 // here: a different Semgrep can drop vendored rules, a different Trivy or gitleaks can count
 // differently, so a mismatch is an unreadable run, never a measurement.
-export const TOOL_VERSIONS = { semgrep: "1.176.0", trivy: "0.76.1", gitleaks: "8.30.1" } as const;
+export const TOOL_VERSIONS = { semgrep: "1.176.1", trivy: "0.76.1", gitleaks: "8.30.1" } as const;
 
 function checkVersion(tool: keyof typeof TOOL_VERSIONS, args: string[]) {
   const { stdout, stderr } = run(tool, args);

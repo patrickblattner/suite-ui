@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Changed (#947):** the Semgrep pin (`TOOL_VERSIONS` in `scripts/hygiene.ts`, headers of the vendored packs) moves to 1.176.1.
+
 ## 0.246.4 — #944: local Node pin 24.22.3 (patch)
 
 - **Changed (#944):** the local Node pin (`.nvmrc`) moves to 24.22.3; `engines` stays `>=24.15`.
