@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.246.4 — #944: local Node pin 24.22.3 (patch)
 
 - **Changed (#944):** the local Node pin (`.nvmrc`) moves to 24.22.3; `engines` stays `>=24.15`.
 
