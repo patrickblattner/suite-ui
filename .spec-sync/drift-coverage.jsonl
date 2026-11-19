@@ -1031,3 +1031,4 @@
 {"ts":"2026-11-18T09:53:41.078Z","key":"SUI-FEATURE-075","from":2,"to":3,"disposition":"ticket","ref":"944"}
 {"ts":"2026-11-18T16:40:05.897Z","key":"PROC-REL-032","from":5,"to":6,"disposition":"editorial","ref":"Mac pr-unit slot only; suite-ui runs local mode without GitHub workflows, no pr-gate"}
 {"ts":"2026-11-19T10:33:13.231Z","key":"SUI-FEATURE-095","from":3,"to":5,"disposition":"editorial","ref":"rev4 added Button pressed, rev5 reverted it; net rev3→rev5 diff empty, nothing built from rev4"}
+{"ts":"2026-11-19T11:06:30.087Z","key":"PROC-REL-032","from":6,"to":7,"disposition":"editorial","ref":"rev7 widens Mac pr-unit slot phases; suite-ui is local mode without .github/workflows, no pr-gate/pr-unit — no code impact"}
