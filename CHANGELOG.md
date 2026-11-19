@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.246.7 — #951: Semgrep pin 1.186.0 (patch)
 
 - **Changed (#951):** the Semgrep pin (`TOOL_VERSIONS` in `scripts/hygiene.ts`, headers of the vendored packs) moves to 1.186.0; both packs validate against the new engine; a full scan finds 0 results and the same PartialParsing warnings as 1.176.1, so the baseline and the per-file excludes stay.
 
