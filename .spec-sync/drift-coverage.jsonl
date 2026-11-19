@@ -1035,3 +1035,10 @@
 {"ts":"2026-11-19T16:51:46.241Z","key":"PROC-REL-032","from":7,"to":8,"disposition":"editorial","ref":"rev8 narrows Mac pr-unit slot back to unit only; suite-ui is local mode without .github/workflows, no pr-gate/pr-unit — no code impact"}
 {"ts":"2026-11-19T20:40:45.659Z","key":"SUI-FEATURE-143","from":null,"to":2,"disposition":"ticket","ref":"953"}
 {"ts":"2026-11-19T21:01:51.958Z","key":"SUI-FEATURE-143","from":2,"to":3,"disposition":"ticket","ref":"953"}
+{"ts":"2026-11-19T22:08:47.335Z","key":"SUI-FEATURE-096","from":4,"to":5,"disposition":"ticket","ref":"954"}
+{"ts":"2026-11-19T22:10:07.290Z","key":"SUI-FEATURE-144","from":null,"to":2,"disposition":"ticket","ref":"955"}
+{"ts":"2026-11-19T22:10:07.687Z","key":"SUI-FEATURE-145","from":null,"to":2,"disposition":"ticket","ref":"956"}
+{"ts":"2026-11-19T22:10:08.088Z","key":"SUI-FEATURE-146","from":null,"to":2,"disposition":"ticket","ref":"957"}
+{"ts":"2026-11-19T22:10:08.503Z","key":"SUI-FEATURE-450","from":null,"to":2,"disposition":"ticket","ref":"958"}
+{"ts":"2026-11-19T22:10:08.503Z","key":"SUI-FEATURE-250","from":4,"to":5,"disposition":"ticket","ref":"958"}
+{"ts":"2026-11-19T22:10:08.925Z","key":"SUI-FEATURE-440","from":null,"to":2,"disposition":"ticket","ref":"959"}
