@@ -3600,6 +3600,46 @@ test("upload step: a long file name truncates at 390 px", async ({ page }) => {
   expect(await name.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
 });
 
+// SUI-FEATURE-143 AC 5: the failure action keeps the row height; at 320 px it wraps below the error,
+// end-aligned, nothing truncated.
+test("upload step: a failed row's action keeps the height and wraps at 320 px", async ({
+  page,
+}) => {
+  await page.goto("/?page=components");
+  const frame = page.getByTestId("upload-frame-failure-action");
+  const rows = frame.getByTestId("upload-row");
+  const action = frame.getByTestId("upload-failure-action");
+  await expect(action.getByRole("button", { name: "Choose another file" })).toBeVisible();
+  expect((await box(rows.nth(1))).height).toBe((await box(rows.first())).height);
+  await page.setViewportSize({ width: 320, height: 900 });
+  const error = rows.nth(1).getByRole("img", { name: "File too large" });
+  await expect(async () => {
+    expect((await box(action)).y).toBeGreaterThanOrEqual(
+      (await box(error)).y + (await box(error)).height,
+    );
+  }).toPass();
+  const row = await box(rows.nth(1));
+  const end = await box(action);
+  expect(Math.round(end.x + end.width)).toBe(Math.round(row.x + row.width));
+  const button = action.getByRole("button", { name: "Choose another file" });
+  expect(await button.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+  expect(end.x).toBeGreaterThanOrEqual(row.x);
+});
+
+// SUI-FEATURE-143 AC 3: the busy trigger keeps its width from 5 % to 100 %.
+test("upload step: the busy trigger keeps its width as the percentage grows", async ({ page }) => {
+  await page.goto("/?page=components");
+  const trigger = page.getByTestId("upload-frame-trigger").getByTestId("upload-trigger").nth(1);
+  const progress = trigger.getByTestId("upload-progress");
+  await expect(progress).toHaveText("42%");
+  const width = async (text: string) => {
+    await progress.evaluate((el, value) => (el.textContent = value), text);
+    return (await box(trigger)).width;
+  };
+  const widths = [await width("5%"), await width("42%"), await width("100%")];
+  expect(new Set(widths).size).toBe(1);
+});
+
 // The tag field has the input height while it fits one row (`GL-UI-011`) and takes typed tags over.
 test("tag input: input height, comma and Enter make chips, duplicates dropped", async ({
   page,

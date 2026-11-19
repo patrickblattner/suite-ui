@@ -614,6 +614,26 @@ const UPLOAD_RESULT: UploadItem[] = [
   },
 ];
 
+// `SUI-FEATURE-143`: a failed row with the app's action, a trigger-form step.
+const UPLOAD_FAILURE_ACTION: UploadItem[] = [
+  { id: "1", name: "team-photo.jpg", state: "done" },
+  {
+    id: "2",
+    name: "brochure-2026.pdf",
+    state: "failed",
+    error: "File too large",
+    failureAction: (
+      <UploadStep
+        variant="trigger"
+        triggerLabel="Choose another file"
+        accept=".pdf"
+        multiple={false}
+        onFiles={() => {}}
+      />
+    ),
+  },
+];
+
 // The existing tags the tag field suggests (`SUI-FEATURE-100`).
 const TAG_SUGGESTIONS = [
   "Stadt",
@@ -630,7 +650,8 @@ const TAG_SUGGESTIONS = [
 ];
 
 // `SUI-FEATURE-051`: the upload step (choose, loading, result with an error) and the tag field;
-// `SUI-FEATURE-052`: the rejection message; `SUI-FEATURE-100`: the tag field's suggestions.
+// `SUI-FEATURE-052`: the rejection message; `SUI-FEATURE-100`: the tag field's suggestions;
+// `SUI-FEATURE-143`: the locked zone, the trigger form idle/busy/locked, a failed row with an action.
 function UploadAndTags() {
   const [tags, setTags] = useState(["summer", "team"]);
   const [loading, setLoading] = useState(true);
@@ -655,6 +676,37 @@ function UploadAndTags() {
         </div>
         <UploadRejected />
         <UploadRejected rows />
+        <div data-testid="upload-frame-locked">
+          <UploadStep disabled disabledReason="Name the production first" onFiles={() => {}} />
+        </div>
+        <div className="flex flex-col gap-4" data-testid="upload-frame-trigger">
+          <UploadStep
+            variant="trigger"
+            triggerLabel="Replace"
+            accept=".pdf"
+            multiple={false}
+            hint="PDF, at most 20 MB"
+            onFiles={() => {}}
+          />
+          <UploadStep
+            variant="trigger"
+            triggerLabel="Replace"
+            busy
+            progress={0.42}
+            onFiles={() => {}}
+          />
+          <UploadStep
+            variant="trigger"
+            triggerLabel="Add supplements"
+            hint="PDF or images"
+            disabled
+            disabledReason="Add a label first"
+            onFiles={() => {}}
+          />
+        </div>
+        <div className="md:col-span-2" data-testid="upload-frame-failure-action">
+          <UploadStep onFiles={() => {}} items={UPLOAD_FAILURE_ACTION} />
+        </div>
       </div>
       <div className="mt-4 flex max-w-md flex-col gap-2">
         <Label htmlFor="gallery-tags">Tags</Label>

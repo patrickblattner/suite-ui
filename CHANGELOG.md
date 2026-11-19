@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- **Added (#953, SUI-FEATURE-143):** `UploadStep` takes `disabled` with `disabledReason` (the reason is mandatory with `disabled`, type-level as in `SUI-FEATURE-250`): the zone takes no drop and no choice, takes the muted look, and names the reason below „Dateien wählen" in the muted hint text, the button's one `aria-describedby` (`aria-disabled`, still focusable).
+- **Added (#953, SUI-FEATURE-143):** `UploadStep` `variant="trigger"` (default `"zone"`) draws only one package `Button` (`UploadIcon`, `outline`) with the mandatory `triggerLabel` and an optional `hint` below it, the button's `aria-describedby` while it shows; no zone, no `options`. `busy` and `progress` (0–1, the scale of `UploadItem.progress`, clamped) give the package busy state (busy wins over `disabled`) with the percentage after the label via `Intl.NumberFormat` `percent` for the current language, in tabular figures and a width reserved for 100 %. A lock reason replaces the `hint` in place. No new catalogue key.
+- **Added (#953, SUI-FEATURE-143):** `UploadItem.failureAction` is drawn at the end of its row, after the status, only while the row is `failed`; a row with it keeps one height in every state and on a narrow row the action wraps below the error, end-aligned. A `null` action counts as none. A rejection message of a step nested in the action stays out of the flow (still announced), so it never grows the row.
+- Without the new props `UploadStep` renders byte-identical to the previous version. The gallery shows the locked zone, the trigger form idle, busy and locked, and a failed row with an action. Changed baselines (the new frames): `gallery/__screenshots__/components-{de,en,es}-{light,dark}.png` and `components-de-{light,dark}-{390,1440}.png` (10 files).
+- **Size (#953, GL-CODE-021, register #1998):** `./ui/upload-step` maximum 41193 → 43461 B (measured 41391 B + 5 %); cause: the lock with its reason, the trigger form with its busy percentage and the failed row's action.
+
 ## 0.246.7 — #951: Semgrep pin 1.186.0 (patch)
 
 - **Changed (#951):** the Semgrep pin (`TOOL_VERSIONS` in `scripts/hygiene.ts`, headers of the vendored packs) moves to 1.186.0; both packs validate against the new engine; a full scan finds 0 results and the same PartialParsing warnings as 1.176.1, so the baseline and the per-file excludes stay.
