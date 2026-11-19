@@ -867,7 +867,7 @@ function FieldErrors() {
   );
 }
 
-// `SUI-FEATURE-096`: a free message line per tone, the warning with a link in its text.
+// `SUI-FEATURE-096`: a free message line per tone (error, warn, info), the warning with a link in its text.
 function InlineMessages() {
   return (
     <Section id="inline-message" title="InlineMessage">
@@ -877,6 +877,9 @@ function InlineMessages() {
         </InlineMessage>
         <InlineMessage tone="warn" data-testid="inline-message-warn">
           The storage is almost full. <a href="#inline-message">Free up space</a>
+        </InlineMessage>
+        <InlineMessage tone="info" data-testid="inline-message-info">
+          The report is generated overnight.
         </InlineMessage>
       </div>
     </Section>

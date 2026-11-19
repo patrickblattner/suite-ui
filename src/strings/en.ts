@@ -51,6 +51,7 @@ export const en = {
   inline: {
     error: "Error:",
     warn: "Warning:",
+    info: "Info:",
   },
   // The text of each `StatusChip` state, in sentence case.
   state: {

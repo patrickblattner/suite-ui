@@ -44,6 +44,7 @@ export const es: SuiteStrings = {
   inline: {
     error: "Error:",
     warn: "Advertencia:",
+    info: "Información:",
   },
   state: {
     succeeded: "Correcto",

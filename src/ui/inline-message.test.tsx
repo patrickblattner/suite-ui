@@ -14,6 +14,7 @@ describe("InlineMessage", () => {
   it.each([
     ["error", "alert", "lucide-circle-x", "text-destructive-text", "Error:"],
     ["warn", "status", "lucide-triangle-alert", "text-warn-text", "Warning:"],
+    ["info", "status", "lucide-info", "text-muted-foreground", "Info:"],
   ] as const)(
     "tone %s is a %s with its symbol, colour and prefix",
     (tone, role, icon, colour, prefix) => {
@@ -35,19 +36,33 @@ describe("InlineMessage", () => {
   );
 
   it.each([
-    ["de", "Fehler:", "Warnung:"],
-    ["es", "Error:", "Advertencia:"],
-  ] as const)("names the tone in %s", async (lng, error, warn) => {
+    ["de", "Fehler:", "Warnung:", "Info:"],
+    ["es", "Error:", "Advertencia:", "Información:"],
+  ] as const)("names the tone in %s", async (lng, error, warn, info) => {
     await i18n.changeLanguage(lng);
     render(
       <>
         <InlineMessage tone="error">A</InlineMessage>
         <InlineMessage tone="warn">B</InlineMessage>
+        <InlineMessage tone="info">C</InlineMessage>
       </>,
     );
     expect(screen.getByRole("alert")).toHaveTextContent(`${error} A`);
-    expect(screen.getByRole("status")).toHaveTextContent(`${warn} B`);
+    const [warnLine, infoLine] = screen.getAllByRole("status");
+    expect(warnLine).toHaveTextContent(`${warn} B`);
+    expect(infoLine).toHaveTextContent(`${info} C`);
   });
+
+  // `inline.info` uses the words of `status.info` (the info toast), with the prefix's colon.
+  it.each(["de", "en", "es"] as const)(
+    "names info with the words of status.info in %s",
+    async (lng) => {
+      await i18n.changeLanguage(lng);
+      expect(i18n.t("inline.info", { ns: "suite" })).toBe(
+        `${i18n.t("status.info", { ns: "suite" })}:`,
+      );
+    },
+  );
 
   it("underlines a link at rest, drops it on hover and keeps it in the tab order", () => {
     render(

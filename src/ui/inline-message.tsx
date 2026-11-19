@@ -1,10 +1,10 @@
-import { CircleXIcon, TriangleAlertIcon } from "lucide-react";
+import { CircleXIcon, InfoIcon, TriangleAlertIcon } from "lucide-react";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 
 import { cn } from "../lib/cn.js";
 
-type InlineMessageTone = "error" | "warn";
+type InlineMessageTone = "error" | "warn" | "info";
 
 type InlineMessageProps = Omit<React.ComponentProps<"p">, "role"> & {
   tone: InlineMessageTone;
@@ -13,13 +13,14 @@ type InlineMessageProps = Omit<React.ComponentProps<"p">, "role"> & {
 const tones = {
   error: { Icon: CircleXIcon, role: "alert", className: "text-destructive-text" },
   warn: { Icon: TriangleAlertIcon, role: "status", className: "text-warn-text" },
+  info: { Icon: InfoIcon, role: "status", className: "text-muted-foreground" },
 } as const;
 
 // A free message line (`SUI-FEATURE-096`): the tone's symbol before the text in the tone's status
 // text colour, so the kind does not rest on colour alone (`GL-UI-060`). The text starts with a word
 // only screen readers read, so it does not rest on the symbol either. An error is an alert, a
-// warning a status message. A link in the text takes the prose-link rule of the help-markdown link
-// (`SUI-FEATURE-113`) in the tone's colour.
+// warning or a neutral info a status message. A link in the text takes the prose-link rule of the
+// help-markdown link (`SUI-FEATURE-113`) in the tone's colour.
 function InlineMessage({ tone, className, children, ...props }: InlineMessageProps) {
   const { t } = useTranslation("suite");
   const { Icon, role, className: toneClassName } = tones[tone];

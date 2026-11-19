@@ -13500,12 +13500,16 @@ test("GL-UI-060: the InlineMessage tones differ without colour, the link is reac
   await page.goto("/?page=components&lng=en");
   const error = page.getByTestId("inline-message-error");
   const warn = page.getByTestId("inline-message-warn");
+  const info = page.getByTestId("inline-message-info");
   await expect(error).toHaveAttribute("role", "alert");
   await expect(warn).toHaveAttribute("role", "status");
+  await expect(info).toHaveAttribute("role", "status");
   await expect(error.locator(".sr-only")).toHaveText("Error:");
   await expect(warn.locator(".sr-only")).toHaveText("Warning:");
+  await expect(info.locator(".sr-only")).toHaveText("Info:");
   expect(await symbolOf(error)).toBe("lucide-circle-x");
   expect(await symbolOf(warn)).toBe("lucide-triangle-alert");
+  expect(await symbolOf(info)).toBe("lucide-info");
 
   const link = warn.getByRole("link", { name: "Free up space" });
   await expect(link).toHaveCSS("text-decoration-line", "underline");
