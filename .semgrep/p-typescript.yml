@@ -1,5 +1,5 @@
 # Vendored Semgrep registry pack p/typescript (SUI-FEATURE-128, GL-CODE-002: bought, pinned tool input).
-# Source: https://semgrep.dev/c/p/typescript, fetched 2026-11-01 (#752) for Semgrep 1.176.1
+# Source: https://semgrep.dev/c/p/typescript, fetched 2026-11-01 (#752) for Semgrep 1.186.0
 # (scripts/hygiene.ts TOOL_VERSIONS). Refresh: fetch the same URL, keep this header, re-run the inventory.
 rules:
 - id: javascript.jsonwebtoken.security.jwt-none-alg.jwt-none-alg

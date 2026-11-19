@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Changed (#951):** the Semgrep pin (`TOOL_VERSIONS` in `scripts/hygiene.ts`, headers of the vendored packs) moves to 1.186.0; both packs validate against the new engine; a full scan finds 0 results and the same PartialParsing warnings as 1.176.1, so the baseline and the per-file excludes stay.
+
 ## 0.246.6 — #949: settings scroller carries its own bar-side floor (patch)
 
 - **Changed (#949):** the settings body scroller carries its own `GL-UI-018` bar-side floor (`pe-[var(--page-gutter)]`); the gallery stand-in is gone; the end-padding test regex also catches important forms (#668).
