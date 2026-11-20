@@ -23,6 +23,7 @@ import {
   LIST_FRAME_SELECTOR,
   listEntries,
 } from "../lib/list-focus.js";
+import { isShown } from "../lib/tabbable.js";
 import {
   behindModal,
   FOCUS_NAV_ATTR,
@@ -59,8 +60,9 @@ function isUsable(element: Element | null): element is HTMLElement {
   if (!(element instanceof HTMLElement) || !element.isConnected) return false;
   if ((element as HTMLButtonElement).disabled === true) return false;
   if (element.getAttribute("aria-disabled") === "true") return false;
-  if (element.closest("[hidden], [inert]") !== null) return false;
-  return typeof element.checkVisibility !== "function" || element.checkVisibility();
+  if (element.closest("[inert]") !== null) return false;
+  // Shown by the shared rule (#970 finding #691).
+  return isShown(element);
 }
 
 function candidates(group: Element): HTMLElement[] {

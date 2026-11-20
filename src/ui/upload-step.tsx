@@ -248,12 +248,16 @@ function UploadRow({ item, nameId }: { item: UploadItem; nameId: string }) {
   );
 }
 
-// An empty reason passes the type but locks with nothing to read (#803): name it in development.
+// An empty reason passes the type but locks with nothing to read (#803): name it and its fix in
+// development, once per lock — StrictMode's second effect run does not repeat it (#970 finding #862).
 function useSilentLockWarning(silentLock: boolean) {
+  const warned = React.useRef(false);
   React.useEffect(() => {
-    if (silentLock && process.env.NODE_ENV !== "production") {
+    if (!silentLock) warned.current = false;
+    else if (!warned.current && process.env.NODE_ENV !== "production") {
+      warned.current = true;
       console.error(
-        '@suite/ui UploadStep: disabled with disabledReason="" locks without a reason.',
+        '@suite/ui UploadStep: disabled with disabledReason="" locks without a reason. Pass a disabledReason the person can read, or leave disabled unset.',
       );
     }
   }, [silentLock]);
@@ -293,9 +297,9 @@ function UploadStep({
   // with it lands on the list instead of the page.
   const focusInside = React.useRef(false);
   const showsRows = items !== undefined;
-  // Busy wins over the lock (`SUI-FEATURE-103`). An empty reason draws no line.
+  // Busy wins over the lock (`SUI-FEATURE-103`). An empty reason, or one of spaces only, draws no line.
   const locked = disabled === true && busy !== true;
-  const reason = locked && disabledReason !== "" ? disabledReason : undefined;
+  const reason = locked && disabledReason?.trim() ? disabledReason : undefined;
   useSilentLockWarning(locked && reason === undefined);
   // Rows and the choice never stand together, so the rows' id is free to name the reason.
   const reasonId = `${rowsId}-lock`;

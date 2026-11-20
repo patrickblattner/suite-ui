@@ -549,6 +549,35 @@ describe("Codex #964", () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
+  // #826, GL-UI-050 rev 8: a natively disabled input takes no focus; the focus inside the closing
+  // picker goes to the group's next usable control, never <body>.
+  it("disabled while its picker holds the focus: the focus goes to the group's next control", () => {
+    const ui = (disabled: boolean) => (
+      <div data-focus-group="">
+        <TimeField
+          testId="field"
+          aria-label="At"
+          value="09:00"
+          onChange={() => {}}
+          disabled={disabled}
+        />
+        <button type="button" data-testid="next">
+          Next
+        </button>
+      </div>
+    );
+    const { rerender } = render(ui(false));
+    fireEvent.click(screen.getByTestId("field-picker"));
+    within(screen.getByTestId("field-times")).getByRole("option", { name: "10:00" }).focus();
+    expect(screen.getByTestId("field-popover")).toContainElement(
+      document.activeElement as HTMLElement,
+    );
+    rerender(ui(true));
+    expect(screen.queryByTestId("field-popover")).toBeNull();
+    expect(screen.getByTestId("field")).toBeDisabled();
+    expect(document.activeElement).toBe(screen.getByTestId("next"));
+  });
+
   it.each([
     ["isComposing", { isComposing: true }],
     ["key code 229", { keyCode: 229 }],

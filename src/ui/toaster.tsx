@@ -18,6 +18,7 @@ import {
 } from "sonner";
 
 import { cn } from "../lib/cn.js";
+import { tabbables } from "../lib/tabbable.js";
 import { isCompositionKey } from "./composition.js";
 import { captureOpener, type Opener, returnFocus } from "./focus-return.js";
 import { useHydrated } from "./hydrated-internal.js";
@@ -1143,10 +1144,9 @@ function useToasterFocus(
     };
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Tab" || !entry.hotkey || entry.before === null) return;
-      // Filtered from all elements, so they come in document order whatever the selector engine.
-      const stops = Array.from(wrapper.querySelectorAll("*")).filter((element) =>
-        element.matches(TABBABLE),
-      );
+      // The shared tabbable rule (#970 finding #691), from all elements, so they come in document
+      // order whatever the selector engine.
+      const stops = tabbables(wrapper).filter((element) => element.matches(TABBABLE));
       const active = document.activeElement;
       const leaves = event.shiftKey
         ? active === stops[0] || active?.matches("[data-sonner-toaster]") === true

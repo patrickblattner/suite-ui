@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import i18n from "i18next";
-import { useState } from "react";
+import { StrictMode, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { type UploadItem, UploadStep, type UploadStepProps } from "./upload-step.js";
@@ -233,6 +233,35 @@ describe("UploadStep", () => {
     expect(error.mock.calls[0]![0]).toContain('disabledReason=""');
     rerender(<UploadStep disabled disabledReason="Locked" onFiles={() => {}} />);
     rerender(<UploadStep disabled={false} disabledReason="" onFiles={() => {}} />);
+    expect(error).toHaveBeenCalledTimes(1);
+    error.mockRestore();
+  });
+
+  // #970 finding #862: the message names the fix, and StrictMode's second effect run logs nothing.
+  it("the empty-reason report names the fix and comes once per lock under StrictMode", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const step = (disabled: boolean) => (
+      <StrictMode>
+        <UploadStep disabled={disabled} disabledReason="" onFiles={() => {}} />
+      </StrictMode>
+    );
+    const { rerender } = render(step(true));
+    expect(error).toHaveBeenCalledTimes(1);
+    expect(error.mock.calls[0]![0]).toContain(
+      "Pass a disabledReason the person can read, or leave disabled unset.",
+    );
+    rerender(step(false));
+    rerender(step(true));
+    expect(error).toHaveBeenCalledTimes(2);
+    error.mockRestore();
+  });
+
+  // #970 finding #864: a reason of spaces only is no reason: no blank line, reported like "".
+  it("locked with a whitespace-only reason draws no line and reports it", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    render(<UploadStep disabled disabledReason="  " onFiles={() => {}} />);
+    expect(screen.queryByTestId("upload-disabled-reason")).toBeNull();
+    expect(screen.getByRole("button")).not.toHaveAttribute("aria-describedby");
     expect(error).toHaveBeenCalledTimes(1);
     error.mockRestore();
   });

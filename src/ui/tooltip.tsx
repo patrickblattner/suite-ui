@@ -1297,6 +1297,13 @@ function OverflowTooltip({
     report(node, clipped);
     return () => report(node, "");
   }, [report, node, clipped]);
+  // A text that stops clipping unmounts the bubble's Root, which never hears the close: its open
+  // state is dropped, or the bubble would mount open once the text clips again (#970 finding #831,
+  // as `Hint` since #958).
+  const stale = clipped === "" && press.root.open;
+  React.useEffect(() => {
+    if (stale) press.root.onOpenChange(false);
+  });
 
   if (report !== null || clipped === "") return child;
 

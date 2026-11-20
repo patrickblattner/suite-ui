@@ -30,8 +30,13 @@ function Select({ ...props }: React.ComponentProps<typeof SelectPrimitive.Root>)
   // here, so the lock can close it without switching Radix to controlled. Radix reports no close it
   // did not make itself, so the lock drops the open state too: unlocked, the list stays closed.
   const [ownOpen, setOwnOpen] = React.useState(props.defaultOpen ?? false);
+  // How often the lock closed an uncontrolled list: its owner hears each close too (#970 finding #858).
+  const [lockCloses, setLockCloses] = React.useState(0);
   const shut = lockReason !== undefined || props.disabled === true;
-  if (shut && ownOpen) setOwnOpen(false);
+  if (shut && ownOpen) {
+    setOwnOpen(false);
+    if (props.open === undefined) setLockCloses((count) => count + 1);
+  }
   const open = props.open ?? ownOpen;
   // A controlled list closed by the lock: its owner hears the close once, so it does not reopen the
   // list by itself when the lock ends (#968).
@@ -40,6 +45,9 @@ function Select({ ...props }: React.ComponentProps<typeof SelectPrimitive.Root>)
   React.useEffect(() => {
     if (lockClosesOwned) tellClosed();
   }, [lockClosesOwned]);
+  React.useEffect(() => {
+    if (lockCloses > 0) tellClosed();
+  }, [lockCloses]);
   return (
     <SelectOpenerContext.Provider value={opener}>
       <SelectPrimitive.Root

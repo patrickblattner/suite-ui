@@ -753,13 +753,24 @@ describe("Toaster: focus under a toast", () => {
     expect(undo).toHaveFocus();
   });
 
-  it("counts an own focusable element as a Tab stop of the toasts (#550)", async () => {
+  // #970 finding #691: the Tab stops follow the shared tabbable rule, so a hidden control is none.
+  it.each([
+    ["counts an own focusable element as a Tab stop of the toasts (#550)", false],
+    ["counts no hidden control as a Tab stop of the toasts", true],
+  ])("%s", async (_, hiddenAfter) => {
     await renderCovered({
       focused: "covered",
       action: (
-        <span tabIndex={0} data-testid="own-action">
-          Undo
-        </span>
+        <>
+          <span tabIndex={0} data-testid="own-action">
+            Undo
+          </span>
+          {hiddenAfter ? (
+            <button type="button" hidden>
+              Later
+            </button>
+          ) : null}
+        </>
       ),
     });
     altT();

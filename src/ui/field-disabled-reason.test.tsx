@@ -7,6 +7,7 @@ import { Checkbox } from "./checkbox.js";
 import { Combobox } from "./combobox.js";
 import { DateTimeField } from "./date-time-field.js";
 import { Field } from "./field.js";
+import { Hint } from "./hint.js";
 import { Input } from "./input.js";
 import { RadioGroup, RadioGroupItem } from "./radio-group.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select.js";
@@ -14,6 +15,7 @@ import { Switch } from "./switch.js";
 import { TagInput } from "./tag-input.js";
 import { Textarea } from "./textarea.js";
 import { TimezoneCombobox } from "./timezone-combobox.js";
+import { OverflowTooltip } from "./tooltip.js";
 
 // `SUI-FEATURE-450` rev 4: a field locked with `disabledReason` keeps its control focusable — text
 // fields read-only, every other control `aria-disabled` — and describes it by its value hint, then the
@@ -82,6 +84,55 @@ describe("Field disabledReason on a text field (AC1)", () => {
     expect(field).toHaveFocus();
     hoverFor(field, 1500);
     expect(bubble()).toHaveTextContent(`${HINT} ${REASON}`);
+  });
+
+  // #970 finding #825: a control in the caller's own Hint carries the field's reason after the
+  // Hint's text, as a Combobox `hint` does (value hint first, then the reason).
+  it.each([
+    ["with text", HINT, `${HINT} ${REASON}`],
+    ["silent", "", REASON],
+  ])(
+    "an Input in the caller's own Hint (%s): the Hint's text, then the reason",
+    (_, text, described) => {
+      render(
+        <Field label="Delay" htmlFor="f" disabledReason={REASON}>
+          <Hint text={text}>
+            <Input id="f" defaultValue="15" />
+          </Hint>
+        </Field>,
+      );
+      const field = screen.getByLabelText("Delay");
+      expect(field).toHaveAttribute("readonly");
+      expect(field).toHaveAccessibleDescription(described);
+      hoverFor(field, 1500);
+      expect(bubble()).toHaveTextContent(described);
+    },
+  );
+
+  it.each([
+    [
+      "Combobox",
+      () => (
+        <Combobox
+          id="f"
+          options={[{ value: "a", label: "Ada" }]}
+          value="a"
+          onValueChange={() => {}}
+          hint={HINT}
+        />
+      ),
+    ],
+    [
+      "TimezoneCombobox",
+      () => <TimezoneCombobox id="f" value="Europe/Zurich" onValueChange={() => {}} hint={HINT} />,
+    ],
+  ])("%s with its own hint names the reason once, after the hint", (_, control) => {
+    render(
+      <Field label="Delay" htmlFor="f" disabledReason={REASON}>
+        {control()}
+      </Field>,
+    );
+    expect(screen.getByLabelText("Delay")).toHaveAccessibleDescription(`${HINT} ${REASON}`);
   });
 
   it("without a value hint the reason alone describes the field", () => {
@@ -774,10 +825,16 @@ describe("Review round 4 (#958): a lock that ends reopens nothing", () => {
     expect(box).toHaveAttribute("aria-expanded", "false");
   });
 
-  // #968 (Codex #966 CX3): a controlled Select's owner hears the lock's close once.
-  it.each(["reason", "disabled"])(
-    "a controlled Select closed by a lock (%s) tells its owner once and stays closed once the lock is gone",
-    (how) => {
+  // #968 (Codex #966 CX3): a controlled Select's owner hears the lock's close once; #970 finding #858:
+  // an uncontrolled one that passes onOpenChange hears it too.
+  it.each([
+    ["reason", true],
+    ["disabled", true],
+    ["reason", false],
+    ["disabled", false],
+  ] as const)(
+    "a Select closed by a lock (%s, controlled: %s) tells its owner once and stays closed once the lock is gone",
+    (how, controlled) => {
       const onOpenChange = vi.fn();
       function Owned({ lock }: { lock: boolean }) {
         const [open, setOpen] = useState(false);
@@ -789,7 +846,7 @@ describe("Review round 4 (#958): a lock that ends reopens nothing", () => {
           >
             <Select
               defaultValue="a"
-              open={open}
+              {...(controlled ? { open } : {})}
               onOpenChange={(next) => {
                 onOpenChange(next);
                 setOpen(next);
@@ -915,6 +972,23 @@ describe("Review round 4 (#958): a silent hint keeps no open state", () => {
     rerender(<Mode value="s" />);
     expect(bubble()).toBeNull();
     leaveThenClip(trigger, () => rerender(<Mode value="l" />));
+  });
+
+  // #970 finding #831: the standalone OverflowTooltip keeps no open state once its text fits.
+  it("a standalone OverflowTooltip whose text stops clipping under the pointer opens no bubble once it clips again", () => {
+    clipLong();
+    const Label = ({ text }: { text: string }) => (
+      <OverflowTooltip>
+        <span className="truncate">{text}</span>
+      </OverflowTooltip>
+    );
+    const { rerender } = render(<Label text={LONG} />);
+    const label = screen.getByText(LONG);
+    hoverFor(label, 1500);
+    expect(bubble()).toHaveTextContent(LONG);
+    rerender(<Label text="Short" />);
+    expect(bubble()).toBeNull();
+    leaveThenClip(screen.getByText("Short"), () => rerender(<Label text={LONG} />));
   });
 
   it("a plain field's Input hovered while its value fits opens no bubble once the value clips later", () => {

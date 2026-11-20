@@ -8,7 +8,7 @@ import { usePopupPlacement } from "../lib/popup-placement.js";
 import { useCompositionText } from "../lib/use-composition-text.js";
 import { useFieldDraft } from "./field-drafts-internal.js";
 import { FieldUserEditContext, useFieldErrorAttributes } from "./field-error.js";
-import { useFieldLock, WithFieldValueHint, withLockReason } from "./field-value-hint.js";
+import { useFieldLock, WithFieldValueHint } from "./field-value-hint.js";
 import { Hint } from "./hint.js";
 import { FIELD_LOCKED_LOOK } from "./locked-look-internal.js";
 import { isInLeaveGuardDialog } from "./leave-guard.js";
@@ -85,7 +85,7 @@ function TimezoneCombobox({
   // Whether the keyboard placed the highlight: then it carries the inset ring on top of the tint
   // (`GL-UI-013`); a highlight under the mouse keeps the tint alone.
   const [keyboard, setKeyboard] = React.useState(false);
-  const { reason: lockReason, locked, disabled, attributes } = useFieldLock(ownDisabled);
+  const { locked, disabled, attributes } = useFieldLock(ownDisabled);
   // Disabled or locked while open, the list closes: it takes no pick (#958).
   if ((disabled || locked) && open) {
     setOpen(false);
@@ -239,7 +239,7 @@ function TimezoneCombobox({
         {hint === undefined ? (
           <WithFieldValueHint>{field}</WithFieldValueHint>
         ) : (
-          <Hint text={withLockReason(hint, lockReason)}>{field}</Hint>
+          <Hint text={hint}>{field}</Hint>
         )}
         <ChevronDownIcon
           aria-hidden="true"

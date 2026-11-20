@@ -55,4 +55,4 @@ function WithFieldValueHint({ children }: { children: HintProps["children"] }) {
   );
 }
 
-export { useFieldLock, useFieldLockReason, WithFieldValueHint, withLockReason };
+export { useFieldLock, useFieldLockReason, WithFieldValueHint };

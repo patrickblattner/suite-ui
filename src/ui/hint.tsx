@@ -232,7 +232,7 @@ function Hint({
   // The keyboard reads its own clipping once the delay has run, the layout only then.
   const focus = useOpenOnKeyboardFocus({ node, enabled: true, inside: true, read: clippedNow });
   const byKeyboard = focus.due && !press.root.open;
-  // A control in a Hint of its own still locks with its field's reason, but describes nothing more.
+  // A control in a Hint of its own still locks with its field's reason; the Hint describes it.
   const fieldLock = React.useContext(FieldLockReasonContext);
 
   const disabled = children.props.disabled === true;
@@ -243,7 +243,13 @@ function Hint({
   // A run is no lock with a reason: no `disabledText` while the control is `busy` (`SUI-FEATURE-103`).
   const locked =
     (disabled || ariaLocked) && disabledText !== undefined && children.props.busy !== true;
-  const shown = locked ? disabledText : text;
+  // Inside a field locked with a reason, the control's description is this hint's text, then the
+  // reason, as a Combobox `hint` carries it (`SUI-FEATURE-450`, #970 finding #825); a group's option
+  // leaves the reason to its group.
+  const fieldReason = fieldLock?.describes === true ? fieldLock.reason : undefined;
+  const own =
+    fieldReason === undefined || text === "" ? (fieldReason ?? text) : `${text} ${fieldReason}`;
+  const shown = locked ? disabledText : own;
   const silent = shown === "";
   // A silent hint holds an open state only while a full text is clipped (#958). An open state Radix
   // never sees (its `open` stays false) never hears the close either, and would surface once a text

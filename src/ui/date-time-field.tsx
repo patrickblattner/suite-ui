@@ -24,6 +24,7 @@ import {
 import { useFieldDraft } from "./field-drafts-internal.js";
 import { FieldError, FieldUserEditContext } from "./field-error.js";
 import { useFieldLockReason } from "./field-value-hint.js";
+import { captureOpener, returnFocus } from "./focus-return.js";
 import { Input } from "./input.js";
 import { isInLeaveGuardDialog } from "./leave-guard.js";
 import { IconButtonTooltip } from "./tooltip.js";
@@ -255,8 +256,9 @@ function useDismiss(
 }
 
 // Disabled or locked while open, the picker closes: it takes no pick (Codex #964). A focus inside it
-// returns to the input (#958); a natively disabled input takes no focus, so there it falls to the page
-// (#826).
+// returns to the input (#958); a natively disabled input takes no focus, so there it goes on as
+// `GL-UI-050` rev 8 says — the group's next usable control, the main content, the container, never
+// `<body>` (#826).
 function useCloseOnLock(
   open: boolean,
   locked: boolean,
@@ -270,7 +272,7 @@ function useCloseOnLock(
     // The focus inside the picker is read before it unmounts: only an effect sees it.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setOpen(false);
-    if (inside) inputRef.current?.focus();
+    if (inside) returnFocus(captureOpener(inputRef.current));
   }, [open, locked, popupRef, inputRef, setOpen]);
 }
 
