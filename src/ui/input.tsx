@@ -3,7 +3,7 @@ import * as React from "react";
 import { cn } from "../lib/cn.js";
 import { holdCompositionTab } from "../lib/keyboard.js";
 import { useFieldErrorAttributes } from "./field-error.js";
-import { WithFieldValueHint } from "./field-value-hint.js";
+import { useFieldLockReason, WithFieldValueHint } from "./field-value-hint.js";
 import { READ_ONLY_LOOK } from "./read-only-look-internal.js";
 
 // The date and time types whose Chromium calendar button is a tab stop of its own: focused, the field
@@ -24,6 +24,9 @@ function Input({
   size?: "sm" | "default";
 }) {
   const fieldError = useFieldErrorAttributes();
+  // Locked with its field's reason, the field is read-only, never `disabled`: Tab reaches it and its
+  // value stays selectable (`SUI-FEATURE-450`).
+  const lockReason = useFieldLockReason();
   const picker = type !== undefined && PICKER_TYPES.has(type);
   // A picker field rings on `:focus-within` unless the pointer brought the focus in (Chromium counts a
   // click into its segments as `:focus-visible`): a key pressed in the field hands the focus back to
@@ -37,8 +40,9 @@ function Input({
         data-slot="input"
         data-size={size}
         data-pointer-focus={picker && pointerFocus ? "" : undefined}
+        // Disabled, it keeps the pointer: hover still shows its value hint (`SUI-FEATURE-450`).
         className={cn(
-          "w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none selection:bg-primary selection:text-primary-foreground file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm dark:bg-input/30",
+          "w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none selection:bg-primary selection:text-primary-foreground file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 md:text-sm dark:bg-input/30",
           "data-[size=default]:h-9 data-[size=sm]:h-8",
           // Read-only: the shared look of every text-entry control (`SUI-FEATURE-117`).
           READ_ONLY_LOOK,
@@ -66,6 +70,7 @@ function Input({
           onBlur?.(event);
         }}
         {...props}
+        {...(lockReason === undefined ? {} : { readOnly: true, disabled: false })}
       />
     </WithFieldValueHint>
   );

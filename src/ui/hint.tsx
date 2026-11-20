@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { cn } from "../lib/cn.js";
 import { ariaKeyShortcuts } from "../lib/keyboard.js";
 import { lockedWithReason } from "./button-lock-internal.js";
-import { FieldValueHintContext } from "./field-value-hint-context.js";
+import { FieldLockReasonContext, FieldValueHintContext } from "./field-value-hint-context.js";
 import { FullTexts } from "./full-texts-internal.js";
 import { useHydrated } from "./hydrated-internal.js";
 import {
@@ -229,17 +229,16 @@ function Hint({
   );
   const fullLines = overflow.isOverflowing && overflow.text !== "" ? [overflow.text] : innerLines;
   const clipped = fullLines.length > 0;
+  // The full texts clipped right now, read from the layout: the measurement above runs only while open.
+  const clippedNow = () => {
+    const own = node === null ? null : overflowOf(node);
+    return own?.isOverflowing === true && own.text !== "" ? [own.text] : innerLines;
+  };
   // The keyboard reads its own clipping once the delay has run, the layout only then.
-  const focus = useOpenOnKeyboardFocus({
-    node,
-    enabled: true,
-    inside: true,
-    read: () => {
-      const own = node === null ? null : overflowOf(node);
-      return own?.isOverflowing === true && own.text !== "" ? [own.text] : innerLines;
-    },
-  });
+  const focus = useOpenOnKeyboardFocus({ node, enabled: true, inside: true, read: clippedNow });
   const byKeyboard = focus.due && !press.root.open;
+  // A control in a Hint of its own still locks with its field's reason, but describes nothing more.
+  const fieldLock = React.useContext(FieldLockReasonContext);
 
   const disabled = children.props.disabled === true;
   // A control locked with `aria-disabled` keeps the focus and pointer events, so it owns its
@@ -251,6 +250,14 @@ function Hint({
     (disabled || ariaLocked) && disabledText !== undefined && children.props.busy !== true;
   const shown = locked ? disabledText : text;
   const silent = shown === "";
+  // A silent hint holds an open state only while a full text is clipped (#958). An open state Radix
+  // never sees (its `open` stays false) never hears the close either, and would surface once a text
+  // clips later, with no pointer on the control. So an open without a clipped text is refused, and a
+  // text that stops clipping, or a hint that turns silent, under an open bubble drops it.
+  const stale = silent && press.root.open;
+  React.useEffect(() => {
+    if (stale && clippedNow().length === 0) press.root.onOpenChange(false);
+  });
   const describes = describe && !silent && children.props["aria-label"] !== shown;
   const carried = disabledText !== undefined;
   const variants = shortcutVariants(shortcut);
@@ -311,46 +318,53 @@ function Hint({
     <OverflowReportContext.Provider value={report}>
       {/* A control in a Hint of its own takes no field hint: the caller's Hint wins (#435). */}
       <FieldValueHintContext.Provider value={undefined}>
-        <TooltipProvider>
-          <TooltipPrimitive.Root
-            open={!silent && (press.root.open || focus.due)}
-            onOpenChange={(next) => {
-              if (!next) focus.close();
-              press.root.onOpenChange(next);
-            }}
-          >
-            <TooltipTrigger
-              asChild
-              onFocus={keepClosedOnFocus}
-              {...press.trigger}
-              onPointerMove={
-                !carried && children.props.busy === true ? keepClosedOnPointer : undefined
-              }
+        <FieldLockReasonContext.Provider value={fieldLock && { ...fieldLock, describes: false }}>
+          <TooltipProvider>
+            <TooltipPrimitive.Root
+              // Silent, it still opens for clipped text, with the full text alone (a plain field's
+              // control, #958).
+              open={focus.due || (press.root.open && (!silent || clipped))}
+              onOpenChange={(next) => {
+                if (!next) focus.close();
+                if (next && silent && clippedNow().length === 0) return;
+                press.root.onOpenChange(next);
+              }}
             >
-              <PassThrough {...passThrough} ref={ref}>
-                {trigger}
-              </PassThrough>
-            </TooltipTrigger>
-            <TooltipContent>
-              {byKeyboard ? (
-                <FullTexts lines={focus.lines} />
-              ) : clipped ? (
-                <>
+              <TooltipTrigger
+                asChild
+                onFocus={keepClosedOnFocus}
+                {...press.trigger}
+                onPointerMove={
+                  !carried && children.props.busy === true ? keepClosedOnPointer : undefined
+                }
+              >
+                <PassThrough {...passThrough} ref={ref}>
+                  {trigger}
+                </PassThrough>
+              </TooltipTrigger>
+              <TooltipContent>
+                {byKeyboard ? (
+                  <FullTexts lines={focus.lines} />
+                ) : clipped && silent ? (
                   <FullTexts lines={fullLines} />
-                  <span className="mt-1 block opacity-90" data-slot="tooltip-hint">
+                ) : clipped ? (
+                  <>
+                    <FullTexts lines={fullLines} />
+                    <span className="mt-1 block opacity-90" data-slot="tooltip-hint">
+                      {shown}
+                      {chip}
+                    </span>
+                  </>
+                ) : (
+                  <>
                     {shown}
                     {chip}
-                  </span>
-                </>
-              ) : (
-                <>
-                  {shown}
-                  {chip}
-                </>
-              )}
-            </TooltipContent>
-          </TooltipPrimitive.Root>
-        </TooltipProvider>
+                  </>
+                )}
+              </TooltipContent>
+            </TooltipPrimitive.Root>
+          </TooltipProvider>
+        </FieldLockReasonContext.Provider>
       </FieldValueHintContext.Provider>
       {describes ? <DescriptionText id={id} text={shown} /> : null}
     </OverflowReportContext.Provider>

@@ -267,6 +267,8 @@ function TimeList({
   }, [handledRequest]);
 
   const onKeyDown = (event: React.KeyboardEvent) => {
+    // An empty list (a day the zone skipped whole) has nothing to move to or pick (Codex #964).
+    if (offered.length === 0) return;
     const move = LIST_KEYS[event.key];
     if (move !== undefined) {
       event.preventDefault();
@@ -353,7 +355,13 @@ function DateTimePanel({
         focusRequest={focusRequest}
         testId={testId}
         className="max-sm:w-full sm:max-h-72 sm:border-l sm:pl-3"
-        onPick={(time) => onPick(`${formatDate(date)} ${formatTime(time)}`)}
+        onPick={(time) => {
+          // The value's own time, kept by Enter, may not exist on the draft date (a DST gap): the
+          // nearest offered step takes its place (Codex #964).
+          const clock = { hour: time.hour, minute: time.minute };
+          const step = exists(date, clock) ? clock : TIME_STEPS[nearestStep(clock, offered)];
+          if (step !== undefined) onPick(`${formatDate(date)} ${formatTime(step)}`);
+        }}
       />
     </div>
   );

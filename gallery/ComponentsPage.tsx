@@ -33,6 +33,8 @@ import {
 } from "../src/ui/card.js";
 import { Checkbox } from "../src/ui/checkbox.js";
 import { Code } from "../src/ui/code.js";
+import { Combobox } from "../src/ui/combobox.js";
+import { DateTimeField } from "../src/ui/date-time-field.js";
 import { ColorDotBadge } from "../src/ui/color-dot-badge.js";
 import {
   DropdownMenu,
@@ -46,6 +48,7 @@ import {
 import { ImagePlacementButtons } from "../src/ui/crop-editor.js";
 import { type Crop, CroppedBackground, CroppedImage } from "../src/ui/cropped-image.js";
 import { EditorHeader, type EditorLifecycle } from "../src/ui/editor-header.js";
+import { Field } from "../src/ui/field.js";
 import { FileFacts } from "../src/ui/file-facts.js";
 import { Hint } from "../src/ui/hint.js";
 import { InlineMessage } from "../src/ui/inline-message.js";
@@ -1840,6 +1843,195 @@ function FocusRing() {
   );
 }
 
+const LOCK_REASON = "Managed by your organisation.";
+const LOCK_OPTIONS = [
+  { value: "ada", label: "Ada" },
+  { value: "bea", label: "Bea" },
+];
+
+// `SUI-FEATURE-450` AC 7: each package field locked without a reason (`disabled`) and with one
+// (`Field disabledReason`: focusable, value hint then reason; the radio group describes it once).
+// The text and choice fields of one row: `id` names the row, `reason` locks it with a reason.
+function LockedTextFields({ id, reason }: { id: string; reason: string | undefined }) {
+  return (
+    <>
+      <Field
+        label="Input"
+        htmlFor={`locked-input-${id}`}
+        valueHint="Counted in minutes."
+        disabledReason={reason}
+      >
+        <Input
+          id={`locked-input-${id}`}
+          data-testid={`locked-input-${id}`}
+          defaultValue="15"
+          disabled
+        />
+      </Field>
+      <Field
+        label="Textarea"
+        htmlFor={`locked-textarea-${id}`}
+        valueHint="Shown under the title."
+        disabledReason={reason}
+      >
+        <Textarea
+          id={`locked-textarea-${id}`}
+          data-testid={`locked-textarea-${id}`}
+          defaultValue="Two lines"
+          disabled
+        />
+      </Field>
+      <Field
+        label="Select"
+        htmlFor={`locked-select-${id}`}
+        valueHint="How often it runs."
+        disabledReason={reason}
+      >
+        <Select defaultValue="weekly" disabled>
+          <SelectTrigger
+            id={`locked-select-${id}`}
+            data-testid={`locked-select-${id}`}
+            className="w-full"
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="weekly">Weekly</SelectItem>
+          </SelectContent>
+        </Select>
+      </Field>
+      <Field
+        label="Combobox"
+        htmlFor={`locked-combobox-${id}`}
+        valueHint="Who speaks first."
+        disabledReason={reason}
+      >
+        <Combobox
+          id={`locked-combobox-${id}`}
+          data-testid={`locked-combobox-${id}`}
+          options={LOCK_OPTIONS}
+          value="ada"
+          onValueChange={() => undefined}
+          disabled
+        />
+      </Field>
+      <Field
+        label="TagInput"
+        htmlFor={`locked-tags-${id}`}
+        valueHint="Where it shows up."
+        disabledReason={reason}
+      >
+        <TagInput
+          id={`locked-tags-${id}`}
+          testId={`locked-tags-${id}`}
+          value={["summer", "team"]}
+          onChange={() => undefined}
+          disabled
+        />
+      </Field>
+    </>
+  );
+}
+
+function LockedChoiceFields({ id, reason }: { id: string; reason: string | undefined }) {
+  return (
+    <>
+      <Field
+        label="Checkbox"
+        htmlFor={`locked-checkbox-${id}`}
+        valueHint="Mails a summary."
+        disabledReason={reason}
+      >
+        <Checkbox
+          id={`locked-checkbox-${id}`}
+          data-testid={`locked-checkbox-${id}`}
+          defaultChecked
+          disabled
+        />
+      </Field>
+      <Field
+        label="Switch"
+        htmlFor={`locked-switch-${id}`}
+        valueHint="Visible to guests."
+        disabledReason={reason}
+      >
+        <Switch
+          id={`locked-switch-${id}`}
+          data-testid={`locked-switch-${id}`}
+          defaultChecked
+          disabled
+        />
+      </Field>
+      <Field
+        label="RadioGroup"
+        htmlFor={`locked-radio-${id}`}
+        valueHint="Size of the preview."
+        disabledReason={reason}
+        control={{ role: "radiogroup", id: `locked-radio-${id}` }}
+      >
+        <RadioGroup
+          defaultValue="small"
+          data-testid={`locked-radio-${id}`}
+          className="flex gap-4"
+          disabled
+        >
+          <RadioGroupItem value="small" aria-label="Small" />
+          <RadioGroupItem value="large" aria-label="Large" />
+        </RadioGroup>
+      </Field>
+      <Field
+        label="DateTimeField"
+        htmlFor={`locked-datetime-${id}`}
+        valueHint="When it goes live."
+        disabledReason={reason}
+      >
+        <DateTimeField
+          id={`locked-datetime-${id}`}
+          testId={`locked-datetime-${id}`}
+          timeZone="Europe/Zurich"
+          value="2026-04-15T12:30:00.000Z"
+          onChange={() => undefined}
+          disabled
+        />
+      </Field>
+      <Field
+        label="TimezoneCombobox"
+        htmlFor={`locked-timezone-${id}`}
+        valueHint="Times are shown in it."
+        disabledReason={reason}
+      >
+        <TimezoneCombobox
+          id={`locked-timezone-${id}`}
+          data-testid={`locked-timezone-${id}`}
+          value="Europe/Zurich"
+          onValueChange={() => undefined}
+          disabled
+        />
+      </Field>
+    </>
+  );
+}
+
+function LockedFields() {
+  const row = (reason: string | undefined) => {
+    const key = reason === undefined ? "disabled" : "reason";
+    return (
+      <>
+        <LockedTextFields id={key} reason={reason} />
+        <LockedChoiceFields id={key} reason={reason} />
+      </>
+    );
+  };
+  return (
+    <Section id="locked-fields" title="Field disabled · Field disabledReason">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        {row(undefined)}
+        {row(LOCK_REASON)}
+      </div>
+    </Section>
+  );
+}
+
 export function ComponentsPage() {
   return (
     <>
@@ -1849,6 +2041,7 @@ export function ComponentsPage() {
       <UploadAndTags />
       <Badges />
       <Fields />
+      <LockedFields />
       <FieldErrors />
       <InlineMessages />
       <ProseLinks />

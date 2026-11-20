@@ -4,6 +4,7 @@ import { RadioGroup as RadioGroupPrimitive } from "radix-ui";
 
 import { cn } from "../lib/cn.js";
 import { FieldGroupContext, FieldUserEditContext, useFieldErrorAttributes } from "./field-error.js";
+import { useFieldLockReason } from "./field-value-hint.js";
 
 // The keys that move the focus to another option in radix: the arrow keys, and Home/End and
 // PageUp/PageDown to the first or last one. Each checks the option it focuses, so focus and checked
@@ -21,6 +22,13 @@ const FOCUS_KEYS = [
 
 // The options of a group that carries its field's error itself (`SUI-FEATURE-400`).
 const GroupCarriesErrorContext = React.createContext(false);
+// The options of a group locked with its field's reason (`SUI-FEATURE-450`).
+const GroupLockedContext = React.createContext(false);
+
+// Locked, in colour, never element opacity: border and dot mixed half with `--surface`
+// (`SUI-FEATURE-251`), `GrayText` under forced colours.
+const LOCKED_LOOK =
+  "aria-disabled:cursor-not-allowed aria-disabled:border-[color-mix(in_srgb,var(--input)_50%,var(--surface))] aria-disabled:text-[color-mix(in_srgb,var(--primary)_50%,var(--surface))] aria-disabled:[&_svg]:fill-[color-mix(in_srgb,var(--primary)_50%,var(--surface))] forced-colors:aria-disabled:border-[GrayText] forced-colors:aria-disabled:text-[GrayText]";
 
 // A focus key moves the focus to another option and checks it (WAI-ARIA radio group pattern, #438).
 // radix checks on that focus only while the key is still down, but it moves the focus in a timeout:
@@ -29,7 +37,9 @@ const GroupCarriesErrorContext = React.createContext(false);
 // after a focus key that radix did not check. In a `Field` whose control is a `radiogroup`, the group
 // takes the field's id, name, description and error state and carries them itself
 // (`SUI-FEATURE-400`); exactly one package RadioGroup per field. Its options and a RadioGroup nested in
-// it see no field group.
+// it see no field group. Locked with its field's reason, group and options take `aria-disabled`, never
+// `disabled`: they stay focusable, and a click, `Space` or a focus key changes nothing; the group
+// carries the reason in its description once (`SUI-FEATURE-450`).
 function RadioGroup({
   className,
   children,
@@ -50,50 +60,66 @@ function RadioGroup({
   // Radix sets the hidden native inputs by code, so the form around it hears the person's choice only
   // through `onValueChange` (`GL-UI-038`, #739).
   const userEdit = React.useContext(FieldUserEditContext);
+  const locked = useFieldLockReason() !== undefined;
   return (
     <FieldGroupContext.Provider value={null}>
-      <GroupCarriesErrorContext.Provider value={carried?.["aria-errormessage"] !== undefined}>
-        <RadioGroupPrimitive.Root
-          {...fieldError}
-          {...carried}
-          data-slot="radio-group"
-          className={cn("grid gap-2", className)}
-          onKeyDown={(event) => {
-            onKeyDown?.(event);
-            focusKey.current = FOCUS_KEYS.includes(event.key) ? "moved" : "none";
-            if (focusKey.current === "none") return;
-            // A focus key that moves no focus (a key across the group's orientation, its end without loop,
-            // a single option) leaves nothing pending: radix's own timeout, which moves the focus, runs
-            // first.
-            const press = ++presses.current;
-            setTimeout(() => {
-              if (presses.current === press && focusKey.current === "moved")
-                focusKey.current = "none";
-            });
-          }}
-          onClick={(event) => {
-            onClick?.(event);
-            if (focusKey.current === "moved") focusKey.current = "checked";
-          }}
-          onFocus={(event) => {
-            onFocus?.(event);
-            const pending = focusKey.current === "moved";
-            focusKey.current = "none";
-            if (pending && event.target.getAttribute("role") === "radio") event.target.click();
-          }}
-          onBlur={(event) => {
-            onBlur?.(event);
-            if (!event.currentTarget.contains(event.relatedTarget)) focusKey.current = "none";
-          }}
-          {...props}
-          onValueChange={(value) => {
-            userEdit?.();
-            props.onValueChange?.(value);
-          }}
-        >
-          {children}
-        </RadioGroupPrimitive.Root>
-      </GroupCarriesErrorContext.Provider>
+      <GroupLockedContext.Provider value={locked}>
+        <GroupCarriesErrorContext.Provider value={carried?.["aria-errormessage"] !== undefined}>
+          <RadioGroupPrimitive.Root
+            {...fieldError}
+            {...carried}
+            data-slot="radio-group"
+            className={cn("grid gap-2", className)}
+            onKeyDown={(event) => {
+              onKeyDown?.(event);
+              focusKey.current = FOCUS_KEYS.includes(event.key) ? "moved" : "none";
+              if (focusKey.current === "none") return;
+              // A focus key that moves no focus (a key across the group's orientation, its end without loop,
+              // a single option) leaves nothing pending: radix's own timeout, which moves the focus, runs
+              // first.
+              const press = ++presses.current;
+              setTimeout(() => {
+                if (presses.current === press && focusKey.current === "moved")
+                  focusKey.current = "none";
+              });
+            }}
+            onClick={(event) => {
+              onClick?.(event);
+              if (focusKey.current === "moved") focusKey.current = "checked";
+            }}
+            onFocus={(event) => {
+              onFocus?.(event);
+              const pending = focusKey.current === "moved";
+              focusKey.current = "none";
+              if (pending && event.target.getAttribute("role") === "radio") event.target.click();
+            }}
+            onBlur={(event) => {
+              onBlur?.(event);
+              if (!event.currentTarget.contains(event.relatedTarget)) focusKey.current = "none";
+            }}
+            {...props}
+            {...(locked
+              ? {
+                  "aria-disabled": true,
+                  disabled: false,
+                  // Before the options: a prevented click checks nothing, a focus key moves nothing.
+                  onClickCapture: (event: React.MouseEvent) => event.preventDefault(),
+                  onKeyDownCapture: (event: React.KeyboardEvent) => {
+                    if (!FOCUS_KEYS.includes(event.key)) return;
+                    event.preventDefault();
+                    event.stopPropagation();
+                  },
+                }
+              : {})}
+            onValueChange={(value) => {
+              userEdit?.();
+              props.onValueChange?.(value);
+            }}
+          >
+            {children}
+          </RadioGroupPrimitive.Root>
+        </GroupCarriesErrorContext.Provider>
+      </GroupLockedContext.Provider>
     </FieldGroupContext.Provider>
   );
 }
@@ -111,15 +137,18 @@ function RadioGroupItem({
     React.useContext(GroupCarriesErrorContext) && marked["aria-invalid"] === true
       ? { "aria-invalid": true as const }
       : marked;
+  const locked = React.useContext(GroupLockedContext);
   return (
     <RadioGroupPrimitive.Item
       {...fieldError}
       data-slot="radio-group-item"
       className={cn(
         "aspect-square size-4 shrink-0 rounded-full relative after:absolute after:top-1/2 after:left-1/2 after:size-full after:min-h-6 after:min-w-6 after:-translate-x-1/2 after:-translate-y-1/2 border border-input text-primary shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:focus-ring disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive dark:bg-input/30",
+        LOCKED_LOOK,
         className,
       )}
       {...props}
+      {...(locked ? { "aria-disabled": true, disabled: false } : {})}
     >
       <RadioGroupPrimitive.Indicator
         data-slot="radio-group-indicator"

@@ -171,7 +171,9 @@ const TIME_STEPS: readonly WallTime[] = Array.from({ length: 96 }, (_, index) =>
 }));
 
 // Of the offered steps (indices into `TIME_STEPS`), the one nearest a time; a tie goes to the earlier.
+// None offered (a day the zone skipped whole): -1 (Codex #964).
 function nearestStep({ hour, minute }: WallTime, offered: readonly number[]): number {
+  if (offered.length === 0) return -1;
   const minutes = hour * 60 + minute;
   const distance = (index: number) => {
     const step = TIME_STEPS[index]!;

@@ -80,6 +80,7 @@ describe("TagInput", () => {
     render(<TagInput value={["a"]} onChange={() => {}} disabled testId="tags" />);
     expect(screen.getByTestId("tags-input")).toBeDisabled();
     expect(screen.getByTestId("tags-remove")).toBeDisabled();
+    expect(screen.getByTestId("tags")).toHaveAttribute("aria-disabled", "true");
   });
 
   it("moves the focus after × to the next chip, else the previous one, else the field", () => {

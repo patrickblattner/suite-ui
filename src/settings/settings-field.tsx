@@ -20,6 +20,9 @@ type SettingsFieldProps = {
   // What the value counts, its unit, the effect of a choice, as the input's own hint (`Field valueHint`);
   // with `group` what the options do, as the group's description after the hint (#539).
   valueHint?: string;
+  // Why the value cannot be changed now: the input locks focusable, with the reason after its value
+  // hint (`Field disabledReason`, `SUI-FEATURE-450`).
+  disabledReason?: string;
   // The children are an option group, named by the label: `true` for several checkboxes, `"radio"` for
   // a package `RadioGroup`, which then is the named group itself (`SUI-FEATURE-400`).
   group?: boolean | "radio";
@@ -40,6 +43,7 @@ function SettingsField({
   htmlFor,
   hint,
   valueHint,
+  disabledReason,
   help,
   error,
   size = "default",
@@ -52,6 +56,7 @@ function SettingsField({
       htmlFor={htmlFor}
       hint={hint}
       valueHint={valueHint}
+      disabledReason={disabledReason}
       help={help}
       error={error}
       labelClassName="max-w-xl"

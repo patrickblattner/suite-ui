@@ -21599,3 +21599,83 @@ test("datetime: grid and list side by side from 640 px, fields as high as Input"
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("datetime-datetime-idle")).toBeFocused();
 });
+
+// `SUI-FEATURE-450`: a field locked without a reason stays out of the tab order, but hover reaches it
+// and shows its value hint (AC 5); locked with a reason it is a tab stop described by the value hint,
+// then the reason (AC 1–4).
+test.describe("locked package fields (SUI-FEATURE-450)", () => {
+  const hints = [
+    ["input", "Counted in minutes."],
+    ["textarea", "Shown under the title."],
+    ["select", "How often it runs."],
+    ["combobox", "Who speaks first."],
+  ] as const;
+  for (const [field, hint] of hints) {
+    test(`a disabled ${field} without a reason shows its value hint on hover`, async ({ page }) => {
+      await page.goto("/?page=components&lng=en");
+      const control = page.getByTestId(`locked-${field}-disabled`);
+      await expect(control).toBeDisabled();
+      await control.hover();
+      await expect(page.getByRole("tooltip")).toHaveText(hint, { timeout: 5000 });
+    });
+  }
+
+  test("each field locked with a reason is a tab stop with hint, then reason", async ({ page }) => {
+    await page.goto("/?page=components&lng=en");
+    const reason = "Managed by your organisation.";
+    await page.getByTestId("locked-tags-disabled-input").evaluate((node) => {
+      // The last field locked without a reason: the start of the tab walk.
+      (node.closest("[data-slot=field]") as HTMLElement).tabIndex = -1;
+      (node.closest("[data-slot=field]") as HTMLElement).focus();
+    });
+    for (const [field, hint] of hints) {
+      await page.keyboard.press("Tab");
+      const control = page.getByTestId(`locked-${field}-reason`);
+      await expect(control).toBeFocused();
+      await expect(control).not.toHaveAttribute("disabled");
+      await expect(control).toHaveAccessibleDescription(`${hint} ${reason}`);
+    }
+    await page.keyboard.press("Tab");
+    const tags = page.getByTestId("locked-tags-reason-input");
+    await expect(tags).toBeFocused();
+    await expect(tags).toHaveAttribute("readonly");
+    await expect(tags).toHaveAccessibleDescription(`Where it shows up. ${reason}`);
+    // Every other control locks with `aria-disabled`; the radio group describes the reason once.
+    const locked = [
+      [page.getByTestId("locked-checkbox-reason"), `Mails a summary. ${reason}`],
+      [page.getByTestId("locked-switch-reason"), `Visible to guests. ${reason}`],
+      [page.getByRole("radio", { name: "Small" }).last(), ""],
+    ] as const;
+    for (const [control, description] of locked) {
+      await page.keyboard.press("Tab");
+      await expect(control).toBeFocused();
+      await expect(control).toHaveAttribute("aria-disabled", "true");
+      await expect(control).toHaveAccessibleDescription(description);
+    }
+    await expect(page.getByTestId("locked-radio-reason")).toHaveAccessibleDescription(
+      `Size of the preview. ${reason}`,
+    );
+    await page.keyboard.press("Tab");
+    await expect(page.getByTestId("locked-datetime-reason")).toBeFocused();
+    await expect(page.getByTestId("locked-datetime-reason")).toHaveAttribute("readonly");
+    await expect(page.getByTestId("locked-datetime-reason")).toHaveAccessibleDescription(
+      `When it goes live. ${reason}`,
+    );
+    await page.keyboard.press("Tab");
+    const picker = page.getByTestId("locked-datetime-reason-picker");
+    await expect(picker).toBeFocused();
+    await expect(picker).toHaveAttribute("aria-disabled", "true");
+    await expect(picker).toHaveAccessibleDescription(reason);
+    await page.keyboard.press("Enter");
+    await expect(page.getByTestId("locked-datetime-reason-popover")).toHaveCount(0);
+    await page.keyboard.press("Tab");
+    const zone = page.getByTestId("locked-timezone-reason");
+    await expect(zone).toBeFocused();
+    await expect(zone).toHaveAttribute("aria-disabled", "true");
+    await expect(zone).toHaveAccessibleDescription(`Times are shown in it. ${reason}`);
+    await page.getByTestId("locked-select-reason").hover();
+    await expect(page.getByRole("tooltip")).toHaveText(`How often it runs. ${reason}`, {
+      timeout: 5000,
+    });
+  });
+});

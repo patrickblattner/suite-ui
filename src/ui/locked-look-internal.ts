@@ -30,4 +30,10 @@ const LOCKED_LOOK = {
 const LOCKED_FORCED =
   "forced-colors:aria-disabled:border-[GrayText] forced-colors:aria-disabled:text-[GrayText]";
 
-export { LOCKED_FORCED, LOCKED_LOOK };
+// The locked look of a choice field locked with `aria-disabled` (a Select's trigger, `Combobox`;
+// `SUI-FEATURE-195`, `SUI-FEATURE-450`): as the locked outline `Button`, value and border mixed half
+// with `--surface`, no hover, cursor `not-allowed`, `GrayText` under forced colours.
+const FIELD_LOCKED_LOOK =
+  "aria-disabled:cursor-not-allowed aria-disabled:text-[color-mix(in_srgb,var(--foreground)_50%,var(--surface))] aria-disabled:border-[color-mix(in_srgb,var(--input)_50%,var(--surface))] forced-colors:aria-disabled:border-[GrayText] forced-colors:aria-disabled:text-[GrayText]";
+
+export { FIELD_LOCKED_LOOK, LOCKED_FORCED, LOCKED_LOOK };

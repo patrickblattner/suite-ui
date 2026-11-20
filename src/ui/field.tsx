@@ -9,7 +9,7 @@ import {
   FieldSubmitContext,
   FieldSubmitEndContext,
 } from "./field-error.js";
-import { FieldValueHintContext } from "./field-value-hint-context.js";
+import { FieldLockReasonContext, FieldValueHintContext } from "./field-value-hint-context.js";
 import { InlineMessage } from "./inline-message.js";
 import { Label } from "./label.js";
 import { helpIdFor, LabelWithHelp } from "./label-with-help.js";
@@ -28,6 +28,12 @@ type FieldProps = Omit<React.ComponentProps<"div">, "children"> & {
   // With an option group it describes the group, after the label's hint, under the id
   // `${htmlFor}-value-hint` (#539).
   valueHint?: string | undefined;
+  // Why the value cannot be changed now, an already translated sentence (`SUI-FEATURE-450`). Every
+  // package control inside locks without `disabled` and stays focusable: text entry (`Input`,
+  // `Textarea`, `TagInput`, the date and time fields) turns `readOnly`, every other control takes
+  // `aria-disabled`; the reason follows the value hint in its hover bubble and description, on an option
+  // group once, on the group. It wins over the control's own `disabled`.
+  disabledReason?: string | undefined;
   // The help text under the control, under the id `${htmlFor}-description`.
   help?: React.ReactNode;
   // The field is invalid: this text stands under the control in place of the help text, under the id
@@ -60,6 +66,7 @@ function fieldIdsFor(htmlFor: string) {
     label: `${htmlFor}-label`,
     help: helpIdFor(htmlFor),
     valueHint: `${htmlFor}-value-hint`,
+    reason: `${htmlFor}-disabled-reason`,
     description: `${htmlFor}-description`,
     error: `${htmlFor}-error`,
   };
@@ -116,6 +123,7 @@ function Field({
   htmlFor,
   hint,
   valueHint,
+  disabledReason,
   help,
   error,
   warning,
@@ -167,6 +175,11 @@ function Field({
   // (`GL-UI-017` §Label und Feld sind zwei Träger, #539).
   // An empty text is no hint.
   const groupValueHint = group && valueHint !== undefined && valueHint !== "";
+  // An empty text is no reason. A group describes it once on itself, its options lock without
+  // describing it (`GL-UI-017` §Gruppen, `SUI-FEATURE-450`).
+  const reason = disabledReason === "" ? undefined : disabledReason;
+  const lock = { reason, describes: !group };
+  const groupReason = group && reason !== undefined;
   const warned = warning !== undefined && warning !== "";
   // The package `RadioGroup` inside a radiogroup control that took the group's attributes.
   const [taken, setTaken] = React.useState(false);
@@ -180,6 +193,7 @@ function Field({
     [
       hint !== undefined ? ids.help : undefined,
       groupValueHint ? ids.valueHint : undefined,
+      groupReason ? ids.reason : undefined,
       !invalid && (warned || help !== undefined) ? ids.description : undefined,
       invalid ? ids.error : undefined,
     ],
@@ -191,13 +205,15 @@ function Field({
     wiring.handover === null ? null : { attributes: wiring.handover.attributes, taken, take };
   return (
     <div className={cn("flex flex-col gap-2", className)} data-slot="field" {...props}>
-      {groupValueHint ? (
+      {groupValueHint || groupReason ? (
         // A group has no field surface: its label shows the value hint on hover, after the label's
-        // own hint (`GL-UI-017` rev 9 §Gruppen, #539).
+        // own hint (`GL-UI-017` rev 9 §Gruppen, #539), then the lock reason (`SUI-FEATURE-450`).
         <LabelWithHelp
           id={ids.label}
           htmlFor={htmlFor}
-          help={hint === undefined ? valueHint : `${hint} ${valueHint}`}
+          help={[hint, groupValueHint ? valueHint : undefined, reason]
+            .filter((text) => text !== undefined)
+            .join(" ")}
           description={hint ?? null}
           className={cn(labelClassName, "leading-none")}
         >
@@ -220,6 +236,11 @@ function Field({
       {groupValueHint ? (
         <span id={ids.valueHint} hidden>
           {valueHint}
+        </span>
+      ) : null}
+      {groupReason ? (
+        <span id={ids.reason} hidden>
+          {reason}
         </span>
       ) : null}
       <div
@@ -248,7 +269,9 @@ function Field({
       >
         <FieldErrorContext.Provider value={invalid ? ids.error : null}>
           <FieldValueHintContext.Provider value={controlHint}>
-            <FieldGroupContext.Provider value={fieldGroup}>{children}</FieldGroupContext.Provider>
+            <FieldLockReasonContext.Provider value={lock}>
+              <FieldGroupContext.Provider value={fieldGroup}>{children}</FieldGroupContext.Provider>
+            </FieldLockReasonContext.Provider>
           </FieldValueHintContext.Provider>
         </FieldErrorContext.Provider>
       </div>

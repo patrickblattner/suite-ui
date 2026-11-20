@@ -8,6 +8,7 @@ import { useCompositionText } from "../lib/use-composition-text.js";
 import { Badge } from "./badge.js";
 import { useFieldDraft } from "./field-drafts-internal.js";
 import { FieldUserEditContext, useFieldErrorAttributes } from "./field-error.js";
+import { useFieldLockReason, WithFieldValueHint } from "./field-value-hint.js";
 import { isInLeaveGuardDialog } from "./leave-guard.js";
 import { READ_ONLY_LOOK } from "./read-only-look-internal.js";
 import { RemovableChip } from "./removable-chip.js";
@@ -114,8 +115,8 @@ const TagInputField = React.forwardRef<HTMLInputElement, TagInputProps>(function
     value,
     onChange,
     placeholder,
-    disabled = false,
-    readOnly = false,
+    disabled: ownDisabled = false,
+    readOnly: ownReadOnly = false,
     id,
     testId = "tag-input",
     className,
@@ -140,6 +141,11 @@ const TagInputField = React.forwardRef<HTMLInputElement, TagInputProps>(function
 ) {
   const { t } = useTranslation("suite");
   const fieldError = useFieldErrorAttributes();
+  // Locked with its field's reason, the field is read-only, never `disabled` (`SUI-FEATURE-450`): Tab
+  // reaches its text field, its chips show without ×, typing changes nothing.
+  const locked = useFieldLockReason() !== undefined;
+  const disabled = ownDisabled && !locked;
+  const readOnly = ownReadOnly || locked;
   // A passed `aria-invalid` and an invalid surrounding field both mark the text field and the frame.
   const isInvalid =
     ariaInvalid === true || ariaInvalid === "true" || fieldError["aria-invalid"] === true;
@@ -330,6 +336,8 @@ const TagInputField = React.forwardRef<HTMLInputElement, TagInputProps>(function
       ref={frameRef}
       data-testid={testId}
       data-disabled={disabled || undefined}
+      // Dimmed frame = inactive control (WCAG 1.4.3 exception); a reason-locked field is read-only, not disabled.
+      aria-disabled={disabled || undefined}
       data-readonly={(readOnly && !disabled) || undefined}
       data-invalid={isInvalid ? "" : undefined}
       // Disabled, the field opens no hover hint, as the disabled `Slider`.
@@ -478,6 +486,19 @@ const TagInputField = React.forwardRef<HTMLInputElement, TagInputProps>(function
 });
 
 // `Hint` sends its trigger's ref to `triggerRef`, not to `ref`, which stays the text field's.
-const TagInput = Object.assign(TagInputField, { hintTriggerRef: "triggerRef" });
+const TagInputControl = Object.assign(TagInputField, { hintTriggerRef: "triggerRef" });
+
+// In a field it carries the field's value hint, then its lock reason (`WithFieldValueHint`,
+// `SUI-FEATURE-450`).
+const TagInputWithHint = React.forwardRef<HTMLInputElement, TagInputProps>(
+  function TagInput(props, ref) {
+    return (
+      <WithFieldValueHint>
+        <TagInputControl {...props} ref={ref} />
+      </WithFieldValueHint>
+    );
+  },
+);
+const TagInput = Object.assign(TagInputWithHint, { hintTriggerRef: "triggerRef" });
 
 export { TagInput, type TagInputProps };

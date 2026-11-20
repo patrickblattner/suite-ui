@@ -23,6 +23,7 @@ import {
 } from "./date-time-internal.js";
 import { useFieldDraft } from "./field-drafts-internal.js";
 import { FieldError, FieldUserEditContext } from "./field-error.js";
+import { useFieldLockReason } from "./field-value-hint.js";
 import { Input } from "./input.js";
 import { isInLeaveGuardDialog } from "./leave-guard.js";
 import { IconButtonTooltip } from "./tooltip.js";
@@ -253,6 +254,26 @@ function useDismiss(
   }, [open, rootRef]);
 }
 
+// Disabled or locked while open, the picker closes: it takes no pick (Codex #964). A focus inside it
+// returns to the input (#958); a natively disabled input takes no focus, so there it falls to the page
+// (#826).
+function useCloseOnLock(
+  open: boolean,
+  locked: boolean,
+  popupRef: React.RefObject<HTMLElement | null>,
+  inputRef: React.RefObject<HTMLElement | null>,
+  setOpen: (open: boolean) => void,
+) {
+  React.useLayoutEffect(() => {
+    if (!open || !locked) return;
+    const inside = popupRef.current?.contains(document.activeElement) === true;
+    // The focus inside the picker is read before it unmounts: only an effect sees it.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setOpen(false);
+    if (inside) inputRef.current?.focus();
+  }, [open, locked, popupRef, inputRef, setOpen]);
+}
+
 function joinIds(...ids: (string | undefined)[]): string | undefined {
   const joined = ids.filter((id) => id !== undefined && id !== "").join(" ");
   return joined === "" ? undefined : joined;
@@ -275,8 +296,14 @@ function inputAria(props: DateTimeFieldBaseProps, errorId: string | undefined) {
 }
 
 function EntryField({ kind, ...props }: DateTimeFieldBaseProps & { kind: Kind }) {
-  const { value, onChange, disabled = false, id, testId } = props;
+  const { value, onChange, disabled: ownDisabled = false, id, testId } = props;
   const { t } = useTranslation("suite");
+  // Locked with its field's reason (`SUI-FEATURE-450`): the input is read-only (`Input`), the picker
+  // button locks like a `Button` with a reason — `aria-disabled`, focusable, never opens, the reason
+  // as its description. The reason wins over `disabled`.
+  const lockReason = useFieldLockReason();
+  const locked = lockReason !== undefined;
+  const disabled = ownDisabled && !locked;
   const errorId = React.useId();
   const panelId = React.useId();
   const rootRef = React.useRef<HTMLDivElement>(null);
@@ -288,7 +315,7 @@ function EntryField({ kind, ...props }: DateTimeFieldBaseProps & { kind: Kind })
   // A typed, uncommitted entry belongs to the leave guard's decision (`SUI-FEATURE-118` rev 6): a
   // change counts, Save commits it, Discard drops it. An open picker is no change; it only closes once
   // the surface leaves.
-  useFieldDraft(entry.pending && !disabled, {
+  useFieldDraft(entry.pending && !disabled && !locked, {
     counts: entry.pending && entry.changes(),
     flush: () => entry.commit(entry.text),
     discard: entry.discard,
@@ -307,6 +334,7 @@ function EntryField({ kind, ...props }: DateTimeFieldBaseProps & { kind: Kind })
     if (focusInput) inputRef.current?.focus();
   };
   useDismiss(open, rootRef, close);
+  useCloseOnLock(open, disabled || locked, popupRef, inputRef, setOpen);
   usePopupPlacement(open, anchorRef, popupRef, 0);
 
   const pick = (text: string) => {
@@ -344,32 +372,45 @@ function EntryField({ kind, ...props }: DateTimeFieldBaseProps & { kind: Kind })
           onBlur={(event) => {
             // A blur into the leave guard's dialog is no leaving (`SUI-FEATURE-118`).
             if (isInLeaveGuardDialog(event.relatedTarget)) return;
-            entry.commit(entry.text);
+            // Locked, a text typed before the lock is dropped, never committed (#958).
+            if (locked) entry.discard();
+            else entry.commit(entry.text);
           }}
           onKeyDown={(event) => {
             // Enter takes a pending entry; with nothing pending it submits the form as usual.
-            if (event.key !== "Enter" || !entry.pending) return;
+            // The Enter that confirms a composition (IME) is the composition's (Codex #964).
+            if (event.key !== "Enter" || isCompositionKey(event) || !entry.pending) return;
             event.preventDefault();
-            entry.commit(entry.text);
+            if (locked) entry.discard();
+            else entry.commit(entry.text);
           }}
           {...inputAria(props, entry.error === null ? undefined : errorId)}
         />
-        <IconButtonTooltip label={t(kind.pickerLabel)}>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            disabled={disabled}
-            aria-haspopup="dialog"
-            aria-expanded={open}
-            aria-controls={open ? panelId : undefined}
-            data-testid={testId === undefined ? undefined : `${testId}-picker`}
-            className="absolute top-1/2 right-0.5 -translate-y-1/2 text-muted-foreground"
-            onClick={() => (open ? close(true) : setOpen(!disabled))}
+        {/* The tooltip's carrier span stands whether or not a reason locks the button (empty
+            `disabledText` while usable), so a reason that arrives or leaves never remounts it and a
+            focused button keeps the focus; only native `disabled` drops it. The span sits in this
+            positioned box, out of the input's flow. */}
+        <div className="absolute top-1/2 right-0.5 flex -translate-y-1/2">
+          <IconButtonTooltip
+            label={t(kind.pickerLabel)}
+            disabledText={locked ? lockReason : disabled ? undefined : ""}
           >
-            <Icon aria-hidden="true" />
-          </Button>
-        </IconButtonTooltip>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              disabled={disabled || locked}
+              aria-haspopup="dialog"
+              aria-expanded={open}
+              aria-controls={open ? panelId : undefined}
+              data-testid={testId === undefined ? undefined : `${testId}-picker`}
+              className="text-muted-foreground"
+              onClick={() => (open ? close(true) : setOpen(!disabled && !locked))}
+            >
+              <Icon aria-hidden="true" />
+            </Button>
+          </IconButtonTooltip>
+        </div>
         {open ? (
           <div
             ref={popupRef}

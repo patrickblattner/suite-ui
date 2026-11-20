@@ -5,7 +5,8 @@ import { Select as SelectPrimitive } from "radix-ui";
 import { cn } from "../lib/cn.js";
 import { useHighlightInput } from "../lib/highlight-input.js";
 import { FieldUserEditContext, useFieldErrorAttributes } from "./field-error.js";
-import { WithFieldValueHint } from "./field-value-hint.js";
+import { useFieldLockReason, WithFieldValueHint } from "./field-value-hint.js";
+import { FIELD_LOCKED_LOOK } from "./locked-look-internal.js";
 import { OverflowTooltip } from "./tooltip.js";
 
 // Whether the pointer opened the list: the entry the list highlights on opening then keeps the tint
@@ -22,11 +23,27 @@ function Select({ ...props }: React.ComponentProps<typeof SelectPrimitive.Root>)
   // value set by code without a matching item, a native form reset); the form around it hears the
   // pick as an edit (`GL-UI-038`).
   const userEdit = React.useContext(FieldUserEditContext);
+  // Locked with its field's reason, the trigger locks through `aria-disabled`, never `disabled`
+  // (`SUI-FEATURE-450`).
+  const lockReason = useFieldLockReason();
+  // Disabled or locked while open, the list closes: it takes no pick (#958). Its open state is kept
+  // here, so the lock can close it without switching Radix to controlled. Radix reports no close it
+  // did not make itself, so the lock drops the open state too: unlocked, the list stays closed.
+  const [ownOpen, setOwnOpen] = React.useState(props.defaultOpen ?? false);
+  const shut = lockReason !== undefined || props.disabled === true;
+  if (shut && ownOpen) setOwnOpen(false);
+  const open = props.open ?? ownOpen;
   return (
     <SelectOpenerContext.Provider value={opener}>
       <SelectPrimitive.Root
         data-slot="select"
         {...props}
+        disabled={lockReason === undefined ? props.disabled : false}
+        open={open && !shut}
+        onOpenChange={(next) => {
+          setOwnOpen(next);
+          props.onOpenChange?.(next);
+        }}
         onValueChange={(value) => {
           userEdit?.();
           props.onValueChange?.(value);
@@ -77,10 +94,10 @@ function SelectValue({ className, ...props }: React.ComponentProps<typeof Select
 // keys or a typed letter (Radix's typeahead on the closed trigger) opens the list or changes the value.
 // It shows the locked look in colour, never element opacity (`SUI-FEATURE-251`): value and border
 // mixed half with `--surface`, no hover, cursor `not-allowed`; `GrayText` under forced colours. A lock
-// reason comes through the `Hint`'s `disabledText`. `disabled` keeps its own look and is not focusable.
+// reason comes through the `Hint`'s `disabledText`, or a field's `disabledReason`, which locks it too
+// and follows the field's value hint (`SUI-FEATURE-450`). `disabled` keeps its own look and is not
+// focusable.
 const LOCKED_KEYS = new Set([" ", "Enter", "ArrowUp", "ArrowDown"]);
-const LOCKED_LOOK =
-  "aria-disabled:cursor-not-allowed aria-disabled:text-[color-mix(in_srgb,var(--foreground)_50%,var(--surface))] aria-disabled:border-[color-mix(in_srgb,var(--input)_50%,var(--surface))] forced-colors:aria-disabled:border-[GrayText] forced-colors:aria-disabled:text-[GrayText]";
 function SelectTrigger({
   className,
   size = "default",
@@ -101,7 +118,11 @@ function SelectTrigger({
   // Only non-blank text names the trigger; anything else (also a value bypassing the type) is none, so
   // no empty name overrides `aria-label`.
   const named = typeof fieldName === "string" && fieldName.trim() !== "";
-  const locked = props["aria-disabled"] === true || props["aria-disabled"] === "true";
+  const lockReason = useFieldLockReason();
+  const locked =
+    lockReason !== undefined ||
+    props["aria-disabled"] === true ||
+    props["aria-disabled"] === "true";
   return (
     <WithFieldValueHint>
       <SelectPrimitive.Trigger
@@ -140,10 +161,11 @@ function SelectTrigger({
         }}
         className={cn(
           "flex w-fit cursor-pointer items-center justify-start gap-2 rounded-md border border-input bg-transparent px-3 py-2 text-sm whitespace-nowrap shadow-xs transition-[color,background-color,border-color,box-shadow] outline-none enabled:not-aria-disabled:hover:border-ring enabled:not-aria-disabled:hover:bg-accent focus-visible:border-ring focus-visible:focus-ring disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive data-[placeholder]:text-muted-foreground data-[size=default]:h-9 data-[size=sm]:h-8 *:data-[slot=select-value]:min-w-0 dark:bg-input/30 dark:enabled:not-aria-disabled:hover:bg-input/50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-muted-foreground",
-          locked && LOCKED_LOOK,
+          locked && FIELD_LOCKED_LOOK,
           className,
         )}
         {...props}
+        {...(lockReason === undefined ? {} : { "aria-disabled": true, disabled: false })}
         // After the spread: a wrapping Slot (a Hint's trigger) must not rename the select.
         data-slot="select-trigger"
       >

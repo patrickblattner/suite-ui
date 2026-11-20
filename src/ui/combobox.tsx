@@ -8,9 +8,10 @@ import { usePopupPlacement } from "../lib/popup-placement.js";
 import { useCompositionText } from "../lib/use-composition-text.js";
 import { useFieldDraft } from "./field-drafts-internal.js";
 import { FieldUserEditContext, useFieldErrorAttributes } from "./field-error.js";
-import { WithFieldValueHint } from "./field-value-hint.js";
+import { useFieldLock, WithFieldValueHint, withLockReason } from "./field-value-hint.js";
 import { Hint } from "./hint.js";
 import { isInLeaveGuardDialog } from "./leave-guard.js";
+import { FIELD_LOCKED_LOOK } from "./locked-look-internal.js";
 
 type ComboboxOption = { value: string; label: string };
 
@@ -64,7 +65,10 @@ function filterOptions(options: readonly ComboboxOption[], query: string) {
 // pickers (contact, location, speaker). It works as the `TimezoneCombobox` does: the value is always
 // one of the offered options, typing only searches, and text without a pick is discarded when the
 // field closes. The list floats over the content at the field's width, no portal, and opens upwards
-// where a dialog or panel cannot make room below.
+// where a dialog or panel cannot make room below. Locked with its field's reason it takes
+// `aria-disabled`, never `disabled`: it keeps the focus, opens no list, takes no typing and shows no
+// search placeholder (`SUI-FEATURE-450`). Disabled, it keeps the pointer: hover still shows its value
+// hint.
 function Combobox({
   options,
   value,
@@ -75,7 +79,7 @@ function Combobox({
   onCreateRequest,
   placeholder,
   id,
-  disabled = false,
+  disabled: ownDisabled = false,
   className,
   hint,
   invalid = false,
@@ -103,6 +107,12 @@ function Combobox({
   const [keyboard, setKeyboard] = React.useState(false);
   // The server's matches of the typed text, `null` while it searches.
   const [found, setFound] = React.useState<readonly ComboboxOption[] | null>([]);
+  const { reason: lockReason, locked, disabled, attributes } = useFieldLock(ownDisabled);
+  // Disabled or locked while open, the list closes: it takes no pick (#958).
+  if ((disabled || locked) && open) {
+    setOpen(false);
+    setQuery("");
+  }
   const search = React.useRef(0);
   // The option picked last, so its label shows even when it came from a search, not from `options`.
   const [picked, setPicked] = React.useState<ComboboxOption | null>(null);
@@ -133,7 +143,7 @@ function Combobox({
   useFieldDraft(open, { counts: false, flush: close, discard: close });
 
   const openList = () => {
-    if (disabled || open) return;
+    if (disabled || locked || open) return;
     setOpen(true);
     setQuery("");
     setActive(
@@ -272,8 +282,8 @@ function Combobox({
         isInvalid ? (ariaErrorMessage ?? fieldError["aria-errormessage"]) : undefined
       }
       data-testid={testId}
-      disabled={disabled}
-      placeholder={placeholder ?? t("combobox.placeholder")}
+      {...attributes}
+      placeholder={locked ? undefined : (placeholder ?? t("combobox.placeholder"))}
       value={composition.composing() ?? (open ? query : label)}
       onClick={openList}
       {...composition.bind()}
@@ -284,7 +294,7 @@ function Combobox({
         if (isInLeaveGuardDialog(event.relatedTarget)) return;
         if (!rootRef.current?.contains(event.relatedTarget)) close();
       }}
-      className="h-9 w-full min-w-0 rounded-md border border-input bg-transparent py-1 pr-9 pl-3 text-base shadow-xs transition-[color,box-shadow] outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:focus-ring disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive md:text-sm dark:bg-input/30"
+      className={`h-9 w-full min-w-0 rounded-md border border-input bg-transparent py-1 pr-9 pl-3 text-base shadow-xs transition-[color,box-shadow] outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:focus-ring disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive md:text-sm dark:bg-input/30 ${FIELD_LOCKED_LOOK}`}
     />
   );
 
@@ -297,7 +307,7 @@ function Combobox({
         {hint === undefined ? (
           <WithFieldValueHint>{field}</WithFieldValueHint>
         ) : (
-          <Hint text={hint}>{field}</Hint>
+          <Hint text={withLockReason(hint, lockReason)}>{field}</Hint>
         )}
         <ChevronDownIcon
           aria-hidden="true"

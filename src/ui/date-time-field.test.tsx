@@ -1,9 +1,11 @@
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, createEvent, fireEvent, render, screen, within } from "@testing-library/react";
 import i18n from "i18next";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DateField, DateTimeField, TimeField } from "./date-time-field.js";
+import { FieldUserEditContext } from "./field-error.js";
+import { Field } from "./field.js";
 
 type AnyField = typeof DateField | typeof TimeField | typeof DateTimeField;
 
@@ -467,5 +469,128 @@ describe("impossible values, DST-gap steps, date-time button name (SUI-FEATURE-4
     const button = screen.getByRole("button", { name });
     fireEvent.click(button);
     expect(screen.getByRole("dialog", { name })).toBe(screen.getByTestId("field-popover"));
+  });
+});
+
+describe("the form around the field (GL-UI-038, finding #820)", () => {
+  it("a pick marks the surrounding form edited", () => {
+    const userEdit = vi.fn();
+    const onChange = vi.fn();
+    render(
+      <FieldUserEditContext.Provider value={userEdit}>
+        <Controlled Field={DateField} initial="2026-04-15" onChange={onChange} />
+      </FieldUserEditContext.Provider>,
+    );
+    fireEvent.click(screen.getByTestId("field-picker"));
+    expect(userEdit).not.toHaveBeenCalled();
+    fireEvent.keyDown(document.activeElement!, { key: "ArrowRight" });
+    fireEvent.keyDown(document.activeElement!, { key: "Enter" });
+    expect(onChange).toHaveBeenCalledExactlyOnceWith("2026-04-16");
+    expect(userEdit).toHaveBeenCalledTimes(1);
+  });
+
+  it("the same value typed in another form sends no onChange", () => {
+    const onChange = vi.fn();
+    render(<Controlled Field={DateField} initial="2026-04-15" onChange={onChange} />);
+    const input = screen.getByTestId("field");
+    enter(input, "15.04.2026");
+    fireEvent.blur(input);
+    expect(onChange).not.toHaveBeenCalled();
+    expect(input).toHaveValue("15.4.2026");
+  });
+});
+
+describe("Codex #964", () => {
+  it("CX1: Enter on the list keeps the value's time; in a DST gap on the draft date it takes the nearest step", () => {
+    const onChange = vi.fn();
+    render(
+      <Controlled
+        Field={DateTimeField}
+        timeZone="Europe/Zurich"
+        initial="2026-03-28T01:30:00.000Z"
+        onChange={onChange}
+      />,
+    );
+    expect(screen.getByTestId("field")).toHaveValue("28.3.2026 02:30");
+    fireEvent.click(screen.getByTestId("field-picker"));
+    fireEvent.click(screen.getByTestId("field-popover").querySelector("[data-date='2026-03-29']")!);
+    fireEvent.keyDown(screen.getByTestId("field-times"), { key: "Enter" });
+    expect(onChange).toHaveBeenCalledExactlyOnceWith("2026-03-29T01:00:00.000Z");
+    expect(screen.getByTestId("field")).toHaveValue("29.3.2026 03:00");
+    expect(screen.queryByTestId("field-error")).toBeNull();
+  });
+
+  it.each([
+    ["disabled", { disabled: true }],
+    ["locked by its field's reason", {}],
+  ] as const)("CX2: %s while open, the picker closes and takes no pick", (_, lock) => {
+    const onChange = vi.fn();
+    const ui = (locked: boolean) => (
+      <Field
+        label="At"
+        htmlFor="at"
+        disabledReason={locked && !("disabled" in lock) ? "No." : undefined}
+      >
+        <TimeField
+          id="at"
+          testId="field"
+          value="09:00"
+          onChange={onChange}
+          {...(locked ? lock : {})}
+        />
+      </Field>
+    );
+    const { rerender } = render(ui(false));
+    fireEvent.click(screen.getByTestId("field-picker"));
+    const ten = within(screen.getByTestId("field-times")).getByRole("option", { name: "10:00" });
+    rerender(ui(true));
+    expect(screen.queryByTestId("field-popover")).toBeNull();
+    fireEvent.click(ten);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["isComposing", { isComposing: true }],
+    ["key code 229", { keyCode: 229 }],
+  ] as const)("CX3: the Enter of a composition (%s) commits nothing", (_, init) => {
+    const onChange = vi.fn();
+    render(<Controlled Field={TimeField} onChange={onChange} />);
+    const input = screen.getByTestId("field");
+    fireEvent.change(input, { target: { value: "1430" } });
+    fireEvent.keyDown(input, { key: "Enter", ...init });
+    expect(onChange).not.toHaveBeenCalled();
+    expect(input).toHaveValue("1430");
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(onChange).toHaveBeenCalledExactlyOnceWith("14:30");
+  });
+
+  it("CX4: a day the zone skipped whole (Pacific/Apia 30.12.2011) offers no time and throws nothing", () => {
+    const onChange = vi.fn();
+    render(
+      <Controlled
+        Field={DateTimeField}
+        timeZone="Pacific/Apia"
+        initial="2011-12-29T22:00:00.000Z"
+        onChange={onChange}
+      />,
+    );
+    fireEvent.click(screen.getByTestId("field-picker"));
+    const day = screen
+      .getByTestId("field-popover")
+      .querySelector<HTMLElement>("[data-date='2011-12-30']")!;
+    day.focus();
+    expect(() => fireEvent.click(day)).not.toThrow();
+    const times = screen.getByTestId("field-times");
+    expect(within(times).queryAllByRole("option")).toHaveLength(0);
+    expect(screen.getByTestId("field-calendar")).toContainElement(
+      document.activeElement as HTMLElement,
+    );
+    for (const key of ["ArrowDown", "End", "Home", "PageDown", "Enter", " "]) {
+      const event = createEvent.keyDown(times, { key });
+      expect(() => fireEvent(times, event)).not.toThrow();
+      // The empty list leaves every key alone, as it came.
+      expect(event.defaultPrevented).toBe(false);
+    }
+    expect(onChange).not.toHaveBeenCalled();
   });
 });

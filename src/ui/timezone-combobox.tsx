@@ -8,8 +8,9 @@ import { usePopupPlacement } from "../lib/popup-placement.js";
 import { useCompositionText } from "../lib/use-composition-text.js";
 import { useFieldDraft } from "./field-drafts-internal.js";
 import { FieldUserEditContext, useFieldErrorAttributes } from "./field-error.js";
-import { WithFieldValueHint } from "./field-value-hint.js";
+import { useFieldLock, WithFieldValueHint, withLockReason } from "./field-value-hint.js";
 import { Hint } from "./hint.js";
+import { FIELD_LOCKED_LOOK } from "./locked-look-internal.js";
 import { isInLeaveGuardDialog } from "./leave-guard.js";
 
 // The IANA zones of the runtime's own Intl database (`GL-UI-030` §Zeitzonen-Feld).
@@ -52,11 +53,13 @@ type TimezoneComboboxProps = {
 // It is no portal (`GL-UI-027` §Floating Content): where a dialog or panel body would clip it, the body
 // first grows by the missing part at its end, so the dialog grows with the list; where that does not
 // make room (the dialog at its height cap, a full-height panel), the list opens upwards.
+//
+// Locked with its field's reason, and disabled, it behaves as `Combobox` does (`SUI-FEATURE-450`).
 function TimezoneCombobox({
   value,
   onValueChange,
   id,
-  disabled = false,
+  disabled: ownDisabled = false,
   className,
   hint,
   invalid = false,
@@ -82,6 +85,12 @@ function TimezoneCombobox({
   // Whether the keyboard placed the highlight: then it carries the inset ring on top of the tint
   // (`GL-UI-013`); a highlight under the mouse keeps the tint alone.
   const [keyboard, setKeyboard] = React.useState(false);
+  const { reason: lockReason, locked, disabled, attributes } = useFieldLock(ownDisabled);
+  // Disabled or locked while open, the list closes: it takes no pick (#958).
+  if ((disabled || locked) && open) {
+    setOpen(false);
+    setQuery("");
+  }
 
   // A value outside the runtime's list (an older database) is still offered, so it stays visible.
   const zones = React.useMemo(
@@ -100,7 +109,7 @@ function TimezoneCombobox({
   useFieldDraft(open, { counts: false, flush: close, discard: close });
 
   const openList = () => {
-    if (disabled || open) return;
+    if (disabled || locked || open) return;
     setOpen(true);
     setQuery("");
     setActive(Math.max(0, zones.indexOf(value)));
@@ -208,8 +217,8 @@ function TimezoneCombobox({
         isInvalid ? (ariaErrorMessage ?? fieldError["aria-errormessage"]) : undefined
       }
       data-testid={testId}
-      disabled={disabled}
-      placeholder={t("timezone.placeholder")}
+      {...attributes}
+      placeholder={locked ? undefined : t("timezone.placeholder")}
       value={composition.composing() ?? (open ? query : value)}
       onClick={openList}
       {...composition.bind()}
@@ -220,7 +229,7 @@ function TimezoneCombobox({
         if (isInLeaveGuardDialog(event.relatedTarget)) return;
         if (!rootRef.current?.contains(event.relatedTarget)) close();
       }}
-      className="h-9 w-full min-w-0 rounded-md border border-input bg-transparent py-1 pr-9 pl-3 text-base shadow-xs transition-[color,box-shadow] outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:focus-ring disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive md:text-sm dark:bg-input/30"
+      className={`h-9 w-full min-w-0 rounded-md border border-input bg-transparent py-1 pr-9 pl-3 text-base shadow-xs transition-[color,box-shadow] outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:focus-ring disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive md:text-sm dark:bg-input/30 ${FIELD_LOCKED_LOOK}`}
     />
   );
 
@@ -230,7 +239,7 @@ function TimezoneCombobox({
         {hint === undefined ? (
           <WithFieldValueHint>{field}</WithFieldValueHint>
         ) : (
-          <Hint text={hint}>{field}</Hint>
+          <Hint text={withLockReason(hint, lockReason)}>{field}</Hint>
         )}
         <ChevronDownIcon
           aria-hidden="true"

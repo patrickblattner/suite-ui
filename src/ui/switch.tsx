@@ -3,7 +3,7 @@ import { Switch as SwitchPrimitive } from "radix-ui";
 
 import { cn } from "../lib/cn.js";
 import { FieldUserEditContext } from "./field-error.js";
-import { WithFieldValueHint } from "./field-value-hint.js";
+import { useFieldLockReason, WithFieldValueHint } from "./field-value-hint.js";
 
 // The look of a switch locked with `aria-disabled` without a run (`data-locked`) or `disabled`, in
 // colour, never element opacity: opacity would dim the focus ring of the still focusable locked switch
@@ -34,7 +34,13 @@ function Switch(
 ) {
   const { className, size = "default", busy = false, onClick, onMouseDown, ...rest } = props;
   const guardsRepeatClick = "busy" in props;
-  const locked = busy || rest["aria-disabled"] === true || rest["aria-disabled"] === "true";
+  // Its field's lock reason locks it the same way, and wins over `disabled` (`SUI-FEATURE-450`).
+  const lockReason = useFieldLockReason();
+  const locked =
+    busy ||
+    lockReason !== undefined ||
+    rest["aria-disabled"] === true ||
+    rest["aria-disabled"] === "true";
   // Radix sets the hidden native input by code, so the form around it hears the person's toggle only
   // through `onCheckedChange` (`GL-UI-038`, #739).
   const userEdit = React.useContext(FieldUserEditContext);
@@ -53,6 +59,7 @@ function Switch(
         {...rest}
         // After the spread, so a call site's `aria-disabled` or `aria-busy` cannot undo the lock.
         {...(locked ? { "aria-disabled": true } : {})}
+        {...(lockReason === undefined ? {} : { disabled: false })}
         {...(busy ? { "aria-busy": true } : {})}
         onCheckedChange={(checked) => {
           userEdit?.();

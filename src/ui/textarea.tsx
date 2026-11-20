@@ -3,7 +3,7 @@ import type * as React from "react";
 import { cn } from "../lib/cn.js";
 import { holdCompositionTab } from "../lib/keyboard.js";
 import { useFieldErrorAttributes } from "./field-error.js";
-import { WithFieldValueHint } from "./field-value-hint.js";
+import { useFieldLockReason, WithFieldValueHint } from "./field-value-hint.js";
 import { READ_ONLY_LOOK } from "./read-only-look-internal.js";
 
 // A framed scroll surface (`GL-UI-018`): the textarea itself scrolls, reserves the scrollbar's place
@@ -11,6 +11,8 @@ import { READ_ONLY_LOOK } from "./read-only-look-internal.js";
 // the bar and no line rewraps when the bar appears.
 function Textarea({ className, onKeyDown, ...props }: React.ComponentProps<"textarea">) {
   const fieldError = useFieldErrorAttributes();
+  // Locked with its field's reason: read-only, never `disabled` (`SUI-FEATURE-450`).
+  const lockReason = useFieldLockReason();
   return (
     <WithFieldValueHint>
       <textarea
@@ -28,6 +30,7 @@ function Textarea({ className, onKeyDown, ...props }: React.ComponentProps<"text
           onKeyDown?.(event);
         }}
         {...props}
+        {...(lockReason === undefined ? {} : { readOnly: true, disabled: false })}
       />
     </WithFieldValueHint>
   );
