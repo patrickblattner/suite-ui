@@ -23,6 +23,7 @@ export * from "./edit-panel.js";
 export * from "./editor-header.js";
 export * from "./field.js";
 export * from "./field-error.js";
+export * from "./field-form.js";
 export * from "./file-facts.js";
 export * from "./flip-toggle.js";
 export * from "./focus-return.js";

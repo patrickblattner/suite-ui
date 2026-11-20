@@ -13488,6 +13488,23 @@ test("GL-UI-060: error messages lead with a symbol, the empty state has none", a
   expect(await symbolOf(page.getByTestId("settings-error"))).toBe("lucide-circle-x");
 });
 
+// `SUI-FEATURE-440` AC 1, AC 5: an app-built `FieldForm` shows no error before a submit; Enter in a
+// field submits it, shows both errors and focuses the first field. Captured after the attempt.
+for (const theme of THEMES) {
+  test(`FieldForm before and after a submit attempt ${theme}`, async ({ page }) => {
+    await page.goto(`/?page=components&lng=en&theme=${theme}`);
+    const form = page.getByTestId("field-form");
+    await expect(form.locator("[data-slot=field-error]")).toHaveCount(0);
+    await page.locator("#field-form-city").press("Enter");
+    await expect(form.locator("[data-slot=field-error]")).toHaveCount(2);
+    await expect(page.locator("#field-form-name")).toBeFocused();
+    await parkPointer(page);
+    await expect(page.getByTestId("section-field-form")).toHaveScreenshot(
+      `field-form-submitted-en-${theme}.png`,
+    );
+  });
+}
+
 // `SUI-FEATURE-270` AC1, AC2: an invalid TagInput has the red frame of an invalid Input, with and
 // without the focus, and the same ring under the focus.
 test("field error: an invalid TagInput looks like an invalid Input", async ({ page }) => {

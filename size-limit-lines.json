@@ -33,6 +33,7 @@
     "./ui/editor-header": { "recommended": 90155, "maximum": 100365 },
     "./ui/field-drafts-internal": { "recommended": 1236, "maximum": 1298 },
     "./ui/field-error": { "recommended": 1899, "maximum": 2124 },
+    "./ui/field-form": { "recommended": 1234, "maximum": 1296 },
     "./ui/field-value-hint-context": { "recommended": 78, "maximum": 139 },
     "./ui/field-value-hint": { "recommended": 32554, "maximum": 34182 },
     "./ui/field": { "recommended": 21137, "maximum": 23321 },

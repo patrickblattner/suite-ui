@@ -49,6 +49,7 @@ import { ImagePlacementButtons } from "../src/ui/crop-editor.js";
 import { type Crop, CroppedBackground, CroppedImage } from "../src/ui/cropped-image.js";
 import { EditorHeader, type EditorLifecycle } from "../src/ui/editor-header.js";
 import { Field } from "../src/ui/field.js";
+import { FieldForm } from "../src/ui/field-form.js";
 import { FileFacts } from "../src/ui/file-facts.js";
 import { Hint } from "../src/ui/hint.js";
 import { InlineMessage } from "../src/ui/inline-message.js";
@@ -866,6 +867,57 @@ function FieldErrors() {
           </RadioGroup>
         </SettingsField>
       </div>
+    </Section>
+  );
+}
+
+// `SUI-FEATURE-440` AC 5: an app-built form around package fields, before a submit attempt; the
+// gallery test submits it and captures it after (`field-form-submitted-*`).
+function FieldForms() {
+  const { t } = useTranslation("suite");
+  const [name, setName] = useState("");
+  const [city, setCity] = useState("");
+  return (
+    <Section id="field-form" title="FieldForm">
+      <FieldForm
+        aria-label="Channel"
+        data-testid="field-form"
+        className="grid max-w-md grid-cols-1 gap-4"
+        // A success only with both fields filled (`SUI-FEATURE-440` rev 3: `true` ends the state).
+        onSubmit={() => name !== "" && city !== ""}
+      >
+        <Field
+          label="Name"
+          htmlFor="field-form-name"
+          error={name === "" ? "Enter a name." : undefined}
+        >
+          <Input
+            id="field-form-name"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+          />
+        </Field>
+        <Field
+          label="City"
+          htmlFor="field-form-city"
+          error={city === "" ? "Enter a city." : undefined}
+        >
+          <Input
+            id="field-form-city"
+            value={city}
+            onChange={(event) => setCity(event.target.value)}
+          />
+        </Field>
+        <Button
+          type="submit"
+          variant="default"
+          size="default"
+          className="justify-self-start"
+          data-testid="field-form-submit"
+        >
+          {t("actions.save")}
+        </Button>
+      </FieldForm>
     </Section>
   );
 }
@@ -2043,6 +2095,7 @@ export function ComponentsPage() {
       <Fields />
       <LockedFields />
       <FieldErrors />
+      <FieldForms />
       <InlineMessages />
       <ProseLinks />
       <Choices />
