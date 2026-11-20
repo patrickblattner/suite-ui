@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.248.0 — #962 sweep ui (9 findings), #956 DateField/TimeField/DateTimeField (minor)
+
 - **Fixed (#962, sweep ui, finding #811):** with two open `EditPanel`s and nothing focused, ←/→ page only the topmost (last opened) panel, not the one below.
 - **Fixed (#962, finding #812):** `useAutoFocused` notes only a focus inside the opening panel; a focus in another panel already open no longer counts as its `autoFocus`.
 - **Fixed (#962, finding #813, GL-UI-006):** a `TablePagination` inside the non-modal `EditPanel` pages on ←/→ again; only another dialog or an open overlay rests its keys.
