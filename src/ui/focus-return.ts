@@ -445,16 +445,19 @@ function useFocusAfterRun(
  * opened. A modal menu that opened the panel pulls that focus back while it closes, so Radix's opening
  * focus finds none in the panel: the panel focuses the noted field instead of its container. Noted in
  * an insertion effect, so before React applies `autoFocus` in the layout phase (the portal mounts the
- * content one commit later); the first focus inside the slot while open counts.
+ * content one commit later); the first focus inside the slot while open counts — inside this panel
+ * only: a slot already in the document as it opens is another open panel (#812).
  */
 function useAutoFocused(open: boolean, slot: string): React.RefObject<HTMLElement | null> {
   const noted = React.useRef<HTMLElement | null>(null);
   React.useInsertionEffect(() => {
     if (!open) return;
     noted.current = null;
+    const others = new Set(document.querySelectorAll(slot));
     const note = (event: FocusEvent) => {
       if (noted.current !== null || !(event.target instanceof HTMLElement)) return;
-      if (event.target.closest(slot) !== null) noted.current = event.target;
+      const own = event.target.closest(slot);
+      if (own !== null && !others.has(own)) noted.current = event.target;
     };
     document.addEventListener("focusin", note, true);
     return () => document.removeEventListener("focusin", note, true);

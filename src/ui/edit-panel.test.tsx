@@ -1399,6 +1399,54 @@ describe("EditPanel", () => {
     });
   });
 
+  describe("pager keys (SUI-FEATURE-144): several open panels", () => {
+    function renderTwo() {
+      const lowerNext = vi.fn();
+      const upperNext = vi.fn();
+      render(
+        <>
+          <EditPanel
+            open
+            onOpenChange={vi.fn()}
+            title="Lower"
+            testIdPrefix="lower"
+            pager={{ position: "1/3", onPrevious: vi.fn(), onNext: lowerNext }}
+          >
+            <Input aria-label="Lower name" />
+          </EditPanel>
+          <EditPanel
+            open
+            onOpenChange={vi.fn()}
+            title="Upper"
+            testIdPrefix="upper"
+            pager={{ position: "1/3", onPrevious: vi.fn(), onNext: upperNext }}
+          >
+            <Input aria-label="Upper name" />
+          </EditPanel>
+        </>,
+      );
+      act(() => (document.activeElement as HTMLElement | null)?.blur());
+      expect(document.activeElement).toBe(document.body);
+      return { lowerNext, upperNext };
+    }
+
+    // #811: two open panels with a pager, nothing focused: only the topmost pages.
+    it("with two open panels and nothing focused, → pages only the topmost", () => {
+      const { lowerNext, upperNext } = renderTwo();
+      key(document.body, "ArrowRight");
+      expect(upperNext).toHaveBeenCalledTimes(1);
+      expect(lowerNext).not.toHaveBeenCalled();
+    });
+
+    // #811 review: a closing upper panel, still in its exit animation, leaves the keys to the one below.
+    it("with the upper panel closing and nothing focused, → pages the lower one", () => {
+      const { lowerNext } = renderTwo();
+      screen.getByTestId("upper").setAttribute("data-state", "closed");
+      key(document.body, "ArrowRight");
+      expect(lowerNext).toHaveBeenCalledTimes(1);
+    });
+  });
+
   // SUI-FEATURE-144 AC3 with GL-UI-006 §Fokus-Regel/§Pagination: these keep their own ←/→.
   describe("pager keys (SUI-FEATURE-144): a list or a native control in the panel", () => {
     it("AC3: a select, range, radio or player keeps ←/→", () => {
@@ -1482,6 +1530,8 @@ describe("EditPanel", () => {
         key(own, "ArrowRight");
       }
       expect(onNext).not.toHaveBeenCalled();
+      // #813: the list's own pager takes the keys inside the non-modal panel.
+      expect(screen.getByTestId("pagination-summary")).toHaveTextContent("Page 3 / 3 (23)");
     });
   });
 

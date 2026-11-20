@@ -184,8 +184,9 @@ describe("EditorHeader", () => {
         .getAttribute("aria-describedby")
         ?.split(" ") ?? [];
     const hint = hintIds.map((id) => document.getElementById(id)?.textContent ?? "").join(" ");
-    expect(hint).toContain("Discards the draft and returns to the saved state.");
-    expect(hint).not.toContain("Discards the unsaved changes on this page.");
+    const t = (key: string) => i18n.t(key, { ns: "suite" });
+    expect(hint).toContain(t("editor.resetHint"));
+    expect(hint).not.toContain(t("settings.resetHint"));
     expect(onReset).not.toHaveBeenCalled();
     fireEvent.click(screen.getByTestId("editor-reset-confirm-cancel"));
     await waitFor(() => expect(screen.queryByTestId("editor-reset-confirm")).toBeNull());

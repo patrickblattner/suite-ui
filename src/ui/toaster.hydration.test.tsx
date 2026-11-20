@@ -1,4 +1,5 @@
 import { act } from "@testing-library/react";
+import { useEffect } from "react";
 import type { Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -42,6 +43,14 @@ const raisedToast = () =>
     return node;
   });
 
+// Raises a toast in its mount effect, which runs before the Toaster's portal mounts (#666).
+function RaiseOnMount() {
+  useEffect(() => {
+    toast("Welcome");
+  }, []);
+  return null;
+}
+
 describe("Toaster hydration", () => {
   it("hydrates without a mismatch and keeps the typed input value", async () => {
     const hydrated = await hydrate();
@@ -77,10 +86,54 @@ describe("Toaster hydration", () => {
       toast("Saved");
     });
     const raised = await raisedToast();
-    // The observer on the portal's subtree sees the toast mount over the focus and closes it after
-    // its short stay; without the observer it would keep its full duration.
+    // The effects set up again once the portal mounts after hydration, so the observer on the
+    // portal's subtree sees the toast mount over the focus and closes it after its short stay; set up
+    // only on the hydrating render, they would find no portal and it would keep its full duration.
     await vi.waitFor(() => expect(raised.getAttribute("data-removed")).toBe("true"), {
       timeout: 2000,
     });
+  });
+
+  // #666: a toast raised during hydration, before the portal is there, still shows once it mounts.
+  it("shows a toast raised in a mount effect before the portal mounts", async () => {
+    const hydrated = await hydrateFromServer(
+      <main>
+        <input aria-label="Name" />
+        <RaiseOnMount />
+        <Toaster />
+      </main>,
+    );
+    root = hydrated.root;
+    expectHydratedIntact(hydrated);
+    expect(await raisedToast()).toHaveTextContent("Welcome");
+  });
+
+  // #667: the focus effects set up again once the portal mounts, so focus that leaves a toast for
+  // nothing returns to where it came from, with its ring.
+  it("returns the focus from a toast to the element it came from after hydration", async () => {
+    const { input } = await hydrate();
+    // jsdom's `hasFocus` turns false once the focus goes to nothing; a browser's stays true.
+    vi.spyOn(document, "hasFocus").mockReturnValue(true);
+    // eslint-disable-next-line @typescript-eslint/unbound-method
+    const matches = Element.prototype.matches;
+    vi.spyOn(Element.prototype, "matches").mockImplementation(function (
+      this: Element,
+      selector: string,
+    ) {
+      return selector === ":focus-visible" ? true : matches.call(this, selector);
+    });
+    act(() => input.focus());
+    act(() => {
+      toast("Saved", { action: { label: "Undo", onClick: () => {} } });
+    });
+    const raised = await raisedToast();
+    const undo = raised.querySelector<HTMLElement>("button[data-action]");
+    if (undo === null) throw new Error("no action button");
+    act(() => undo.focus());
+    const focus = vi.spyOn(HTMLElement.prototype, "focus");
+    act(() => undo.blur());
+    expect(input).toHaveFocus();
+    expect(focus.mock.contexts[0]).toBe(input);
+    expect(focus.mock.calls[0]?.[0]).toMatchObject({ focusVisible: true });
   });
 });

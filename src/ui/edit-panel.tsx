@@ -11,7 +11,7 @@ import * as React from "react";
 import { useTranslation } from "react-i18next";
 
 import { cn } from "../lib/cn.js";
-import { isInDialog, isTextField, OWN_ARROWS } from "../lib/keyboard.js";
+import { isInOtherDialog, isTextField, OWN_ARROWS } from "../lib/keyboard.js";
 import { LIST_FRAME_SELECTOR } from "../lib/list-focus.js";
 import { type RowAction, RowActionButton } from "../list/row-actions.js";
 import { isCompositionKey } from "./composition.js";
@@ -187,10 +187,14 @@ function pagesRecords(event: KeyboardEvent, panel: HTMLElement | null): boolean 
   if (focused !== null && focused !== document.body && focused !== document.documentElement) {
     if (!panel.contains(focused) || isTextField(focused)) return false;
     if (focused.closest(`${OWN_ARROWS}, ${LIST_OWN_ARROWS}`) !== null) return false;
+  } else {
+    // Nothing focused: only the topmost open panel, the last one opened, owns the keys (#811).
+    // A closing panel in its exit animation does not count.
+    const panels = document.querySelectorAll("[data-slot=edit-panel][data-state=open]");
+    if (panels[panels.length - 1] !== panel) return false;
   }
   // The panel is a non-modal dialog itself: only another dialog, or an open overlay, rests the keys.
-  const layer = focused?.closest('[role="dialog"], [role="alertdialog"]') ?? null;
-  return (layer === null || layer === panel) && !isInDialog(null);
+  return !isInOtherDialog(focused, panel);
 }
 
 // The edit panel (`GL-UI-027` §Bearbeitungsflächen, `SUI-FEATURE-030`): from the right over the whole

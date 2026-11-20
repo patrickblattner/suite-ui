@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- **Fixed (#962, sweep ui, finding #811):** with two open `EditPanel`s and nothing focused, ←/→ page only the topmost (last opened) panel, not the one below.
+- **Fixed (#962, finding #812):** `useAutoFocused` notes only a focus inside the opening panel; a focus in another panel already open no longer counts as its `autoFocus`.
+- **Fixed (#962, finding #813, GL-UI-006):** a `TablePagination` inside the non-modal `EditPanel` pages on ←/→ again; only another dialog or an open overlay rests its keys.
+- **Changed (#962, finding #671):** `PreviewFrame` moves its portal host into `usePreviewHost` and its maximized left edge into a helper, back under the complexity limit; no behaviour change.
+- **Tests (#962, findings #600, #603, #624, #666, #667):** the style-reset texts are checked against the literal SUI-FEATURE-370 texts in de/en/es; the editor reset hint via `t()`; one shared `Toggle` in `leave-guard.test.tsx`; hydration tests for a toast raised before the portal mounts and for the focus return after hydration.
+
 ## 0.247.0 — #953 UploadStep lock/trigger/failureAction, #954 InlineMessage info tone, #955 EditPanel pager keys (minor)
 
 - **Added (#954, SUI-FEATURE-096 rev 5):** `InlineMessage` takes a third tone `tone="info"` for a neutral message: `InfoIcon` in `--muted-foreground`, `role="status"`, screen-reader prefix `inline.info` with the words of `status.info` (Info: / Info: / Información:). `error` and `warn` and `FieldError` are unchanged. The gallery shows the info line beside the other two tones.

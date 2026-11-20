@@ -57,31 +57,7 @@ function PreviewFrame({
   const [frameElement, setFrameElement] = React.useState<HTMLDivElement | null>(null);
   const showUsage = usage?.active === true;
   useEscapeLayer(showUsage, () => usage?.onClose(), frameElement);
-  // The server has no `document`: the host exists on the client only, and the frame portals into it
-  // once hydrated, so the server and the hydrating render both leave the anchor empty (#931).
-  const hydrated = useHydrated();
-  const [host] = React.useState(() => {
-    if (typeof document === "undefined") return null;
-    const element = document.createElement("div");
-    element.dataset.slot = "preview-frame-host";
-    element.style.display = "contents";
-    return element;
-  });
-
-  // Inline the host sits in the frame's place in the column; maximized it moves to the body.
-  React.useLayoutEffect(() => {
-    const target = maximized ? document.body : anchor;
-    if (host === null || target === null || host.parentNode === target) return;
-    const focused = document.activeElement;
-    moveInto(target, host);
-    if (
-      focused instanceof HTMLElement &&
-      host.contains(focused) &&
-      document.activeElement !== focused
-    )
-      focused.focus({ preventScroll: true });
-  }, [maximized, anchor, host]);
-  React.useEffect(() => () => host?.remove(), [host]);
+  const host = usePreviewHost(maximized, anchor);
 
   React.useLayoutEffect(() => {
     if (column === null || page === null) return;
@@ -99,12 +75,7 @@ function PreviewFrame({
 
   const scale =
     maximized || size === null || size.column === 0 ? 1 : Math.min(1, size.column / width);
-  const left =
-    sidebar === null
-      ? 0
-      : sidebar.isOpen
-        ? "calc(var(--sidebar-width) * var(--sidebar-inset))"
-        : "calc(var(--sidebar-width-collapsed) * var(--sidebar-inset))";
+  const left = maximizedLeft(sidebar);
 
   const frame = (
     <div
@@ -160,9 +131,47 @@ function PreviewFrame({
 
   return (
     <div ref={setAnchor} data-slot="preview-frame-anchor" className="contents">
-      {hydrated && host !== null ? createPortal(frame, host) : null}
+      {host !== null ? createPortal(frame, host) : null}
     </div>
   );
+}
+
+// The element the frame portals into, once hydrated (#671 keeps `PreviewFrame` under the complexity
+// limit). The server has no `document`: the host exists on the client only, and the frame portals into
+// it once hydrated, so the server and the hydrating render both leave the anchor empty (#931).
+function usePreviewHost(maximized: boolean, anchor: HTMLDivElement | null): HTMLDivElement | null {
+  const hydrated = useHydrated();
+  const [host] = React.useState(() => {
+    if (typeof document === "undefined") return null;
+    const element = document.createElement("div");
+    element.dataset.slot = "preview-frame-host";
+    element.style.display = "contents";
+    return element;
+  });
+
+  // Inline the host sits in the frame's place in the column; maximized it moves to the body.
+  React.useLayoutEffect(() => {
+    const target = maximized ? document.body : anchor;
+    if (host === null || target === null || host.parentNode === target) return;
+    const focused = document.activeElement;
+    moveInto(target, host);
+    if (
+      focused instanceof HTMLElement &&
+      host.contains(focused) &&
+      document.activeElement !== focused
+    )
+      focused.focus({ preventScroll: true });
+  }, [maximized, anchor, host]);
+  React.useEffect(() => () => host?.remove(), [host]);
+  return hydrated ? host : null;
+}
+
+// The maximized frame's left edge: at the sidebar's current width, so the navigation stays visible.
+function maximizedLeft(sidebar: ReturnType<typeof useOptionalSidebar>): number | string {
+  if (sidebar === null) return 0;
+  return sidebar.isOpen
+    ? "calc(var(--sidebar-width) * var(--sidebar-inset))"
+    : "calc(var(--sidebar-width-collapsed) * var(--sidebar-inset))";
 }
 
 // Moves `node` to the end of `parent`; `moveBefore` keeps an iframe's document and the focus where the

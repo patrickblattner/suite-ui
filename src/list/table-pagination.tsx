@@ -7,7 +7,7 @@ import {
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 
-import { isInDialog, isTextField, OWN_ARROWS } from "../lib/keyboard.js";
+import { isInOtherDialog, isTextField, OWN_ARROWS } from "../lib/keyboard.js";
 import { focusListFrame, GRID_ITEM_ATTR, LIST_FRAME_SELECTOR } from "../lib/list-focus.js";
 import { MEASURED_TRIGGER, MeasuredCell } from "../lib/select-sizer.js";
 import { Button } from "../ui/button.js";
@@ -92,7 +92,10 @@ function TablePagination({
       const focused = document.activeElement;
       // Behind an open panel the list is `inert` (`SUI-FEATURE-142`): the panel's pager owns the keys.
       if (root === null || root.closest("[inert]") !== null) return;
-      if (isInDialog(focused) || !pagesFrom(focused, root)) return;
+      // A list in the non-modal edit panel keeps its keys (`GL-UI-006`, #813): only another dialog,
+      // or an open overlay, rests them.
+      const panel = root.closest('[data-slot="edit-panel"]');
+      if (isInOtherDialog(focused, panel) || !pagesFrom(focused, root)) return;
       const target = event.key === "ArrowLeft" ? page - 1 : page + 1;
       if (target < 1 || target > totalPages) return;
       event.preventDefault();

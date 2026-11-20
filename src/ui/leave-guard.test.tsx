@@ -2011,6 +2011,17 @@ describe("data router: the shared blocker passes on (review #276)", () => {
 });
 
 describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
+  // A page that a "hide" button unmounts while the test runs.
+  function Toggle({ save }: { save?: () => unknown }) {
+    const [shown, setShown] = useState(true);
+    return (
+      <>
+        <button type="button" data-testid="hide" onClick={() => setShown(false)} />
+        {shown && <DetailPage save={save} />}
+      </>
+    );
+  }
+
   function renderPage(save?: () => unknown, page: Partial<ComponentProps<typeof DetailPage>> = {}) {
     render(
       <MemoryRouter initialEntries={["/list", "/detail"]} initialIndex={1}>
@@ -2619,20 +2630,11 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
   // no leave on when the save succeeds afterwards.
   it("a page unmounted while its Save works drops the held leave", async () => {
     const saved = deferredResult();
-    function Toggle() {
-      const [shown, setShown] = useState(true);
-      return (
-        <>
-          <button type="button" data-testid="hide" onClick={() => setShown(false)} />
-          {shown && <DetailPage save={() => saved.promise} />}
-        </>
-      );
-    }
     render(
       <MemoryRouter initialEntries={["/list", "/detail"]} initialIndex={1}>
         <Where />
         <Routes>
-          <Route path="/detail" element={<Toggle />} />
+          <Route path="/detail" element={<Toggle save={() => saved.promise} />} />
           <Route path="*" element={null} />
         </Routes>
       </MemoryRouter>,
@@ -4264,15 +4266,6 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
   // The page that confirmed is gone before the submission ends: no guard renders the end, the leave
   // still goes on.
   it("AC2: the leave goes on when the page that confirmed it is gone before the submission ends", async () => {
-    function Toggle() {
-      const [shown, setShown] = useState(true);
-      return (
-        <>
-          <button type="button" data-testid="hide" onClick={() => setShown(false)} />
-          {shown && <DetailPage />}
-        </>
-      );
-    }
     const { action, settle } = submission();
     const router = submittingRouter(action, { page: <Toggle /> });
     await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
@@ -4287,15 +4280,6 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
   // Review #283 r2 (L): with no guard mounted, a change while a leave waits still waits; it never
   // cuts the submission off, and it lands once the submission succeeded.
   it("AC2: a waiting change blocks newer ones when no guard is mounted", async () => {
-    function Toggle() {
-      const [shown, setShown] = useState(true);
-      return (
-        <>
-          <button type="button" data-testid="hide" onClick={() => setShown(false)} />
-          {shown && <DetailPage />}
-        </>
-      );
-    }
     const { action, seen, settle } = submission();
     const router = submittingRouter(action, { page: <Toggle /> });
     await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));

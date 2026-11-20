@@ -18,7 +18,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "./dropdown-menu.js";
-import { FOCUS_FALLBACK_ATTR, FOCUS_MAIN_ATTR, useFocusAfterRun } from "./focus-return.js";
+import {
+  FOCUS_FALLBACK_ATTR,
+  FOCUS_MAIN_ATTR,
+  useAutoFocused,
+  useFocusAfterRun,
+} from "./focus-return.js";
 
 afterEach(cleanup);
 
@@ -859,5 +864,38 @@ describe("useFocusAfterRun", () => {
     rerender(<Page open running />);
     rerender(<Page open={false} running />);
     await waitFor(() => expect(screen.getByTestId("opener")).toHaveFocus());
+  });
+});
+
+// #812: a focus in another open panel is not noted as the opening panel's own autoFocus.
+describe("useAutoFocused", () => {
+  it("notes the autoFocus in its own panel, not a focus in another open panel", () => {
+    const onNoted = vi.fn();
+    // The own content mounts one commit after `open`, like a portal's.
+    function Own({ open, shown }: { open: boolean; shown: boolean }) {
+      const noted = useAutoFocused(open, "[data-slot=panel]");
+      useEffect(() => {
+        if (shown) onNoted(noted.current);
+      }, [shown, noted]);
+      return shown ? (
+        <div data-slot="panel">
+          <input aria-label="Own" autoFocus />
+        </div>
+      ) : null;
+    }
+    const page = (open: boolean, shown: boolean) => (
+      <>
+        <div data-slot="panel">
+          <input aria-label="Other" />
+        </div>
+        <Own open={open} shown={shown} />
+      </>
+    );
+    const { rerender } = render(page(false, false));
+    rerender(page(true, false));
+    // The other panel takes a focus after the hook started noting.
+    act(() => screen.getByRole("textbox", { name: "Other" }).focus());
+    rerender(page(true, true));
+    expect(onNoted).toHaveBeenCalledWith(screen.getByRole("textbox", { name: "Own" }));
   });
 });

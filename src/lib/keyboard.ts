@@ -47,6 +47,15 @@ function isInDialog(element: Element | null): boolean {
 }
 
 /**
+ * Another dialog than `own` (a non-modal panel, or none) holds the focus, or a modal overlay is open:
+ * the shortcuts of `own` and of a list in it rest (`GL-UI-006` §Fokus-Regel, #813).
+ */
+function isInOtherDialog(focused: Element | null, own: Element | null): boolean {
+  const layer = focused?.closest('[role="dialog"], [role="alertdialog"]') ?? null;
+  return (layer !== null && layer !== own) || isInDialog(null);
+}
+
+/**
  * A key of a running composition (a dead key, an IME): it belongs to the composition, the Enter that
  * confirms a candidate too — Safari sends that one after `compositionend`, with key code 229. Such a
  * key triggers nothing of the field or its surface (`GL-UI-039`, `SUI-FEATURE-126`, #737). Public as
@@ -126,6 +135,7 @@ export {
   holdCompositionTab,
   isCompositionKey,
   isInDialog,
+  isInOtherDialog,
   isMacPlatform,
   isTextField,
   OWN_ARROWS,

@@ -365,9 +365,29 @@ describe("DrawerRail (SUI-FEATURE-071)", () => {
 
   // SUI-FEATURE-370 rev 6 AC 2, 6: own title, question, tooltip and confirm hint — never the
   // EditorHeader confirm's actions.reset / editor.resetConfirm, never a settings or editor reset hint.
-  it.each(["de", "en", "es"])(
+  // #600: the leaf's literal texts, so a translation typo fails here, not only an i18n mismatch.
+  it.each([
+    [
+      "de",
+      "Stil zurücksetzen",
+      "Stil-Änderungen verwerfen und zum gespeicherten Stil zurückkehren? Das lässt sich nicht rückgängig machen.",
+      "Verwirft die ungespeicherten Stil-Änderungen und stellt den gespeicherten Stil wieder her, ohne den Inhalt zu ändern.",
+    ],
+    [
+      "en",
+      "Reset style",
+      "Discard the style changes and return to the saved style? This can't be undone.",
+      "Discards the unsaved style changes and restores the saved style without changing the content.",
+    ],
+    [
+      "es",
+      "Restablecer estilo",
+      "¿Descartar los cambios de estilo y volver al estilo guardado? No se puede deshacer.",
+      "Descarta los cambios de estilo no guardados y restaura el estilo guardado sin cambiar el contenido.",
+    ],
+  ])(
     "%s: the style reset shows its own title, question, tooltip and hint",
-    async (lng) => {
+    async (lng, titleText, confirmText, hintText) => {
       await i18n.changeLanguage(lng);
       const t = (key: string) => i18n.t(key, { ns: "suite" });
       render(
@@ -383,22 +403,22 @@ describe("DrawerRail (SUI-FEATURE-071)", () => {
           .map((id) => document.getElementById(id)?.textContent ?? "")
           .join(" ");
       const reset = screen.getByTestId("drawer-style-reset");
-      expect(described(reset)).toContain(t("editor.styleResetHint"));
+      expect(described(reset)).toContain(hintText);
       expect(described(reset)).not.toContain(t("editor.resetHint"));
       expect(described(reset)).not.toContain(t("settings.resetHint"));
       fireEvent.click(reset);
       const dialog = await screen.findByRole("dialog");
       const title = within(dialog).getByRole("heading").textContent;
-      expect(title).toBe(t("editor.styleResetTitle"));
+      expect(title).toBe(titleText);
       expect(title).not.toBe(t("actions.reset"));
-      expect(dialog).toHaveTextContent(t("editor.styleResetConfirm"));
+      expect(dialog).toHaveTextContent(confirmText);
       expect(dialog).not.toHaveTextContent(t("editor.resetConfirm"));
       const ids =
         (await screen.findByTestId("drawer-style-reset-confirm-confirm"))
           .getAttribute("aria-describedby")
           ?.split(" ") ?? [];
       const hint = ids.map((id) => document.getElementById(id)?.textContent ?? "").join(" ");
-      expect(hint).toContain(t("editor.styleResetHint"));
+      expect(hint).toContain(hintText);
       expect(hint).not.toContain(t("settings.resetHint"));
       expect(hint).not.toContain(t("editor.resetHint"));
     },
