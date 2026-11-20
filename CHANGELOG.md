@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.250.1 — #971 EditorHeader Back keeps focus, #972 Codex fixes: submit after reset, Input lock for any text type (patch)
+
 - **Fixed (#971, SUI-FEATURE-146, finding #872):** the labelled Back of `EditorHeader` keeps one element whether `backHint` is set or not and whether it shows its label or folds to its arrow at narrow width, so neither toggling the hint nor a fold remounts it and a focused Back stays focused. The name stays "Back" and the hint is its description; the bubble opens on hover only, never on focus.
 - **Size (#971, GL-CODE-021, register #1998):** new line `./ui/tooltip-bubble-internal` at measured 318 B, maximum 334 B (+ 5 %); cause: the new module.
 - **Fixed (#972, Codex CX1, SUI-FEATURE-440 rev 3):** a reset outdates the pending submit attempts at once, a record change in the render that shows the new record, no longer in a later effect: a submit started right after the reset (a `FieldForm` reset handler calling `requestSubmit()`) ends the submit state on its success again, and as the newer step after the reset it shows every field error while pending (`GL-UI-038` §Absenden). An older attempt resolving `true` after the change still ends nothing (#969).
