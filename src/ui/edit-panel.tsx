@@ -44,7 +44,8 @@ import { IconButtonTooltip } from "./tooltip.js";
 const handedOver = new WeakMap<HTMLElement, PanelReturn>();
 
 // A record's decision actions in the panel head (`SUI-FEATURE-420`): `secondary` as `outline` in array
-// order, then the one `primary` as `success` rightmost; each labelled, size `sm`, never folded.
+// order, then the one `primary` as `success` rightmost; each labelled, size `sm`, never folded. The
+// primary is a lifecycle promote: its label alone, no icon beside it (rev 4, `GL-UI-011`).
 type EditPanelHeadActions = { primary?: RowAction; secondary?: readonly RowAction[] };
 
 // Paging through a set of records in one panel (`SUI-FEATURE-051`); `position` is e.g. "1/3".
@@ -561,6 +562,7 @@ function EditPanel({
                       variant="success"
                       size="icon-sm"
                       labelled
+                      promote
                     />
                   )}
                 </div>

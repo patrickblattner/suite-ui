@@ -770,6 +770,8 @@ describe("PreviewToolbar in a narrow column (SUI-FEATURE-067)", () => {
     expect(step).toHaveTextContent("Deliver");
     expect(step).toHaveAttribute("data-variant", "success");
     expect(step).toHaveAttribute("data-size", "sm");
+    // `SUI-FEATURE-330` rev 10: labelled, no icon beside the text.
+    expect(step.querySelector("svg")).toBeNull();
   });
 
   it.each([

@@ -432,6 +432,8 @@ describe("MediaDetailShell", () => {
     expect(step).toHaveTextContent("Publish");
     expect(step).toHaveAttribute("data-variant", "success");
     expect(step).toHaveAttribute("data-size", "sm");
+    // `SUI-FEATURE-330` rev 10: labelled, no icon beside the text.
+    expect(step.querySelector("svg")).toBeNull();
     expect(step).toHaveAccessibleName("Publish team-photo.jpg");
     fireEvent.click(step);
     expect(onClick).toHaveBeenCalledOnce();

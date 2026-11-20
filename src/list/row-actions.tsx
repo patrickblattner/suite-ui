@@ -130,6 +130,7 @@ function RowActionButton({
   variant,
   size,
   labelled = false,
+  promote = false,
 }: {
   action: RowAction;
   rowName: string;
@@ -137,6 +138,10 @@ function RowActionButton({
   size: "icon-xs" | "icon-sm";
   // Shows `label` beside the icon, at the text size of the same height (`SUI-FEATURE-330`).
   labelled?: boolean;
+  // With `labelled`, a lifecycle promote (the row's step, a panel head's primary): its label alone, no
+  // icon beside it (`GL-UI-011` rev 12, `SUI-FEATURE-330` rev 10, `SUI-FEATURE-420` rev 4); folded into
+  // the ⋯ menu the step keeps its icon.
+  promote?: boolean;
 }) {
   const Icon = action.icon;
   const locked = action.disabledText !== undefined;
@@ -159,7 +164,7 @@ function RowActionButton({
           {...(locked ? { "aria-disabled": true } : {})}
           data-testid={action["data-testid"]}
         >
-          <Icon aria-hidden="true" />
+          {promote ? null : <Icon aria-hidden="true" />}
           {labelled ? action.label : null}
         </ActionLink>
       ) : (
@@ -173,7 +178,7 @@ function RowActionButton({
           onClick={action.onClick}
           data-testid={action["data-testid"]}
         >
-          <Icon aria-hidden="true" />
+          {promote ? null : <Icon aria-hidden="true" />}
           {labelled ? action.label : null}
         </Button>
       )}
@@ -498,8 +503,9 @@ function foldRowAction(action: RowAction, rowName: string): RowMenuItem {
 }
 
 // The buttons of an entry's actions, each in its fixed variant (`GL-UI-011`): the step a labelled
-// `success` at `xs` (`SUI-FEATURE-330`), "Used by" and the extra actions `outline`, edit `warn`, the
-// overflow menu `outline`, delete `destructive`, all `icon-xs`. The caller places them.
+// `success` at `xs`, its label without an icon (`SUI-FEATURE-330` rev 10), "Used by" and the extra
+// actions `outline`, edit `warn`, the overflow menu `outline`, delete `destructive`, all `icon-xs`.
+// The caller places them.
 function useRowActionButtons(
   {
     rowName,
@@ -523,7 +529,14 @@ function useRowActionButtons(
   return {
     step:
       step === undefined ? null : (
-        <RowActionButton action={step} rowName={rowName} variant="success" size={size} labelled />
+        <RowActionButton
+          action={step}
+          rowName={rowName}
+          variant="success"
+          size={size}
+          labelled
+          promote
+        />
       ),
     extra: [
       ...(usage === undefined

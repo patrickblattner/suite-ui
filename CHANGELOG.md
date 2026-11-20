@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Changed (#971, SUI-FEATURE-330 rev 10, SUI-FEATURE-420 rev 4, GL-UI-011 rev 12, finding #870):** the labelled `RowActionSet` `step` (in `RowActions`, `PreviewToolbar`, `MediaDetailShell` and `MediaTile`) and the `EditPanel` `headActions.primary` show their label without an icon beside it, a lifecycle promote. Folded into the ⋯ menu the step keeps its icon; each `headActions.secondary` keeps icon and label. Names, hints, size, `busy`, `disabledText` and `shortcut` are unchanged; `submitKind="send"` keeps its icon.
+- Gallery (#971, finding #870): changed baselines (the labelled promote without its icon): `gallery/__screenshots__/edit-panel-head-actions-{edit,view}-{de,en,es}-{light,dark}.png`, `edit-panel-head-action-hint-en-light.png`, `list-step-de-light.png`, `media-detail-step-de-light.png` (15 files); `list-step-folded-de-light.png` and `media-tiles-step-de-light.png`, where the step sits folded in the ⋯ menu with its icon, are unchanged.
+
 ## 0.250.1 — #971 EditorHeader Back keeps focus, #972 Codex fixes: submit after reset, Input lock for any text type (patch)
 
 - **Fixed (#971, SUI-FEATURE-146, finding #872):** the labelled Back of `EditorHeader` keeps one element whether `backHint` is set or not and whether it shows its label or folds to its arrow at narrow width, so neither toggling the hint nor a fold remounts it and a focused Back stays focused. The name stays "Back" and the hint is its description; the bubble opens on hover only, never on focus.

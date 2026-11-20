@@ -2421,7 +2421,7 @@ function headActions(over: { take?: Partial<ButtonAction>; drop?: Partial<Button
 describe("EditPanel headActions", () => {
   // AC 1, AC 2
   it.each(["edit", "view"] as const)(
-    "mode=%s: two outline secondaries in order, then the success primary, labelled, size sm",
+    "mode=%s: two outline secondaries in order, then the success primary, labelled, size sm, the primary without icon",
     (mode) => {
       const { value } = headActions();
       renderPanel(mode === "view" ? { mode, headActions: value } : { mode, headActions: value });
@@ -2437,8 +2437,13 @@ describe("EditPanel headActions", () => {
       for (const button of buttons) {
         expect(button).toHaveAttribute("data-size", "sm");
         expect(button).toHaveAttribute("type", "button");
-        expect(button.querySelector("svg")).not.toBeNull();
       }
+      // Rev 4 (`GL-UI-011` rev 12): the secondaries carry their icon, the primary promote none.
+      expect(buttons.map((button) => button.querySelector("svg") !== null)).toEqual([
+        true,
+        true,
+        false,
+      ]);
       expect(screen.getByRole("button", { name: "Take" })).toBe(buttons[2]);
       // Never folded: the head has no ⋯ menu.
       expect(group.querySelector("[data-testid=row-menu]")).toBeNull();

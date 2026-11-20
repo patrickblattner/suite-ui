@@ -778,7 +778,7 @@ describe("RowActions step (SUI-FEATURE-330)", () => {
   const cluster = (rowName: string) =>
     screen.getByTestId(`actions-${rowName}`).querySelector<HTMLElement>("[data-slot=row-actions]");
 
-  it("AC1: the step stands first as a labelled success button with icon, named ‹label› ‹rowName›", () => {
+  it("AC1: the step stands first as a labelled success button, label without icon, named ‹label› ‹rowName›", () => {
     const { deliverAda } = renderRows();
     const buttons = within(screen.getByTestId("actions-Ada")).getAllByRole("button");
     expect(buttons.map((button) => button.getAttribute("aria-label"))).toEqual([
@@ -793,7 +793,8 @@ describe("RowActions step (SUI-FEATURE-330)", () => {
     // The text size of the icon buttons' height (`icon-xs`).
     expect(step).toHaveAttribute("data-size", "xs");
     expect(step).toHaveTextContent("Deliver");
-    expect(step.querySelector("svg")).toBeInTheDocument();
+    // `SUI-FEATURE-330` rev 10, `GL-UI-011` rev 12: a labelled promote carries no icon beside its text.
+    expect(step.querySelector("svg")).toBeNull();
     expect(step).toHaveAttribute("type", "button");
     fireEvent.click(step);
     expect(deliverAda).toHaveBeenCalledOnce();
@@ -988,6 +989,7 @@ describe("RowActions step fold (SUI-FEATURE-330 rev 9 AC 4)", () => {
     expect(rest).toHaveLength(0);
     expect(entry).toHaveAccessibleName("Deliver");
     expect(entry).toHaveAccessibleDescription("Deliver Ada");
+    // Folded, the step keeps its icon (`SUI-FEATURE-330` rev 10).
     expect(entry!.querySelector("svg.lucide-send")).not.toBeNull();
     fireEvent.click(entry!);
     expect(deliverAda).toHaveBeenCalledOnce();
