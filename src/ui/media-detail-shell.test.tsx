@@ -1378,6 +1378,37 @@ describe("MediaDetailShell: the submit state ends", () => {
     expect(screen.getByText("Enter a title.")).toBeInTheDocument();
   });
 
+  // #972: a save pending across paging that fails later shows nothing on the next medium.
+  it.each([
+    ["rejects", (settle: { reject: () => void }) => settle.reject()],
+    ["resolves false", (settle: { resolve: (value: unknown) => void }) => settle.resolve(false)],
+  ])("a Save pending across → that %s shows no error on the next medium", async (_, fail) => {
+    const settle: { resolve: (value: unknown) => void; reject: () => void } = {
+      resolve: () => {},
+      reject: () => {},
+    };
+    render(
+      <Paged
+        onSave={(clear) => {
+          clear();
+          return new Promise((resolve, reject) => {
+            settle.resolve = resolve;
+            settle.reject = () => reject(new Error("failed"));
+          });
+        }}
+      />,
+    );
+    changeNote();
+    save();
+    fireEvent.click(screen.getByTestId("media-detail-next"));
+    expect(screen.getByTestId("media-detail-position")).toHaveTextContent("3");
+    await act(async () => {
+      fail(settle);
+      await Promise.resolve();
+    });
+    expect(screen.queryByText("Enter a title.")).toBeNull();
+  });
+
   it("Reset after a failed Save ends the submit state (GL-UI-038 rev 4)", async () => {
     render(<Paged onSave={() => false} />);
     changeNote();

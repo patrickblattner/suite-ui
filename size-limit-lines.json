@@ -123,7 +123,7 @@
     "./settings/settings-field": { "recommended": 21832, "maximum": 24127 },
     "./settings/settings-footer": { "recommended": 39460, "maximum": 41433 },
     "./settings/settings-save-reset": { "recommended": 39012, "maximum": 40963 },
-    "./settings/settings-scaffold": { "recommended": 53317, "maximum": 55983 },
+    "./settings/settings-scaffold": { "recommended": 53317, "maximum": 58805 },
     "./settings/settings-section": { "recommended": 767, "maximum": 806 },
     "./settings/settings-toggle-field": { "recommended": 18553, "maximum": 19481 },
     "./shell/app-sidebar": { "recommended": 47490, "maximum": 49865 },

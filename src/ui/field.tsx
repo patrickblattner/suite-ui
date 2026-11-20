@@ -152,6 +152,9 @@ function Field({
   const ends = React.useContext(FieldSubmitEndContext);
   const [seenEnds, setSeenEnds] = React.useState(ends);
   const editing = typedIn !== null;
+  // An end before the latest submit in the same update (a reset handler submitting): the submit wins,
+  // so its errors show while it is pending (#972).
+  if (submits !== seenSubmits && ends !== seenEnds && ends.submits !== submits) setSeenEnds(ends);
   if (submits !== seenSubmits) {
     // A submit ends the typing: an error returned after it shows as it arrives (#561).
     setSeenSubmits(submits);

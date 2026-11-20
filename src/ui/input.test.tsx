@@ -83,7 +83,8 @@ describe("height scale", () => {
 // `SUI-FEATURE-260`: a date or time field rings while any part of it holds the keyboard focus, never
 // after a pure mouse click. jsdom has no Tailwind, so the origin is checked through the attribute.
 describe("date and time fields", () => {
-  it.each(["date", "time", "datetime-local", "month", "week"])(
+  // The browser reads the type case-insensitively (#972).
+  it.each(["date", "time", "datetime-local", "month", "week", "DATE"])(
     "`%s` rings on keyboard focus within, not on pointer focus",
     (type) => {
       render(<Input type={type} aria-label="When" />);

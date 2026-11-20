@@ -97,7 +97,7 @@ describe("Field disabledReason on a text field (AC1)", () => {
 // #967 (Codex #966 CX1): `readonly` does not apply to these types, so the lock blocks them by hand.
 // The browser's own toggle, picker and thumb follow the prevented default (checked in Chromium).
 describe("Field disabledReason on a non-text Input (#967)", () => {
-  it.each(["checkbox", "radio", "range", "color", "file"])(
+  it.each(["checkbox", "radio", "range", "color", "file", "submit", "CHECKBOX"])(
     "type %s: aria-disabled, never disabled, focusable, the reason describes it; click, keys and pointer change nothing",
     (type) => {
       const onChange = vi.fn();
@@ -130,6 +130,35 @@ describe("Field disabledReason on a non-text Input (#967)", () => {
       expect(onClick).not.toHaveBeenCalled();
     },
   );
+
+  // #972 (Codex CX2): the browser reads the type case-insensitively and shows an empty or unknown one
+  // as text, so the lock keeps such a field read-only.
+  it.each(["TEXT", "", "bogus"])(
+    "type %j: read-only like a text field, never aria-disabled",
+    (type) => {
+      render(
+        <Field label="Pick" htmlFor="n" disabledReason={REASON}>
+          <Input id="n" type={type} defaultValue="15" />
+        </Field>,
+      );
+      const input = screen.getByLabelText<HTMLInputElement>("Pick");
+      expect(input).toHaveAttribute("readonly");
+      expect(input).not.toHaveAttribute("aria-disabled");
+      expect(input).not.toHaveAttribute("disabled");
+    },
+  );
+
+  // No tab stop and no label of its own: a hidden input locks as a non-text type all the same.
+  it("type hidden: aria-disabled, never readonly", () => {
+    const { container } = render(
+      <Field label="Pick" htmlFor="n" disabledReason={REASON}>
+        <Input id="n" type="hidden" />
+      </Field>,
+    );
+    const input = container.querySelector("#n")!;
+    expect(input).toHaveAttribute("aria-disabled", "true");
+    expect(input).not.toHaveAttribute("readonly");
+  });
 
   it("type file: a file dropped in from the system is refused", () => {
     const onChange = vi.fn();

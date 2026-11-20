@@ -43,6 +43,18 @@ function Drawer({
   );
 }
 
+// One invalid field and a Reset button, for the form's reset event.
+function ResetForm(props: Pick<FieldFormProps, "onSubmit" | "onReset">) {
+  return (
+    <FieldForm data-testid="drawer-form" {...props}>
+      <Field label="Name" htmlFor="name" error="Enter a name.">
+        <Input id="name" defaultValue="" />
+      </Field>
+      <button type="reset">Reset</button>
+    </FieldForm>
+  );
+}
+
 const form = () => screen.getByTestId<HTMLFormElement>("drawer-form");
 // Types the values into a field one after the other; `leave` then moves the focus out of it.
 function typeIn(label: string, values: string[], leave = true) {
@@ -189,18 +201,7 @@ describe("FieldForm: the submit state ends with record and reset, not with value
 
   it("the form's reset event → no error visible, and the app's onReset runs", async () => {
     const onReset = vi.fn();
-    render(
-      <FieldForm
-        data-testid="drawer-form"
-        onSubmit={() => Promise.reject(new Error("invalid"))}
-        onReset={onReset}
-      >
-        <Field label="Name" htmlFor="name" error="Enter a name.">
-          <Input id="name" defaultValue="" />
-        </Field>
-        <button type="reset">Reset</button>
-      </FieldForm>,
-    );
+    render(<ResetForm onSubmit={() => Promise.reject(new Error("invalid"))} onReset={onReset} />);
     fireEvent.submit(form());
     await act(async () => {});
     expect(screen.getByText("Enter a name.")).toBeInTheDocument();
@@ -246,6 +247,25 @@ describe("FieldForm: the submit state ends with record and reset, not with value
     resolveNew();
     await act(async () => {});
     expect(errors()).toEqual([null, null]);
+  });
+
+  // #972 (Codex CX1): the reset outdates only the attempts before it, not one its handler starts; that
+  // submit, after the reset in the same update, shows every error while it is pending.
+  it("a submit started in the reset handler shows the errors and ends the state on its success", async () => {
+    let resolveNew!: () => void;
+    const onSubmit = vi.fn(
+      () => new Promise<boolean>((resolve) => (resolveNew = () => resolve(true))),
+    );
+    render(
+      <ResetForm onSubmit={onSubmit} onReset={(event) => event.currentTarget.requestSubmit()} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Reset" }));
+    await act(async () => {});
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("Enter a name.")).toBeInTheDocument();
+    resolveNew();
+    await act(async () => {});
+    expect(screen.queryByText("Enter a name.")).toBeNull();
   });
 
   // AC 4

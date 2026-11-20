@@ -55,8 +55,11 @@ const FieldSubmitContext = React.createContext<number | null>(null);
 
 // How often the submit state of the form around a field ended (`GL-UI-038` §Absenden): with a
 // successful submit, or once the surface shows a different record. Each end makes the fields show
-// their errors late again, without remounting them.
-const FieldSubmitEndContext = React.createContext(0);
+// their errors late again, without remounting them. `submits` is the form's submit count at the last
+// end: a submit after it in the same update (a reset handler submitting) wins over it (#972).
+type FieldSubmitEnds = { count: number; submits: number };
+const NO_ENDS: FieldSubmitEnds = { count: 0, submits: 0 };
+const FieldSubmitEndContext = React.createContext(NO_ENDS);
 
 // What a package control calls with each change the person makes in it, inside a form that drops a
 // started save on the person's next edit (`GL-UI-038` §Absenden: values put back by hand end
@@ -69,8 +72,8 @@ const FieldUserEditContext = React.createContext<(() => void) | null>(null);
 // The submit count a form passes to `FieldSubmitContext`, and what it calls on every submit with
 // itself. After the submit's render the focus goes to the form's first invalid field (`GL-UI-038`
 // §Absenden). Third and fourth: what the form calls once its submit state ends (a successful submit,
-// a different record shown; also during its render), and the count of those ends it passes to
-// `FieldSubmitEndContext`. Fifth: a whole submit attempt (#837) — notes it on `form` (when given),
+// a different record shown; also during its render), and those ends (their count, the submits before
+// the last) it passes to `FieldSubmitEndContext`. Fifth: a whole submit attempt (#837) — notes it on `form` (when given),
 // runs the app's submit and ends the state when it reports success (`true`, or a promise resolving
 // `true`); an older attempt, or one made before the state last ended, settling later ends nothing.
 // Returns the submit's result.
@@ -78,14 +81,16 @@ function useFieldSubmits(): [
   number,
   (form: HTMLElement) => void,
   () => void,
-  number,
+  FieldSubmitEnds,
   (form: HTMLElement | null | undefined, run: () => unknown) => unknown,
 ] {
   const [submit, setSubmit] = React.useState<{ count: number; form: HTMLElement | null }>({
     count: 0,
     form: null,
   });
-  const [ends, setEnds] = React.useState(0);
+  const [ends, setEnds] = React.useState(NO_ENDS);
+  // The submit count in call order, ahead of the render: an end notes the submits before it.
+  const submitCount = React.useRef(0);
   React.useEffect(() => {
     const invalid = submit.form?.querySelector<HTMLElement>('[aria-invalid="true"]');
     // A group is no focus stop itself: its first focusable control takes the focus.
@@ -94,17 +99,21 @@ function useFieldSubmits(): [
       : invalid?.querySelector<HTMLElement>(FOCUSABLE);
     target?.focus();
   }, [submit]);
-  const submitted = React.useCallback(
-    (form: HTMLElement) => setSubmit((current) => ({ count: current.count + 1, form })),
-    [],
-  );
-  const end = React.useCallback(() => setEnds((current) => current + 1), []);
+  const submitted = React.useCallback((form: HTMLElement) => {
+    submitCount.current++;
+    setSubmit((current) => ({ count: current.count + 1, form }));
+  }, []);
   const attempts = React.useRef(0);
   // Every end of the submit state — another record, a reset — outdates a pending attempt: its later
-  // success is not one of the form now shown (#969).
-  React.useEffect(() => {
+  // success is not one of the form now shown (#969). It does so at once, so an attempt started right
+  // after it (a reset handler submitting) stays current (#972).
+  const end = React.useCallback(() => {
+    // Called during a render too: a concurrent render thrown away still outdates the pending attempt;
+    // accepted.
     attempts.current++;
-  }, [ends]);
+    const submits = submitCount.current;
+    setEnds((current) => ({ count: current.count + 1, submits }));
+  }, []);
   const attempt = (form: HTMLElement | null | undefined, run: () => unknown): unknown => {
     if (form != null) submitted(form);
     const own = ++attempts.current;

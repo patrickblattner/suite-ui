@@ -4,6 +4,10 @@
 
 - **Fixed (#971, SUI-FEATURE-146, finding #872):** the labelled Back of `EditorHeader` keeps one element whether `backHint` is set or not and whether it shows its label or folds to its arrow at narrow width, so neither toggling the hint nor a fold remounts it and a focused Back stays focused. The name stays "Back" and the hint is its description; the bubble opens on hover only, never on focus.
 - **Size (#971, GL-CODE-021, register #1998):** new line `./ui/tooltip-bubble-internal` at measured 318 B, maximum 334 B (+ 5 %); cause: the new module.
+- **Fixed (#972, Codex CX1, SUI-FEATURE-440 rev 3):** a reset outdates the pending submit attempts at once, a record change in the render that shows the new record, no longer in a later effect: a submit started right after the reset (a `FieldForm` reset handler calling `requestSubmit()`) ends the submit state on its success again, and as the newer step after the reset it shows every field error while pending (`GL-UI-038` §Absenden). An older attempt resolving `true` after the change still ends nothing (#969).
+- **Fixed (#972, GL-UI-038 §Absenden):** `MediaDetailShell` shows no errors for a save that fails after paging to another medium or after Reset: like its late success, an outdated save's failure shows nothing.
+- **Fixed (#972, Codex CX2, SUI-FEATURE-450):** `Input` locked with a `disabledReason` reads its `type` like the browser: case-insensitive, and an empty or unknown type counts as text, so `type="TEXT"`, `""` or `"bogus"` stay `readOnly` instead of losing the lock; `type="CHECKBOX"` locks like a checkbox, and `type="DATE"` rings like a date field.
+- **Size (#972, GL-CODE-021, register #1998):** `./settings/settings-scaffold` maximum 55983 → 58805 B (measured 56004 B + 5 %); cause: the submit-attempt fixes in `useFieldSubmits` (CX1) together with the shared tooltip bubble helpers of #971, both of which it bundles.
 
 ## 0.250.0 — security: no npx for the toolkit, #957 EditorHeader backHint, #965/#967/#968/#969/#960 fixes (minor)
 

@@ -11,17 +11,20 @@ import { READ_ONLY_LOOK } from "./read-only-look-internal.js";
 // matches only `:focus-within`, never `:focus-visible` (`SUI-FEATURE-260`).
 const PICKER_TYPES = new Set(["date", "time", "datetime-local", "month", "week"]);
 
-// The types the browser's `readonly` applies to. Any other type (checkbox, radio, range, color, file)
-// stays operable under `readonly`, so a lock blocks it by hand instead (#967).
-const READ_ONLY_TYPES = new Set([
-  "text",
-  "search",
-  "url",
-  "tel",
-  "email",
-  "password",
-  "number",
-  ...PICKER_TYPES,
+// The types the browser's `readonly` does not apply to: they stay operable under `readonly`, so a lock
+// blocks them by hand instead (#967). Every other type takes `readonly`, also an empty or unknown one,
+// which the browser shows as text (#972).
+const NON_TEXT_TYPES = new Set([
+  "checkbox",
+  "radio",
+  "range",
+  "color",
+  "file",
+  "hidden",
+  "submit",
+  "image",
+  "reset",
+  "button",
 ]);
 
 // The keys that change or activate a non-text input: the range's steps, the checkbox's Space.
@@ -76,9 +79,11 @@ function Input({
   const lockReason = useFieldLockReason();
   // A non-text type ignores `readonly`: locked, it is `aria-disabled` and takes no click, key or
   // pointer that would change it (`SUI-FEATURE-450`, #967).
-  const textual = type === undefined || READ_ONLY_TYPES.has(type);
+  // The browser reads the type case-insensitively (#972).
+  const kind = type?.toLowerCase();
+  const textual = kind === undefined || !NON_TEXT_TYPES.has(kind);
   const blocked = lockReason !== undefined && !textual;
-  const picker = type !== undefined && PICKER_TYPES.has(type);
+  const picker = kind !== undefined && PICKER_TYPES.has(kind);
   // A picker field rings on `:focus-within` unless the pointer brought the focus in (Chromium counts a
   // click into its segments as `:focus-visible`): a key pressed in the field hands the focus back to
   // the keyboard, leaving the field resets it.
