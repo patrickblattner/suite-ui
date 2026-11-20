@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.253.0 — #970 R5 batch 1 (locks, focus, Select, UploadStep), #976 malware audit covers devDependencies (minor)
+
 - **Fixed (#970, finding #826, GL-UI-050 rev 8):** a `DateField`/`TimeField`/`DateTimeField` disabled (no reason) while its picker holds the focus no longer drops the focus on `<body>`: it goes to the group's next usable control, then the main content, then the container (the package's focus-return fallback). Locked with a reason, the focus returns to the input as before.
 - **Fixed (#970, finding #862, SUI-FEATURE-143):** `UploadStep`'s development error for a lock without a reason names the fix ("Pass a disabledReason the person can read, or leave disabled unset.") and comes once per lock, also under React StrictMode.
 - **Fixed (#970, finding #864, SUI-FEATURE-143):** `UploadStep` treats a `disabledReason` of spaces only like `""`: still locked, no blank reason line, no `aria-describedby`, and the development error names it.
