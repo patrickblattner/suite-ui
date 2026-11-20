@@ -29,6 +29,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 
 import { resolveUnder } from "./resolve-under.ts";
+import { NO_TOOLKIT, toolkitCli } from "./toolkit-cli.ts";
 
 const git = (...args: string[]): string => execFileSync("git", args, { encoding: "utf8" }).trim();
 
@@ -230,16 +231,10 @@ function record(gateArgs: string[]): void {
   const base = isGreen(own) && own?.scope === undefined ? undefined : docsOnlyBase(tree);
   const required = mergePhases().filter((p) => base === undefined || p !== "gallery");
 
+  const cli = toolkitCli() ?? fail(NO_TOOLKIT);
   const gate = spawnSync(
-    "npx",
-    [
-      "--no-install",
-      "spec-sync",
-      "gate",
-      "--profile",
-      base === undefined ? "merge" : "local",
-      ...gateArgs,
-    ],
+    process.execPath,
+    [cli, "gate", "--profile", base === undefined ? "merge" : "local", ...gateArgs],
     {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "inherit"],
@@ -343,15 +338,18 @@ function review(previous: string, name: string): void {
     return;
   }
   const range = `${previous}..${name}`;
-  const run = spawnSync("npx", ["--no-install", "spec-sync", "review", "tag", range], {
+  const log = (what: string) => console.error(`release tag: Codex review ${range} ${what}`);
+  const cli = toolkitCli();
+  if (cli === undefined) return log(`did not run (${NO_TOOLKIT}) — ${name} stays`);
+  const run = spawnSync(process.execPath, [cli, "review", "tag", range], {
     encoding: "utf8",
     stdio: ["ignore", "pipe", "inherit"],
   });
   process.stdout.write(run.stdout ?? "");
-  const log = (what: string) => console.error(`release tag: Codex review ${range} ${what}`);
   if (run.status === null)
     return log(`did not run (${run.error?.message ?? "no exit code"}) — ${name} stays`);
-  if (run.status === 2) return log(`unprovable (exit 2), rerun npx spec-sync review tag ${range}`);
+  if (run.status === 2)
+    return log(`unprovable (exit 2), rerun node_modules/.bin/spec-sync review tag ${range}`);
   // The toolkit's envelope is flat: outcome, class and error sit next to command, ok, exit and notes.
   let result: { notes?: string[]; outcome?: string; class?: string; error?: string } = {};
   try {

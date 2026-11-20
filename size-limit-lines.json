@@ -1,5 +1,5 @@
 {
-  "$schema-note": "size-limit lines (SUI-FEATURE-128, GL-CODE-002), one pair per package.json `exports` entry as .size-limit.cjs resolves it, raw minified bytes. `recommended` is the size measured on main by `npm run hygiene:inventory` (main 0eaedc7e) and is pulled to the main measurement after each merge; crossing it is reported, never red. `maximum` is owner class: 5 % above `recommended` on introduction, raised only by owner decision; above it `hygiene` is red. Change values only with `npx spec-sync measure set|remove`.",
+  "$schema-note": "size-limit lines (SUI-FEATURE-128, GL-CODE-002), one pair per package.json `exports` entry as .size-limit.cjs resolves it, raw minified bytes. `recommended` is the size measured on main by `npm run hygiene:inventory` (main 0eaedc7e) and is pulled to the main measurement after each merge; crossing it is reported, never red. `maximum` is owner class: 5 % above `recommended` on introduction, raised only by owner decision; above it `hygiene` is red. Change values only with `node_modules/.bin/spec-sync measure set|remove`.",
   "entries": {
     "./styles.css": { "recommended": 11050, "maximum": 11603 },
     "./ui/accordion": { "recommended": 1102, "maximum": 1158 },

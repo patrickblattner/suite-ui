@@ -15,6 +15,7 @@ import { join, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { resolveUnder } from "./resolve-under.ts";
+import { NO_TOOLKIT, toolkitCli } from "./toolkit-cli.ts";
 
 // The gitleaks hygiene pins (`TOOL_VERSIONS` in hygiene.ts). The hook keeps its own copy instead of
 // importing hygiene.ts (it imports only resolve-under.ts); a test holds the two equal.
@@ -271,7 +272,14 @@ export function keptLogs(logDir: string, cwd: string): string {
 
 // Returns the refusal lines, or nothing when the tip may go.
 function checks(sha: string, cwd: string, stdin: string): string[] | undefined {
-  const preflight = spawnSync("npx", ["spec-sync", "prepush"], {
+  const cli = toolkitCli();
+  if (cli === undefined) {
+    return [
+      `push refused: no merge preflight for ${sha.slice(0, 12)}: ${NO_TOOLKIT}`,
+      "  next: install, then push again, or commit the state as `wip: …` and push it to a branch other than main",
+    ];
+  }
+  const preflight = spawnSync(process.execPath, [cli, "prepush"], {
     cwd,
     encoding: "utf8",
     input: stdin,

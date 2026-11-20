@@ -36,9 +36,9 @@ The gate comes from the `spec-sync-toolkit` (devDependency, pinned to a tag); cu
 call the runner instead of declaring a second source of truth.
 
 ```bash
-npx spec-sync gate --profile local|merge [--changed]          # all phases run, red ones in failures[]; red blocking phase skips the rest
-npx spec-sync gate --profile merge --preflight                # pre-run before every push, must list nothing
-npx spec-sync doctor                                          # environment against the norm
+node_modules/.bin/spec-sync gate --profile local|merge [--changed]          # all phases run, red ones in failures[]; red blocking phase skips the rest
+node_modules/.bin/spec-sync gate --profile merge --preflight                # pre-run before every push, must list nothing
+node_modules/.bin/spec-sync doctor                                          # environment against the norm
 npm run gate:record                                           # merge gate; on green, record it for HEAD's tree
 npm run release:tag                                           # tag HEAD on main as v<version> and push, only with that record
 ```

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Security (security master, rated high; GL-SEC-011 rev 4):** the toolkit is never called through npx. The pre-push hook and `release.ts` (gate record, Codex tag review) run its CLI as `node <resolved spec-sync-toolkit/dist/cli.js>` (`scripts/toolkit-cli.ts`), and refuse when it is not installed; docs and hints say `node_modules/.bin/spec-sync …`. Before, with no local bin (fresh worktree after `npm ci --ignore-scripts`, failed `prepare`), `npx spec-sync` fetched an unrelated public npm package of that name, and even `--no-install` runs a copy of it from the npx cache. Toolkit pin `v0.50.1` → `v0.51.0`, whose `doctor` checks for npx calls. No package change.
 - **Fixed (#965, sweep ui, finding #686):** an `EditPanel` or `MediaDetailShell` open while the app remounts its content region (`<main>`) moves `inert` and its top-edge observers to the new node; the detached one lets go. A region removed in one commit and added back in a later one (a loading state in between) is found again: `inert`, and the top edge follows it.
 - **Fixed (#965, finding #688):** the panel's top edge follows a band before the region that leaves or changes height without resizing the region or its ancestors (a fixed-height `<main>` in a 100vh wrapper).
 - **Fixed (#965, finding #817):** `useAutoFocused` notes the panel's own `autoFocus` after a reopen within its exit animation (the reused node is no other panel); it takes the panel's node as a third argument.

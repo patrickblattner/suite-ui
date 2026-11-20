@@ -38,7 +38,7 @@ const pkg = JSON.parse(
 const ZERO = "0".repeat(40);
 const A = "a".repeat(40);
 const B = "b".repeat(40);
-const PREFLIGHT = "spec-sync prepush";
+const PREFLIGHT = "prepush";
 
 describe("pre-push decisions", () => {
   it("guards with the gitleaks version hygiene pins", () => {
@@ -101,9 +101,9 @@ describe("pre-push decisions", () => {
   });
 });
 
-// A real push into a bare remote, the hook being package.json's own command. A fake `npx` on PATH
-// logs its arguments and working directory and exits with FAKE_GATE_EXIT (default 0) for the
-// preflight.
+// A real push into a bare remote, the hook being package.json's own command. A fake toolkit CLI in
+// the checkout's node_modules (the hook runs it with node, never npx: GL-SEC-011 rev 4) logs its
+// arguments and working directory and exits with FAKE_GATE_EXIT (default 0) for the preflight.
 describe("pre-push hook on a real push", () => {
   let dir: string;
   let work: string;
@@ -113,7 +113,7 @@ describe("pre-push hook on a real push", () => {
     readFileSync(join(dir, name), "utf8")
       .split("\n")
       .filter((line) => line !== "");
-  const npxCalls = () => log("npx.log");
+  const cliCalls = () => log("cli.log");
   const gitIn = (cwd: string, ...args: string[]) =>
     execFileSync("git", args, { cwd, encoding: "utf8", stdio: "pipe" }).trim();
   const git = (...args: string[]) => gitIn(work, ...args);
@@ -136,7 +136,7 @@ describe("pre-push hook on a real push", () => {
   const pushed = () => {
     commit("feat: base #1", "notes.txt", "base\n");
     expect(push(["feat/x"]).status).toBe(0);
-    writeFileSync(join(dir, "npx.log"), "");
+    writeFileSync(join(dir, "cli.log"), "");
   };
   // Built at run time, so this file carries no token for the history scan to find.
   const fakeToken = () =>
@@ -170,7 +170,7 @@ describe("pre-push hook on a real push", () => {
     expect(run.status).not.toBe(0);
     expect(run.out).toContain("push refused: the secret guard found a secret");
     expect(run.out).toContain(`commit ${git("rev-parse", "HEAD").slice(0, 12)}, file ${file}`);
-    expect(npxCalls()).toEqual([]);
+    expect(cliCalls()).toEqual([]);
   };
   const fakeGitleaks = (body: string) => {
     writeFileSync(join(fakes, "gitleaks"), `#!/bin/sh\n${body}\n`);
@@ -182,35 +182,38 @@ describe("pre-push hook on a real push", () => {
     dir = mkdtempSync(join(tmpdir(), "suite-ui-pre-push-test-"));
     work = join(dir, "work");
     fakes = join(dir, "fakes");
-    const bin = join(dir, "bin");
     const hooks = join(dir, "hooks");
-    for (const d of [work, bin, hooks, fakes, join(work, "scripts")]) mkdirSync(d);
-    writeFileSync(join(dir, "npx.log"), "");
+    for (const d of [work, hooks, fakes, join(work, "scripts")]) mkdirSync(d);
+    writeFileSync(join(dir, "cli.log"), "");
+    const toolkit = join(work, "node_modules", "spec-sync-toolkit");
+    mkdirSync(join(toolkit, "dist"), { recursive: true });
+    writeFileSync(join(toolkit, "package.json"), JSON.stringify({ name: "spec-sync-toolkit" }));
     writeFileSync(
-      join(bin, "npx"),
+      join(toolkit, "dist", "cli.js"),
       [
-        "#!/bin/sh",
-        `echo "$*" >> "${dir}/npx.log"`,
-        `pwd >> "${dir}/npx-cwd.log"`,
-        'case "$*" in',
-        `  *) cat >> "${dir}/npx-stdin.log"`,
-        '     if [ -n "$FAKE_GATE_JSON" ]; then',
-        '       echo "$FAKE_GATE_JSON"',
-        '     elif [ "${FAKE_GATE_EXIT:-0}" != 0 ]; then',
-        "       mkdir -p logs/x && echo gate-log > logs/x/gate.log",
-        '       echo "{\\"exit\\":${FAKE_GATE_EXIT},\\"failures\\":[{\\"name\\":\\"lint\\"}],\\"logDir\\":\\"logs/x\\"}"',
-        "     fi",
-        "     exit ${FAKE_GATE_EXIT:-0};;",
-        "esac",
+        'const fs = require("node:fs");',
+        `fs.appendFileSync(${JSON.stringify(join(dir, "cli.log"))}, process.argv.slice(2).join(" ") + "\\n");`,
+        `fs.appendFileSync(${JSON.stringify(join(dir, "cli-cwd.log"))}, process.cwd() + "\\n");`,
+        `fs.appendFileSync(${JSON.stringify(join(dir, "cli-stdin.log"))}, fs.readFileSync(0, "utf8"));`,
+        "const exit = Number(process.env.FAKE_GATE_EXIT ?? 0);",
+        "if (process.env.FAKE_GATE_JSON) console.log(process.env.FAKE_GATE_JSON);",
+        "else if (exit !== 0) {",
+        '  fs.mkdirSync("logs/x", { recursive: true });',
+        '  fs.writeFileSync("logs/x/gate.log", "gate-log\\n");',
+        '  console.log(JSON.stringify({ exit, failures: [{ name: "lint" }], logDir: "logs/x" }));',
+        "}",
+        "process.exit(exit);",
         "",
       ].join("\n"),
     );
     writeFileSync(join(hooks, "pre-push"), `#!/bin/sh\n${pkg["simple-git-hooks"]["pre-push"]}\n`);
-    chmodSync(join(bin, "npx"), 0o755);
     chmodSync(join(hooks, "pre-push"), 0o755);
-    env = { ...process.env, PATH: `${bin}:${process.env.PATH}` };
+    env = { ...process.env };
     execFileSync("git", ["init", "-q", "--bare", "-b", "main", join(dir, "origin.git")]);
     git("init", "-q", "--template=", "-b", "main");
+    // node_modules (the fake toolkit) is ignored, as in the real checkout.
+    mkdirSync(join(work, ".git", "info"), { recursive: true });
+    writeFileSync(join(work, ".git", "info", "exclude"), "node_modules/\n");
     git("config", "user.email", "test@example.com");
     git("config", "user.name", "test");
     git("config", "maintenance.auto", "false");
@@ -221,7 +224,12 @@ describe("pre-push hook on a real push", () => {
       join(work, "scripts", "resolve-under.ts"),
       readFileSync(new URL("./resolve-under.ts", import.meta.url), "utf8"),
     );
-    git("add", "scripts/resolve-under.ts");
+    // …and the toolkit resolver (GL-SEC-011 rev 4).
+    writeFileSync(
+      join(work, "scripts", "toolkit-cli.ts"),
+      readFileSync(new URL("./toolkit-cli.ts", import.meta.url), "utf8"),
+    );
+    git("add", "scripts/resolve-under.ts", "scripts/toolkit-cli.ts");
     commit("chore: start", "scripts/pre-push.ts", readFileSync(script, "utf8"));
     git("checkout", "-q", "-b", "feat/x");
   });
@@ -337,7 +345,7 @@ describe("pre-push hook on a real push", () => {
     expect(run.status).not.toBe(0);
     expect(run.out).toContain(`needs gitleaks ${GITLEAKS_VERSION}, found 8.0.0`);
     expect(run.out).toContain(`install gitleaks ${GITLEAKS_VERSION}`);
-    expect(npxCalls()).toEqual([]);
+    expect(cliCalls()).toEqual([]);
   });
 
   it("refuses a gitleaks tool error as its own outcome, not as a found secret", () => {
@@ -349,7 +357,7 @@ describe("pre-push hook on a real push", () => {
     expect(run.status).not.toBe(0);
     expect(run.out).toContain("the secret guard could not scan (gitleaks exit 1)");
     expect(run.out).not.toContain("found a secret");
-    expect(npxCalls()).toEqual([]);
+    expect(cliCalls()).toEqual([]);
   });
 
   it("lets a clean WIP push through on the secret guard alone", () => {
@@ -357,7 +365,7 @@ describe("pre-push hook on a real push", () => {
     const run = push(["feat/x"]);
     expect(run.status).toBe(0);
     expect(run.out).toContain("preflight skipped");
-    expect(npxCalls()).toEqual([]);
+    expect(cliCalls()).toEqual([]);
   });
 
   it("runs the preflight and nothing else on the pushed tree", () => {
@@ -365,9 +373,9 @@ describe("pre-push hook on a real push", () => {
     const run = push(["feat/x"]);
     expect(run.status).toBe(0);
     expect(run.out).not.toContain("pin");
-    expect(npxCalls()).toEqual([PREFLIGHT]);
-    expect(log("npx-cwd.log")).toEqual([realpathSync(work)]);
-    expect(log("npx-stdin.log")[0]).toMatch(/^refs\/heads\/feat\/x [0-9a-f]{40} /);
+    expect(cliCalls()).toEqual([PREFLIGHT]);
+    expect(log("cli-cwd.log")).toEqual([realpathSync(work)]);
+    expect(log("cli-stdin.log")[0]).toMatch(/^refs\/heads\/feat\/x [0-9a-f]{40} /);
   });
 
   it("refuses a red preflight with its phases and the next step", () => {
@@ -380,7 +388,7 @@ describe("pre-push hook on a real push", () => {
       "commit the state as `wip: …` and push it to a branch other than main",
     );
     expect(run.out).not.toContain("--no-verify");
-    expect(npxCalls()).toEqual([PREFLIGHT]);
+    expect(cliCalls()).toEqual([PREFLIGHT]);
   });
 
   it("refuses an unprovable preflight: exit 2 is not green", () => {
@@ -389,7 +397,7 @@ describe("pre-push hook on a real push", () => {
     expect(run.status).not.toBe(0);
     expect(run.out).toContain("merge preflight unprovable");
     expect(run.out).toContain("next: repeat the push");
-    expect(npxCalls()).toEqual([PREFLIGHT]);
+    expect(cliCalls()).toEqual([PREFLIGHT]);
   });
 
   it("refuses an unmet preflight precondition with the toolkit's reason and notes", () => {
@@ -409,7 +417,7 @@ describe("pre-push hook on a real push", () => {
     expect(run.out).toContain("note: queued behind gate pid 123");
     expect(run.out).toContain("next: fix the reason above, then push again");
     expect(run.out).not.toContain(" red ");
-    expect(npxCalls()).toEqual([PREFLIGHT]);
+    expect(cliCalls()).toEqual([PREFLIGHT]);
   });
 
   it("keeps the logs of a red preflight run in a throwaway worktree", () => {
@@ -429,7 +437,19 @@ describe("pre-push hook on a real push", () => {
     const run = push(["main"]);
     expect(run.status).toBe(0);
     expect(run.out).toContain("`wip:` not honoured — refs/heads/main is pushed");
-    expect(npxCalls()).toEqual([PREFLIGHT]);
+    expect(cliCalls()).toEqual([PREFLIGHT]);
+  });
+
+  // GL-SEC-011 rev 4: without the local toolkit the hook refuses; it never falls back to npx.
+  it("refuses a push it cannot preflight because the toolkit is not installed", () => {
+    rmSync(join(work, "node_modules"), { recursive: true, force: true });
+    commit("feat: first #1", "notes.txt", "first\n");
+    const run = push(["feat/x"]);
+    expect(run.status).not.toBe(0);
+    expect(run.out).toContain("push refused: no merge preflight for");
+    expect(run.out).toContain("node_modules/spec-sync-toolkit/dist/cli.js missing");
+    expect(run.out).not.toContain("npx");
+    expect(cliCalls()).toEqual([]);
   });
 
   it("checks a pushed commit that is not the checkout in a worktree of its own, then removes it", () => {
@@ -438,8 +458,8 @@ describe("pre-push hook on a real push", () => {
     commit("feat: second #1", "notes.txt", "second\n");
     const run = push([`${first}:refs/heads/feat/y`]);
     expect(run.status).toBe(0);
-    expect(npxCalls()).toEqual([PREFLIGHT]);
-    const [cwd] = log("npx-cwd.log");
+    expect(cliCalls()).toEqual([PREFLIGHT]);
+    const [cwd] = log("cli-cwd.log");
     expect(cwd).toContain("suite-ui-pre-push-");
     expect(git("worktree", "list").split("\n")).toHaveLength(1);
   });
@@ -449,7 +469,7 @@ describe("pre-push hook on a real push", () => {
     const run = push([":feat/x"]);
     expect(run.status).toBe(0);
     expect(run.out).toContain("the push only deletes refs");
-    expect(npxCalls()).toEqual([]);
+    expect(cliCalls()).toEqual([]);
   });
 
   it("refuses with the rebase step in a checkout cut before the hook script existed", () => {

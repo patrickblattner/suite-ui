@@ -1,7 +1,6 @@
 // @vitest-environment node
 import { execFileSync, spawnSync, type SpawnSyncReturns } from "node:child_process";
 import {
-  chmodSync,
   copyFileSync,
   cpSync,
   existsSync,
@@ -92,17 +91,38 @@ const copyOf = (template: string) => {
   cpSync(template, dir, { recursive: true, preserveTimestamps: true });
   return dir;
 };
+// A fake toolkit CLI in the repo's node_modules (release.ts runs it with node, never npx:
+// GL-SEC-011 rev 4): it writes its arguments to the returned file, prints `out` and exits with `exit`.
+const fakeToolkit = (out: string, exit = 0) => {
+  const toolkit = join(repo, "node_modules", "spec-sync-toolkit");
+  mkdirSync(join(toolkit, "dist"), { recursive: true });
+  writeFileSync(join(toolkit, "package.json"), JSON.stringify({ name: "spec-sync-toolkit" }));
+  writeFileSync(join(toolkit, "out"), out);
+  writeFileSync(
+    join(toolkit, "dist", "cli.js"),
+    [
+      'const fs = require("node:fs");',
+      `fs.writeFileSync(${JSON.stringify(join(toolkit, "args"))}, process.argv.slice(2).join(" "));`,
+      `process.stdout.write(fs.readFileSync(${JSON.stringify(join(toolkit, "out"))}, "utf8"));`,
+      `process.exitCode = ${exit};`,
+      "",
+    ].join("\n"),
+  );
+  return join(toolkit, "args");
+};
 let start: string;
 
 beforeAll(() => {
   start = fresh("suite-ui-release-start-");
   mkdirSync(join(start, "scripts"));
   copyFileSync(script, join(start, "scripts", "release.ts"));
-  // The script imports the repo's resolve-then-check helper (#861).
-  copyFileSync(
-    fileURLToPath(new URL("./resolve-under.ts", import.meta.url)),
-    join(start, "scripts", "resolve-under.ts"),
-  );
+  // The script imports the repo's resolve-then-check helper (#861) and the toolkit resolver.
+  for (const helper of ["resolve-under.ts", "toolkit-cli.ts"]) {
+    copyFileSync(
+      fileURLToPath(new URL(`./${helper}`, import.meta.url)),
+      join(start, "scripts", helper),
+    );
+  }
   writeFileSync(join(start, "package.json"), JSON.stringify({ version: "9.9.9" }));
   writeFileSync(join(start, ".gitignore"), ".spec-sync/\nnode_modules/\n");
   // No template: without its sample hooks there is less to copy per test.
@@ -217,10 +237,10 @@ describe("release:tag", () => {
 });
 
 // PROC-DEV-003: after the push, `tag` runs the Codex review of the range from the previous tag; its
-// exit never undoes the tag. A fake `npx` on PATH records its arguments, prints the given toolkit JSON and
-// exits with the given code; the log line follows the envelope's top-level `outcome`.
+// exit never undoes the tag. A fake toolkit CLI records its arguments, prints the given toolkit JSON
+// and exits with the given code; the log line follows the envelope's top-level `outcome`.
 describe("release:tag review", () => {
-  // Verbatim stdout of `npx --no-install spec-sync review tag v0.100.1..v0.100.1 --dry-run` (toolkit v0.26.0).
+  // Verbatim stdout of `spec-sync review tag v0.100.1..v0.100.1 --dry-run` (toolkit v0.26.0).
   const realEmptyRange = `{
   "command": "review",
   "ok": true,
@@ -242,8 +262,6 @@ describe("release:tag review", () => {
     extra: { class?: string; error?: string } = {},
     raw?: string,
   ) => {
-    const bin = join(repo, ".bin");
-    mkdirSync(bin);
     const json =
       raw ??
       (outcome === undefined
@@ -256,20 +274,13 @@ describe("release:tag review", () => {
             outcome,
             ...extra,
           }));
-    writeFileSync(join(repo, "npx-out"), json);
-    writeFileSync(
-      join(bin, "npx"),
-      `#!/bin/sh\necho "$@" > "${join(repo, "npx-args")}"\ncat "${join(repo, "npx-out")}"\nexit ${exit}\n`,
-    );
-    chmodSync(join(bin, "npx"), 0o755);
+    const argsFile = fakeToolkit(json, exit);
     const origin = join(repo, ".origin.git");
     execFileSync("git", ["init", "-q", "--bare", origin], { timeout: SPAWN_TIMEOUT });
     gitIn(origin, "config", "maintenance.auto", "false");
     git("remote", "add", "origin", origin);
-    const run = release(["tag"], { ...process.env, PATH: `${bin}:${process.env.PATH}` });
-    const args = existsSync(join(repo, "npx-args"))
-      ? readFileSync(join(repo, "npx-args"), "utf8").trim()
-      : "";
+    const run = release(["tag"]);
+    const args = existsSync(argsFile) ? readFileSync(argsFile, "utf8").trim() : "";
     return { status: run.status, out: run.stdout + run.stderr, err: run.stderr, args };
   };
 
@@ -277,10 +288,7 @@ describe("release:tag review", () => {
   let tagged: string;
   beforeAll(() => {
     tagged = copyOf(start);
-    writeFileSync(
-      join(tagged, ".gitignore"),
-      ".spec-sync/\nnode_modules/\n.bin/\n.origin.git/\nnpx-args\nnpx-out\n",
-    );
+    writeFileSync(join(tagged, ".gitignore"), ".spec-sync/\nnode_modules/\n.origin.git/\n");
     gitIn(tagged, "tag", "v9.9.8");
     gitIn(tagged, "add", ".");
     gitIn(tagged, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "next");
@@ -297,10 +305,10 @@ describe("release:tag review", () => {
     repo = copyOf(tagged);
   });
 
-  it("reviews the range from the previous tag without installing", () => {
+  it("reviews the range from the previous tag with the local toolkit", () => {
     const run = tagWithReview(0, "clean");
     expect(run.status).toBe(0);
-    expect(run.args).toBe("--no-install spec-sync review tag v9.9.8..v9.9.9");
+    expect(run.args).toBe("review tag v9.9.8..v9.9.9");
     expect(run.err).toContain("Codex review v9.9.8..v9.9.9 clean");
   });
 
@@ -388,7 +396,9 @@ describe("release:tag review", () => {
   it("logs exit 2 as unprovable and keeps the tag", () => {
     const run = tagWithReview(2);
     expect(run.status).toBe(0);
-    expect(run.err).toContain("unprovable (exit 2), rerun npx spec-sync review tag v9.9.8..v9.9.9");
+    expect(run.err).toContain(
+      "unprovable (exit 2), rerun node_modules/.bin/spec-sync review tag v9.9.8..v9.9.9",
+    );
     expect(git("tag", "-l", "v9.9.9")).toBe("v9.9.9");
   });
 
@@ -680,14 +690,12 @@ describe("release:tag release commit", () => {
 
 // SUI-FEATURE-241 AC3: `gate:record` on a tree that differs from the last full green record only in
 // `*.md` and `docs/` runs the merge phases without the gallery and marks the record docs-only. A fake
-// `npx` outside the repo records its arguments and prints the given gate JSON.
+// toolkit CLI records its arguments and prints the given gate JSON.
 describe("gate:record docs-only", () => {
   const MERGE = ["format", "lint", "typecheck", "build", "hygiene", "knip", "unit", "gallery"];
-  let bin: string;
   let baseTree: string;
 
   beforeEach(() => {
-    bin = fresh("suite-ui-release-bin-");
     writeFileSync(
       join(repo, "spec-sync.config.json"),
       JSON.stringify({ gate: { profiles: { merge: MERGE } } }),
@@ -699,10 +707,6 @@ describe("gate:record docs-only", () => {
     baseTree = git("rev-parse", "HEAD^{tree}");
   });
 
-  afterEach(() => {
-    rmSync(bin, { recursive: true, force: true });
-  });
-
   const gateJson = (phases: string[], skipped: string[] = []) =>
     JSON.stringify({
       logDir: ".spec-sync/logs/x",
@@ -710,16 +714,8 @@ describe("gate:record docs-only", () => {
     });
 
   const record = (out: string) => {
-    writeFileSync(join(bin, "out"), out);
-    writeFileSync(
-      join(bin, "npx"),
-      `#!/bin/sh\necho "$@" > "${join(bin, "args")}"\ncat "${join(bin, "out")}"\n`,
-    );
-    chmodSync(join(bin, "npx"), 0o755);
-    const run = release(["record", "--issue", "1"], {
-      ...process.env,
-      PATH: `${bin}:${process.env.PATH}`,
-    });
+    const argsFile = fakeToolkit(out);
+    const run = release(["record", "--issue", "1"]);
     const file = join(
       repo,
       ".spec-sync",
@@ -729,12 +725,20 @@ describe("gate:record docs-only", () => {
     return {
       status: run.status,
       err: run.stderr,
-      args: readFileSync(join(bin, "args"), "utf8").trim(),
+      args: readFileSync(argsFile, "utf8").trim(),
       record: existsSync(file)
         ? (JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown>)
         : undefined,
     };
   };
+
+  // GL-SEC-011 rev 4: without the local toolkit there is no gate and no record; never npx.
+  it("refuses to record without the toolkit installed", () => {
+    const run = release(["record", "--issue", "1"]);
+    expect(run.status).toBe(1);
+    expect(run.stderr).toContain("node_modules/spec-sync-toolkit/dist/cli.js missing");
+    expect(run.stderr).not.toContain("npx");
+  });
 
   it("runs without the gallery and marks the record docs-only (AC3)", () => {
     writeRecord({ profile: "merge", exit: 0 });
@@ -744,7 +748,7 @@ describe("gate:record docs-only", () => {
     commitAll("docs");
     const run = record(gateJson(MERGE.slice(0, -1)));
     expect(run.status).toBe(0);
-    expect(run.args).toBe("--no-install spec-sync gate --profile local --issue 1");
+    expect(run.args).toBe("gate --profile local --issue 1");
     expect(run.record).toMatchObject({
       profile: "merge",
       scope: "docs-only",
@@ -762,7 +766,7 @@ describe("gate:record docs-only", () => {
     commitAll("code");
     const run = record(gateJson(MERGE));
     expect(run.status).toBe(0);
-    expect(run.args).toBe("--no-install spec-sync gate --profile merge --issue 1");
+    expect(run.args).toBe("gate --profile merge --issue 1");
     expect(run.record).toMatchObject({ profile: "merge", phases: MERGE });
     expect(run.record).not.toHaveProperty("scope");
   });
@@ -772,7 +776,7 @@ describe("gate:record docs-only", () => {
     writeFileSync(join(repo, "README.md"), "# Fixture\n\nMore.\n");
     commitAll("docs");
     const run = record(gateJson(MERGE));
-    expect(run.args).toBe("--no-install spec-sync gate --profile merge --issue 1");
+    expect(run.args).toBe("gate --profile merge --issue 1");
     expect(run.record).not.toHaveProperty("scope");
   });
 
@@ -802,7 +806,7 @@ describe("gate:record docs-only", () => {
     writeFileSync(join(repo, "src", "notes.md"), "`bg-primary`\n");
     commitAll("src docs");
     const run = record(gateJson(MERGE));
-    expect(run.args).toBe("--no-install spec-sync gate --profile merge --issue 1");
+    expect(run.args).toBe("gate --profile merge --issue 1");
     expect(run.record).not.toHaveProperty("scope");
   });
 
@@ -813,7 +817,7 @@ describe("gate:record docs-only", () => {
     writeRecord({ profile: "merge", exit: 0 });
     const run = record(gateJson(MERGE));
     expect(run.status).toBe(0);
-    expect(run.args).toBe("--no-install spec-sync gate --profile merge --issue 1");
+    expect(run.args).toBe("gate --profile merge --issue 1");
     expect(run.record).toMatchObject({ profile: "merge", phases: MERGE });
     expect(run.record).not.toHaveProperty("scope");
   });
