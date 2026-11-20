@@ -51,6 +51,10 @@ type EditorHeaderCommonProps = {
   // Back to the list. With `kind="draft"` pass it through the leave guard (`useEditorLeaveGuard`); a
   // record head leaves the guard to each section, which owns its save (`SUI-FEATURE-390`).
   onBack: () => void;
+  // Where Back leads, an already translated sentence from the app (`SUI-FEATURE-146`): its tooltip on
+  // hover only, below "Back" once Back folds. Keyboard focus opens no bubble (`SUI-FEATURE-074`); the
+  // hint reaches it via `aria-describedby` as the description, the name staying "Back".
+  backHint?: string;
   // The record's lifecycle (`SUI-FEATURE-069`): Preview, ⋯ and the next step, before the editor group.
   lifecycle?: EditorLifecycle;
   // The editor's own tools in the header row, first in the right group (`SUI-FEATURE-104`).
@@ -177,7 +181,7 @@ function menuGroups(
 // What folds when the header does not fit one line (`SUI-FEATURE-090`), in this order: Undo/Redo,
 // Reset and Preview (with the header tools, `SUI-FEATURE-104`) move into the one ⋯ menu, the state text shrinks to its mark, then Back, Save and
 // last the next step (if it has an icon) show their icon only, keeping their name as accessible name
-// and tooltip. Until then the title keeps about 18 characters; only the last step lets it shrink to 6.
+// and tooltip; labelled, the next step shows no icon beside its text (`GL-UI-011` rev 12). Until then the title keeps about 18 characters; only the last step lets it shrink to 6.
 // Back, the title, the next step and Save always stay.
 type Fold = "undo" | "reset" | "preview" | "state" | "back" | "save" | "next" | "title";
 
@@ -278,6 +282,7 @@ function EditorHeader({
   titleText: measuredText,
   subtitle,
   onBack,
+  backHint,
   kind = "draft",
   canUndo = false,
   canRedo = false,
@@ -691,6 +696,22 @@ function EditorHeader({
   // What stands after the lifecycle: the editor group, a draft head's always; a record head's only
   // the status or the read-only sign, so its divider never ends the row (`SUI-FEATURE-390`).
   const editorGroupShown = !record || readOnly || status !== undefined;
+  // An empty hint counts as none: no bubble, no description.
+  const backDescription = backHint === "" ? undefined : backHint;
+  const backButton = (
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      className="shrink-0"
+      onClick={onBack}
+      data-focus-nav=""
+      data-testid="editor-back"
+    >
+      <ArrowLeftIcon aria-hidden="true" />
+      {t("editor.back")}
+    </Button>
+  );
 
   return (
     <header
@@ -705,7 +726,7 @@ function EditorHeader({
       )}
     >
       {folded("back") ? (
-        <IconButtonTooltip label={t("editor.back")}>
+        <IconButtonTooltip label={t("editor.back")} hint={backDescription}>
           <Button
             type="button"
             variant="ghost"
@@ -718,19 +739,13 @@ function EditorHeader({
             <ArrowLeftIcon aria-hidden="true" />
           </Button>
         </IconButtonTooltip>
+      ) : backDescription === undefined ? (
+        backButton
       ) : (
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="shrink-0"
-          onClick={onBack}
-          data-focus-nav=""
-          data-testid="editor-back"
-        >
-          <ArrowLeftIcon aria-hidden="true" />
-          {t("editor.back")}
-        </Button>
+        // Labelled, the bubble shows the hint alone; the name stays "Back" (`SUI-FEATURE-146`).
+        <IconButtonTooltip label={t("editor.back")} hint={backDescription} labelled>
+          {backButton}
+        </IconButtonTooltip>
       )}
       <div
         ref={titleBox}
@@ -1083,7 +1098,8 @@ function PreviewButton({
 }
 
 // The lifecycle's next step: locked while the draft is unsaved ("Save first") or while the app names
-// a reason of its own. `iconOnly` (`SUI-FEATURE-090`) keeps the label as its name and tooltip.
+// a reason of its own. `iconOnly` (`SUI-FEATURE-090`) keeps the label as its name and tooltip; labelled
+// it shows its text alone, no icon beside it (`GL-UI-011` rev 12).
 function NextStep({
   label,
   icon,
@@ -1106,8 +1122,7 @@ function NextStep({
       onClick={onClick}
       data-testid="editor-next"
     >
-      {icon}
-      {iconOnly ? null : label}
+      {iconOnly ? icon : label}
     </Button>
   );
   // Icon-only, the bubble names the step, and while locked its reason below.

@@ -331,6 +331,27 @@ describe("EditorHeader", () => {
   });
 });
 
+const BACK_HINT = "Opens the template library with all templates.";
+
+// A hint's bubble opens after the hint delay: fake timers, and a ResizeObserver jsdom lacks.
+function withHintTimers() {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+}
+
 // `SUI-FEATURE-069`: the lifecycle slot, in the structured form of `SUI-FEATURE-090`.
 const lifecycle = (
   next: Partial<NonNullable<EditorLifecycle["next"]>> = {},
@@ -1137,21 +1158,7 @@ describe("EditorHeader titled menu groups, content read-only and next-step hint"
 
   // AC 6
   describe("next-step hint", () => {
-    beforeEach(() => {
-      vi.useFakeTimers();
-      vi.stubGlobal(
-        "ResizeObserver",
-        class {
-          observe() {}
-          unobserve() {}
-          disconnect() {}
-        },
-      );
-    });
-    afterEach(() => {
-      vi.useRealTimers();
-      vi.unstubAllGlobals();
-    });
+    withHintTimers();
     const bubbleAfterHover = () => {
       fireEvent.pointerMove(screen.getByTestId("editor-next"), { pointerType: "mouse" });
       const early = document.querySelector("[data-slot=tooltip-content]");
@@ -1221,7 +1228,7 @@ describe("EditorHeader page head", () => {
 });
 
 // An editor page under the guard, with a draft against the saved text.
-function EditorPage({ save }: { save: () => unknown }) {
+function EditorPage({ save, backHint }: { save: () => unknown; backHint?: string | undefined }) {
   const navigate = useNavigate();
   const [saved, setSaved] = useState("Hello");
   const [draft, setDraft] = useState("Hello");
@@ -1249,6 +1256,7 @@ function EditorPage({ save }: { save: () => unknown }) {
         saving={false}
         onSave={() => void save()}
         onReset={reset}
+        {...(backHint !== undefined ? { backHint } : {})}
       />
       <Input aria-label="Body" value={draft} onChange={(event) => setDraft(event.target.value)} />
       <output data-testid="draft">{draft}</output>
@@ -1261,12 +1269,12 @@ function Where() {
   return <span data-testid="path">{useLocation().pathname}</span>;
 }
 
-function renderPage(save: () => unknown = () => true) {
+function renderPage(save: () => unknown = () => true, backHint?: string) {
   render(
     <MemoryRouter initialEntries={["/list", "/editor"]} initialIndex={1}>
       <Where />
       <Routes>
-        <Route path="/editor" element={<EditorPage save={save} />} />
+        <Route path="/editor" element={<EditorPage save={save} backHint={backHint} />} />
         <Route path="*" element={null} />
       </Routes>
     </MemoryRouter>,
@@ -2572,10 +2580,19 @@ describe("EditorHeader at narrow width", () => {
     expect(screen.getByTestId("editor-next")).toHaveTextContent("Publish");
   });
 
+  // GL-UI-011 rev 12: labelled, the promote shows its text alone, no icon beside it.
+  it("a labelled next step with an icon shows no icon beside its text", () => {
+    renderHeader({ lifecycle: lifecycle({ icon: <EyeIcon aria-hidden="true" /> }) });
+    const next = screen.getByTestId("editor-next");
+    expect(next).toHaveTextContent("Publish");
+    expect(next.querySelector("svg")).toBeNull();
+  });
+
   it("the next step goes icon-only last, still green and named by its label", () => {
     available = 250;
     renderHeader({ dirty: true, lifecycle: lifecycle({ icon: <EyeIcon aria-hidden="true" /> }) });
     const next = screen.getByTestId("editor-next");
+    expect(next.querySelector("svg.lucide-eye")).not.toBeNull();
     expect(next).toHaveAccessibleName("Publish");
     expect(next).not.toHaveTextContent("Publish");
     expect(next).toHaveAttribute("data-variant", "success");
@@ -3249,4 +3266,92 @@ describe("EditorHeader at narrow width", () => {
       expect(active()).not.toBe("editor-back");
     },
   );
+
+  // SUI-FEATURE-146 AC 2: folded to its arrow, Back's bubble shows "Back" and the hint below it.
+  it("a folded Back with backHint shows Back and the hint below it; the name stays Back", () => {
+    vi.useFakeTimers();
+    try {
+      available = 360;
+      renderHeader({ backHint: BACK_HINT, lifecycle: lifecycle() });
+      const back = screen.getByTestId("editor-back");
+      expect(back).toHaveAttribute("data-size", "icon-sm");
+      expect(back).toHaveAccessibleName("Back");
+      expect(back).toHaveAccessibleDescription(BACK_HINT);
+      fireEvent.pointerMove(back, { pointerType: "mouse" });
+      act(() => {
+        vi.advanceTimersByTime(1500);
+      });
+      const bubble = document.querySelector("[data-slot=tooltip-content]");
+      expect(bubble).toHaveTextContent("Back");
+      expect(bubble).toHaveTextContent(BACK_HINT);
+      expect(bubble?.textContent?.indexOf("Back")).toBeLessThan(
+        bubble?.textContent?.indexOf(BACK_HINT) ?? -1,
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+// `SUI-FEATURE-146`: Back's description hint, the app's sentence on where Back leads.
+describe("EditorHeader backHint", () => {
+  withHintTimers();
+  const bubble = () => document.querySelector("[data-slot=tooltip-content]");
+
+  // AC 1: the hint opens on hover after the hint delay and describes Back; the name stays "Back".
+  // Keyboard focus opens no bubble (`SUI-FEATURE-074`, Q#6097): the hint reaches it as description.
+  it("wide: hover shows the hint alone, aria-describedby carries it, the name is Back", () => {
+    const { onBack } = renderHeader({ backHint: BACK_HINT });
+    const back = screen.getByTestId("editor-back");
+    expect(back).toHaveTextContent("Back");
+    expect(back).toHaveAccessibleName("Back");
+    expect(back).toHaveAccessibleDescription(BACK_HINT);
+    fireEvent.pointerMove(back, { pointerType: "mouse" });
+    expect(bubble()).toBeNull();
+    act(() => {
+      vi.advanceTimersByTime(1500);
+    });
+    expect(bubble()).toHaveTextContent(BACK_HINT);
+    expect(bubble()?.textContent).toBe(BACK_HINT);
+    fireEvent.click(back);
+    expect(onBack).toHaveBeenCalledTimes(1);
+  });
+
+  it("wide: keyboard focus on Back opens no bubble and reaches the hint as its description", () => {
+    renderHeader({ backHint: BACK_HINT });
+    const back = screen.getByTestId("editor-back");
+    act(() => {
+      back.focus();
+      vi.advanceTimersByTime(1500);
+    });
+    expect(back).toHaveFocus();
+    expect(bubble()).toBeNull();
+    expect(back).toHaveAccessibleDescription(BACK_HINT);
+  });
+
+  // AC 3: without backHint, or with an empty one, Back has no description and no bubble.
+  it.each([
+    ["without backHint", {}],
+    ['with backHint=""', { backHint: "" }],
+  ] as const)("%s Back has no description and opens no bubble", (_, props) => {
+    renderHeader(props);
+    const back = screen.getByTestId("editor-back");
+    expect(back).not.toHaveAttribute("aria-describedby");
+    fireEvent.pointerMove(back, { pointerType: "mouse" });
+    act(() => {
+      vi.advanceTimersByTime(1500);
+    });
+    expect(bubble()).toBeNull();
+  });
+});
+
+// SUI-FEATURE-146 AC 3: a Back with its hint is guarded the same.
+describe("EditorHeader backHint and the leave guard", () => {
+  it("dirty Back with backHint still asks first", async () => {
+    renderPage(undefined, BACK_HINT);
+    edit();
+    fireEvent.click(screen.getByTestId("editor-back"));
+    expect(await screen.findByTestId("leave-guard")).toBeInTheDocument();
+    expect(screen.getByTestId("path")).toHaveTextContent("/editor");
+  });
 });

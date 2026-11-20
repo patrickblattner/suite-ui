@@ -4898,6 +4898,23 @@ test("editor header: title as h1, subtitle under it, both truncated at 390 px", 
   await expect(header.getByTestId("editor-save")).toBeVisible();
 });
 
+// `SUI-FEATURE-146` AC 4: Back with the app's `backHint` shows it on hover and is described by it;
+// its name stays "Back". `GL-UI-011` rev 12: the labelled promote shows no icon beside its text.
+test("editor header: Back's hint on hover, the labelled promote without an icon", async ({
+  page,
+}) => {
+  await page.goto("/?page=editor-bar&lng=en");
+  const hint = "Opens the newsletter list with all newsletters.";
+  const back = page.getByTestId("editor-header-subtitle").getByTestId("editor-back");
+  await expect(back).toHaveAccessibleName("Back");
+  await expect(back).toHaveAccessibleDescription(hint);
+  await back.hover();
+  await expect(page.getByRole("tooltip")).toHaveText(hint);
+  const next = page.getByTestId("editor-header-tools").getByTestId("editor-next");
+  await expect(next).toHaveText("Submit for review");
+  await expect(next.locator("svg")).toHaveCount(0);
+});
+
 // `SUI-FEATURE-105` rev 3 AC 6: an input title with an 18-character `titleText` stands at full budget
 // like a text title, the subtitle stays; typed to the long title of the text frame beside it (same
 // subtitle and lifecycle) and left, it folds as that frame does. The input scrolls its overflow, no

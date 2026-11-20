@@ -160,7 +160,8 @@ function InputTitleHeader() {
 
 // `SUI-FEATURE-104` and `SUI-FEATURE-105`: the editor header with tools and a running operation, for a
 // role that only reads, and as the page head with a subtitle, with and without a lifecycle;
-// `SUI-FEATURE-119`: the grouped ⋯, and content locked by its state with its lifecycle kept.
+// `SUI-FEATURE-119`: the grouped ⋯, and content locked by its state with its lifecycle kept;
+// `SUI-FEATURE-146`: the subtitle head's Back with its description hint.
 export function EditorHeaderPage() {
   const tools = useTools();
   return (
@@ -213,6 +214,7 @@ export function EditorHeaderPage() {
             title="Spring newsletter"
             subtitle="Draft · NL-2026-04"
             {...NOOP}
+            backHint="Opens the newsletter list with all newsletters."
             dirty
             canUndo
           />
