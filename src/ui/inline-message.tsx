@@ -8,6 +8,8 @@ type InlineMessageTone = "error" | "warn" | "info";
 
 type InlineMessageProps = Omit<React.ComponentProps<"p">, "role"> & {
   tone: InlineMessageTone;
+  // `false`: no role of its own, for a line set into the call site's standing live region.
+  live?: boolean;
 };
 
 const tones = {
@@ -20,13 +22,14 @@ const tones = {
 // text colour, so the kind does not rest on colour alone (`GL-UI-060`). The text starts with a word
 // only screen readers read, so it does not rest on the symbol either. An error is an alert, a
 // warning or a neutral info a status message. A link in the text takes the prose-link rule of the
-// help-markdown link (`SUI-FEATURE-113`) in the tone's colour.
-function InlineMessage({ tone, className, children, ...props }: InlineMessageProps) {
+// help-markdown link (`SUI-FEATURE-113`) in the tone's colour. With `live={false}` it carries no
+// role, its symbol, colour and word stay (`SUI-FEATURE-096` rev 6).
+function InlineMessage({ tone, live = true, className, children, ...props }: InlineMessageProps) {
   const { t } = useTranslation("suite");
   const { Icon, role, className: toneClassName } = tones[tone];
   return (
     <p
-      role={role}
+      role={live ? role : undefined}
       data-slot="inline-message"
       data-tone={tone}
       className={cn("flex items-start gap-2 text-sm [&_a]:prose-link", toneClassName, className)}

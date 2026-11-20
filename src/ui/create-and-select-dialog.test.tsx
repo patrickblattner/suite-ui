@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -107,11 +107,17 @@ describe("CreateAndSelectDialog", () => {
     expect(screen.getByTestId("create-and-select-duplicate")).toHaveTextContent(
       "Neu already exists",
     );
-    // A status, neither error nor warning (SUI-FEATURE-093 rev 4 AC3): muted, with an info icon.
-    const line = screen.getByTestId("create-and-select-duplicate");
-    expect(line).toHaveAttribute("role", "status");
+    // A status, neither error nor warning (SUI-FEATURE-093 rev 5 AC3): the info InlineMessage without
+    // a role of its own in the standing status region, the dialog's one status (finding #809).
+    const region = screen.getByTestId("create-and-select-duplicate");
+    expect(region).toHaveAttribute("role", "status");
+    expect(within(screen.getByRole("dialog")).getAllByRole("status")).toEqual([region]);
+    const line = region.querySelector("[data-slot=inline-message]");
+    expect(line).toHaveAttribute("data-tone", "info");
+    expect(line).not.toHaveAttribute("role");
     expect(line).toHaveClass("text-muted-foreground");
-    expect(line.querySelector("svg[data-slot=status-icon]")).not.toBeNull();
+    expect(line!.firstElementChild).toHaveClass("lucide-info");
+    expect(line).toHaveTextContent(/^Info: Neu already exists/);
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     fireEvent.click(screen.getByTestId("create-and-select-select-existing"));
     expect(onSelect).toHaveBeenCalledWith(existing);

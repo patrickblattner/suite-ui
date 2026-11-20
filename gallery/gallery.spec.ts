@@ -14902,21 +14902,23 @@ for (const width of [1440, 1920]) {
   }
 }
 
-// SUI-FEATURE-093 rev 4 (#272): the duplicate line is a status; an exact term offers no create entry.
-test("create and select: the duplicate line is a muted status with an info icon", async ({
+// SUI-FEATURE-093 rev 5 AC 3 (#963): the duplicate line is an info InlineMessage without a role of
+// its own (SUI-FEATURE-096 rev 6) inside the dialog's one standing status region; an exact term
+// offers no create entry.
+test("create and select: the duplicate line is a muted info line in the one status region", async ({
   page,
 }) => {
   const { dialog } = await openCreateDialog(page, "ada l");
   await page.getByTestId("contact-create-name").fill("Ada Lovelace");
   await dialog.getByTestId("contact-create-submit").click();
-  const line = dialog.getByTestId("contact-create-duplicate");
-  await expect(line).toHaveAttribute("role", "status");
-  await expect(line.locator("svg[data-slot=status-icon]")).toBeVisible();
+  const region = dialog.getByTestId("contact-create-duplicate");
+  await expect(region).toHaveAttribute("role", "status");
+  await expect(dialog.locator('[role="status"]')).toHaveCount(1);
+  const line = region.locator("[data-slot=inline-message]");
+  await expect(line).not.toHaveAttribute("role");
+  await expect(line.locator("svg.lucide-info")).toBeVisible();
   const [text, muted] = await Promise.all([
-    line
-      .locator("span")
-      .first()
-      .evaluate((node) => getComputedStyle(node).color),
+    line.evaluate((node) => getComputedStyle(node).color),
     page.evaluate(() => {
       const probe = document.createElement("span");
       probe.className = "text-muted-foreground";

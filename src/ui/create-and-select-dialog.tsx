@@ -1,4 +1,3 @@
-import { InfoIcon } from "lucide-react";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 
@@ -20,6 +19,7 @@ import {
   useFieldSubmits,
 } from "./field-error.js";
 import { Hint } from "./hint.js";
+import { InlineMessage } from "./inline-message.js";
 import { useLeaveConfirm } from "./leave-guard.js";
 
 // The dialog's field values by their `name`, as the form holds them.
@@ -201,29 +201,24 @@ function CreateAndSelectDialog<T extends ComboboxOption = ComboboxOption>({
                   </FieldUserEditContext.Provider>
                 </FieldSubmitEndContext.Provider>
               </FieldSubmitContext.Provider>
-              {/* A status, neither error nor warning (`SUI-FEATURE-093` rev 4): muted, with an info
-                  icon, the button beside it. The live region stands while the dialog is open and
-                  only fills on a duplicate, so screen readers announce it; empty, it takes no place
-                  in the column. */}
+              {/* A status, neither error nor warning (`SUI-FEATURE-093` rev 5): the info line without
+                  a role of its own, the button beside it. The live region stands while the dialog is
+                  open and only fills on a duplicate, so screen readers announce it, and it is the
+                  dialog's one status; empty, it takes no place in the column. */}
               <div
                 role="status"
                 aria-live="polite"
-                className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground empty:absolute"
+                className="flex flex-wrap items-center gap-2 empty:absolute"
                 data-testid={`${testId}-duplicate`}
               >
                 {duplicate !== null ? (
                   <>
-                    <InfoIcon
-                      aria-hidden="true"
-                      data-slot="status-icon"
-                      className="size-4 shrink-0"
-                    />
-                    <span>
+                    <InlineMessage tone="info" live={false}>
                       {t("createAndSelect.duplicate", {
                         name: duplicate.label,
                         interpolation: { escapeValue: false },
                       })}
-                    </span>
+                    </InlineMessage>
                     <Hint text={t("createAndSelect.selectExistingHint")}>
                       <Button
                         type="button"

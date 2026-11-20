@@ -35,6 +35,29 @@ describe("InlineMessage", () => {
     },
   );
 
+  // AC 6 (rev 6): for a call site's own live region.
+  it.each([
+    ["error", "lucide-circle-x", "text-destructive-text", "Error:"],
+    ["warn", "lucide-triangle-alert", "text-warn-text", "Warning:"],
+    ["info", "lucide-info", "text-muted-foreground", "Info:"],
+  ] as const)(
+    "live={false}: tone %s has no role, its symbol, colour and prefix stay",
+    (tone, icon, colour, prefix) => {
+      render(
+        <InlineMessage tone={tone} live={false} data-testid="message">
+          Upload failed.
+        </InlineMessage>,
+      );
+      const message = screen.getByTestId("message");
+      expect(message).not.toHaveAttribute("role");
+      expect(screen.queryByRole("alert")).toBeNull();
+      expect(screen.queryByRole("status")).toBeNull();
+      expect(message).toHaveClass(colour, "text-sm");
+      expect(message.firstElementChild).toHaveClass(icon);
+      expect(message).toHaveTextContent(new RegExp(`^${prefix} Upload failed\\.$`));
+    },
+  );
+
   it.each([
     ["de", "Fehler:", "Warnung:", "Info:"],
     ["es", "Error:", "Advertencia:", "Información:"],

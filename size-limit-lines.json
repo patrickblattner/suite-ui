@@ -32,7 +32,7 @@
     "./ui/edit-panel": { "recommended": 70410, "maximum": 83090 },
     "./ui/editor-header": { "recommended": 90155, "maximum": 100365 },
     "./ui/field-drafts-internal": { "recommended": 1236, "maximum": 1298 },
-    "./ui/field-error": { "recommended": 1899, "maximum": 2288 },
+    "./ui/field-error": { "recommended": 1899, "maximum": 2419 },
     "./ui/field-form": { "recommended": 1234, "maximum": 1393 },
     "./ui/field-value-hint-context": { "recommended": 78, "maximum": 139 },
     "./ui/field-value-hint": { "recommended": 32554, "maximum": 34182 },

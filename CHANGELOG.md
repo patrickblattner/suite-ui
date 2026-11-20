@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Added (#963, SUI-FEATURE-096 rev 6) — minor:** `InlineMessage` takes `live?: boolean` (default `true`). With `live={false}` the line carries no `role`; its icon, colour and screen-reader prefix stay, for a call site that holds its own standing live region.
+- **Fixed (#963, SUI-FEATURE-093 rev 5, finding #809):** `CreateAndSelectDialog` shows its duplicate line as `InlineMessage tone="info" live={false}` (info icon, muted, with the "Info:" prefix) inside its standing `role="status"` region, so the dialog has exactly one status element; "Select this one" still picks the existing record.
+- **Size (#963, GL-CODE-021, register #1998):** `./ui/field-error` maximum 2288 → 2419 B (measured 2304 B + 5 %); cause: the `live` prop of `InlineMessage`, which `FieldError` renders through.
+
 ## 0.251.0 — #971 labelled promote without icon (RowActionSet step, EditPanel headActions.primary), #973 MediaDetailShell save after Reset (minor)
 
 - **Changed (#971, SUI-FEATURE-330 rev 10, SUI-FEATURE-420 rev 4, GL-UI-011 rev 12, finding #870):** the labelled `RowActionSet` `step` (in `RowActions`, `PreviewToolbar`, `MediaDetailShell` and `MediaTile`) and the `EditPanel` `headActions.primary` show their label without an icon beside it, a lifecycle promote. Folded into the ⋯ menu the step keeps its icon; each `headActions.secondary` keeps icon and label. Names, hints, size, `busy`, `disabledText` and `shortcut` are unchanged; `submitKind="send"` keeps its icon.
