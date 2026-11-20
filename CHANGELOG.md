@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.250.0 — security: no npx for the toolkit, #957 EditorHeader backHint, #965/#967/#968/#969/#960 fixes (minor)
+
 - **Security (security master, rated high; GL-SEC-011 rev 4):** the toolkit is never called through npx. The pre-push hook and `release.ts` (gate record, Codex tag review) run its CLI as `node <resolved spec-sync-toolkit/dist/cli.js>` (`scripts/toolkit-cli.ts`), and refuse when it is not installed; docs and hints say `node_modules/.bin/spec-sync …`. Before, with no local bin (fresh worktree after `npm ci --ignore-scripts`, failed `prepare`), `npx spec-sync` fetched an unrelated public npm package of that name, and even `--no-install` runs a copy of it from the npx cache. Toolkit pin `v0.50.1` → `v0.51.0`, whose `doctor` checks for npx calls. No package change.
 - Toolkit pin `v0.51.0` → `v0.52.0`: its `doctor` is red on any `npx … spec-sync` call and on an npx cache entry naming `spec-sync`; `node_modules/.bin/spec-sync doctor` reports neither here.
 - Licence allowlist (SUI-GL-CODE-010 rev 2): classes `CC0-1.0` and `OFL-1.1` added with their reasons; the file now matches the sheet. No package change.
