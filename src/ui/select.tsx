@@ -33,6 +33,13 @@ function Select({ ...props }: React.ComponentProps<typeof SelectPrimitive.Root>)
   const shut = lockReason !== undefined || props.disabled === true;
   if (shut && ownOpen) setOwnOpen(false);
   const open = props.open ?? ownOpen;
+  // A controlled list closed by the lock: its owner hears the close once, so it does not reopen the
+  // list by itself when the lock ends (#968).
+  const lockClosesOwned = shut && open;
+  const tellClosed = React.useEffectEvent(() => props.onOpenChange?.(false));
+  React.useEffect(() => {
+    if (lockClosesOwned) tellClosed();
+  }, [lockClosesOwned]);
   return (
     <SelectOpenerContext.Provider value={opener}>
       <SelectPrimitive.Root

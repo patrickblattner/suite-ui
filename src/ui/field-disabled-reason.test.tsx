@@ -94,6 +94,115 @@ describe("Field disabledReason on a text field (AC1)", () => {
   });
 });
 
+// #967 (Codex #966 CX1): `readonly` does not apply to these types, so the lock blocks them by hand.
+// The browser's own toggle, picker and thumb follow the prevented default (checked in Chromium).
+describe("Field disabledReason on a non-text Input (#967)", () => {
+  it.each(["checkbox", "radio", "range", "color", "file"])(
+    "type %s: aria-disabled, never disabled, focusable, the reason describes it; click, keys and pointer change nothing",
+    (type) => {
+      const onChange = vi.fn();
+      const onClick = vi.fn();
+      render(
+        <Field label="Pick" htmlFor="n" disabledReason={REASON}>
+          {/* The reason wins over the control's own `disabled`. */}
+          <Input id="n" type={type} disabled onChange={onChange} onClick={onClick} />
+        </Field>,
+      );
+      const input = screen.getByLabelText<HTMLInputElement>("Pick");
+      expect(input).toHaveAttribute("aria-disabled", "true");
+      expect(input).not.toHaveAttribute("disabled");
+      expect(input).not.toHaveAttribute("readonly");
+      expect(input).toHaveAccessibleDescription(REASON);
+      input.focus();
+      expect(input).toHaveFocus();
+      const checked = input.checked;
+      const value = input.value;
+      // `fireEvent` returns false when the default was prevented.
+      expect(fireEvent.click(input)).toBe(false);
+      for (const key of [" ", "Enter", "ArrowRight", "ArrowUp", "Home", "End", "PageUp"])
+        expect(fireEvent.keyDown(input, { key })).toBe(false);
+      expect(fireEvent.pointerDown(input)).toBe(false);
+      // Tab still leaves it.
+      expect(fireEvent.keyDown(input, { key: "Tab" })).toBe(true);
+      expect(input.checked).toBe(checked);
+      expect(input.value).toBe(value);
+      expect(onChange).not.toHaveBeenCalled();
+      expect(onClick).not.toHaveBeenCalled();
+    },
+  );
+
+  it("type file: a file dropped in from the system is refused", () => {
+    const onChange = vi.fn();
+    const onDrop = vi.fn();
+    render(
+      <Field label="Pick" htmlFor="n" disabledReason={REASON}>
+        <Input id="n" type="file" onChange={onChange} onDrop={onDrop} />
+      </Field>,
+    );
+    const input = screen.getByLabelText<HTMLInputElement>("Pick");
+    const dataTransfer = { dropEffect: "copy", files: [], types: ["Files"] };
+    expect(fireEvent.dragOver(input, { dataTransfer })).toBe(false);
+    expect(dataTransfer.dropEffect).toBe("none");
+    expect(fireEvent.drop(input, { dataTransfer })).toBe(false);
+    expect(onDrop).not.toHaveBeenCalled();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("type range: no touch gesture, and a value a drag moved anyway is put back", () => {
+    const onChange = vi.fn();
+    render(
+      <Field label="Pick" htmlFor="n" disabledReason={REASON}>
+        <Input id="n" type="range" defaultValue="50" onChange={onChange} />
+      </Field>,
+    );
+    const input = screen.getByLabelText<HTMLInputElement>("Pick");
+    expect(input).toHaveClass("aria-disabled:touch-none");
+    fireEvent.pointerDown(input, { pointerType: "touch" });
+    fireEvent.change(input, { target: { value: "80" } });
+    expect(input.value).toBe("50");
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it.each(["checkbox", "radio", "range", "color", "file"])(
+    "type %s: the locked look reaches the native widget",
+    (type) => {
+      render(
+        <Field label="Pick" htmlFor="n" disabledReason={REASON}>
+          <Input id="n" type={type} />
+        </Field>,
+      );
+      const input = screen.getByLabelText("Pick");
+      expect(input.className).toContain(
+        "aria-disabled:accent-[color-mix(in_srgb,var(--primary)_50%,var(--surface))]",
+      );
+      expect(input.className).toContain("aria-disabled:[&::-webkit-color-swatch]:opacity-50");
+      expect(input.className).toContain(
+        "aria-disabled:file:text-[color-mix(in_srgb,var(--foreground)_50%,var(--surface))]",
+      );
+    },
+  );
+
+  it("a controlled checkbox Input without onChange keeps React's warning (no handler attached when unlocked)", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    render(<Input type="checkbox" checked aria-label="Pick" />);
+    expect(error.mock.calls.flat().join(" ")).toMatch(/without an `onChange` handler/);
+  });
+
+  it("an unlocked checkbox Input toggles and reports as before", () => {
+    const onChange = vi.fn();
+    render(
+      <Field label="Pick" htmlFor="n">
+        <Input id="n" type="checkbox" onChange={onChange} />
+      </Field>,
+    );
+    const input = screen.getByLabelText<HTMLInputElement>("Pick");
+    expect(input).not.toHaveAttribute("aria-disabled");
+    expect(fireEvent.click(input)).toBe(true);
+    expect(input.checked).toBe(true);
+    expect(onChange).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("Field disabledReason on a choice field (AC2)", () => {
   const select = () => (
     <Field label="Interval" htmlFor="interval" valueHint={HINT} disabledReason={REASON}>
@@ -635,6 +744,54 @@ describe("Review round 4 (#958): a lock that ends reopens nothing", () => {
     expect(screen.queryByRole("listbox")).toBeNull();
     expect(box).toHaveAttribute("aria-expanded", "false");
   });
+
+  // #968 (Codex #966 CX3): a controlled Select's owner hears the lock's close once.
+  it.each(["reason", "disabled"])(
+    "a controlled Select closed by a lock (%s) tells its owner once and stays closed once the lock is gone",
+    (how) => {
+      const onOpenChange = vi.fn();
+      function Owned({ lock }: { lock: boolean }) {
+        const [open, setOpen] = useState(false);
+        return (
+          <Field
+            label="Pick"
+            htmlFor="c"
+            disabledReason={lock && how === "reason" ? REASON : undefined}
+          >
+            <Select
+              defaultValue="a"
+              open={open}
+              onOpenChange={(next) => {
+                onOpenChange(next);
+                setOpen(next);
+              }}
+              disabled={lock && how === "disabled"}
+            >
+              <SelectTrigger id="c">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="a">Ada</SelectItem>
+                <SelectItem value="b">Bea</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+        );
+      }
+      const { rerender } = render(<Owned lock={false} />);
+      const box = openList();
+      expect(onOpenChange.mock.calls).toEqual([[true]]);
+      rerender(<Owned lock />);
+      settle();
+      expect(screen.queryByRole("listbox")).toBeNull();
+      expect(onOpenChange.mock.calls).toEqual([[true], [false]]);
+      rerender(<Owned lock={false} />);
+      settle();
+      expect(screen.queryByRole("listbox")).toBeNull();
+      expect(box).toHaveAttribute("aria-expanded", "false");
+      expect(onOpenChange.mock.calls).toEqual([[true], [false]]);
+    },
+  );
 
   it.each(["reason", "disabled"])(
     "DateTimeField: a picker closed by a lock (%s) stays closed once the lock is gone",

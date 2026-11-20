@@ -72,7 +72,8 @@ const FieldUserEditContext = React.createContext<(() => void) | null>(null);
 // a different record shown; also during its render), and the count of those ends it passes to
 // `FieldSubmitEndContext`. Fifth: a whole submit attempt (#837) — notes it on `form` (when given),
 // runs the app's submit and ends the state when it reports success (`true`, or a promise resolving
-// `true`); an older attempt settling later ends nothing. Returns the submit's result.
+// `true`); an older attempt, or one made before the state last ended, settling later ends nothing.
+// Returns the submit's result.
 function useFieldSubmits(): [
   number,
   (form: HTMLElement) => void,
@@ -99,6 +100,11 @@ function useFieldSubmits(): [
   );
   const end = React.useCallback(() => setEnds((current) => current + 1), []);
   const attempts = React.useRef(0);
+  // Every end of the submit state — another record, a reset — outdates a pending attempt: its later
+  // success is not one of the form now shown (#969).
+  React.useEffect(() => {
+    attempts.current++;
+  }, [ends]);
   const attempt = (form: HTMLElement | null | undefined, run: () => unknown): unknown => {
     if (form != null) submitted(form);
     const own = ++attempts.current;

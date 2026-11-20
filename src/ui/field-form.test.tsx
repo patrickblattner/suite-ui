@@ -209,6 +209,45 @@ describe("FieldForm: the submit state ends with record and reset, not with value
     expect(onReset).toHaveBeenCalledTimes(1);
   });
 
+  // #969 (Codex #966 CX2): a submit pending across a record change or a reset ends nothing later.
+  it.each([
+    [
+      "record change",
+      (rerender: (ui: React.ReactElement) => void, onSubmit: FieldFormProps["onSubmit"]) =>
+        rerender(<Drawer record={2} onSubmit={onSubmit} />),
+    ],
+    ["reset", () => fireEvent.click(screen.getByRole("button", { name: "Reset" }))],
+  ])("a pending submit resolving true after a %s keeps a newer error", async (_, change) => {
+    let resolveOld!: () => void;
+    const results: FieldFormProps["onSubmit"][] = [
+      () => new Promise<boolean>((resolve) => (resolveOld = () => resolve(true))),
+    ];
+    const onSubmit: FieldFormProps["onSubmit"] = (event) => results.shift()!(event);
+    const { rerender } = render(<Drawer record={1} onSubmit={onSubmit} />);
+    fireEvent.submit(form());
+    await act(async () => {});
+    change(rerender, onSubmit);
+    expect(errors()).toEqual([null, null]);
+    typeIn("Name", ["x", ""]);
+    expect(screen.getByText("Enter a name.")).toBeInTheDocument();
+    resolveOld();
+    await act(async () => {});
+    expect(screen.getByText("Enter a name.")).toBeInTheDocument();
+  });
+
+  it("the latest submit after a record change still ends the state on its success", async () => {
+    let resolveNew!: () => void;
+    const onSubmit = () => new Promise<boolean>((resolve) => (resolveNew = () => resolve(true)));
+    const { rerender } = render(<Drawer record={1} onSubmit={onSubmit} />);
+    rerender(<Drawer record={2} onSubmit={onSubmit} />);
+    fireEvent.submit(form());
+    await act(async () => {});
+    expect(screen.getByText("Enter a name.")).toBeInTheDocument();
+    resolveNew();
+    await act(async () => {});
+    expect(errors()).toEqual([null, null]);
+  });
+
   // AC 4
   it("values typed back by hand after a failed submit → errors of still-invalid fields stay", async () => {
     render(<Drawer />);

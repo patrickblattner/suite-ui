@@ -2302,6 +2302,41 @@ describe("EditPanel: the submit state ends", () => {
     expect(screen.queryByText("Enter a name.")).toBeNull();
   });
 
+  it("a save pending across a pager record change, resolving true later, keeps the next record's error (#969)", async () => {
+    let resolveOld: (value: unknown) => void = () => undefined;
+    function Pending({ position }: { position: string }) {
+      const [name, setName] = useState("");
+      return (
+        <EditPanel
+          open
+          onOpenChange={() => {}}
+          title="Channel"
+          onSubmit={() => new Promise((resolve) => (resolveOld = resolve))}
+          pager={{ position, onPrevious: () => {}, onNext: () => {} }}
+        >
+          <Field label="Name" htmlFor="name" error={name === "" ? "Enter a name." : undefined}>
+            <Input id="name" value={name} onChange={(event) => setName(event.target.value)} />
+          </Field>
+        </EditPanel>
+      );
+    }
+    const { rerender } = render(<Pending position="1/3" />);
+    submit();
+    expect(await screen.findByText("Enter a name.")).toBeInTheDocument();
+    const pending = resolveOld;
+    rerender(<Pending position="2/3" />);
+    expect(screen.queryByText("Enter a name.")).toBeNull();
+    const name = screen.getByLabelText("Name");
+    fireEvent.focus(name);
+    fireEvent.change(name, { target: { value: "x" } });
+    fireEvent.change(name, { target: { value: "" } });
+    fireEvent.blur(name);
+    expect(screen.getByText("Enter a name.")).toBeInTheDocument();
+    pending(true);
+    await act(async () => {});
+    expect(screen.getByText("Enter a name.")).toBeInTheDocument();
+  });
+
   it("a save resolving true mid-typing: leaving the field afterwards shows its error", async () => {
     let resolve: (value: unknown) => void = () => undefined;
     function Typing() {

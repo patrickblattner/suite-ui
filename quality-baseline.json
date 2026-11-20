@@ -3,7 +3,7 @@
   "recordedAt": "2026-11-02",
   "recordedFrom": "npm run hygiene:inventory on main 0eaedc7e (code identical to main; run in the #752 worktree, rebased, that introduces the tools)",
   "counts": {
-    "jscpd.duplicated-lines": 7084,
+    "jscpd.duplicated-lines": 7089,
     "dependency-cruiser.cycles": 0,
     "dependency-cruiser.forbidden-imports": 0,
     "semgrep.error-or-warning": 0,
