@@ -5,15 +5,11 @@ import { createPortal } from "react-dom";
 import { cn } from "../lib/cn.js";
 import { useHydrated } from "./hydrated-internal.js";
 import { usePressKeepsClosed } from "./press-keeps-closed.js";
+import { keepClosedOnFocus } from "./tooltip-bubble-internal.js";
 import { TooltipContent, TooltipProvider, TooltipTrigger } from "./tooltip.js";
 
 function helpIdFor(htmlFor: string): string {
   return `${htmlFor}-help`;
-}
-
-// The hint opens on hover only: opened by focus it would swallow the first Escape of a dialog.
-function keepClosedOnFocus(event: React.FocusEvent): void {
-  event.preventDefault();
 }
 
 // A label that carries its explanation as a hover hint on the label text, with no help icon and no

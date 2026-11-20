@@ -29,6 +29,7 @@ import {
   TooltipTrigger,
 } from "./tooltip.js";
 import { RestoreDefaultsButton } from "./restore-defaults-button.js";
+import { bubbleText, keepClosedOnFocus } from "./tooltip-bubble-internal.js";
 import { REDO_SHORTCUT, UNDO_SHORTCUT, useEditShortcuts } from "./use-edit-shortcuts.js";
 import { useFoldSteps } from "./use-fold-steps.js";
 
@@ -696,22 +697,6 @@ function EditorHeader({
   // What stands after the lifecycle: the editor group, a draft head's always; a record head's only
   // the status or the read-only sign, so its divider never ends the row (`SUI-FEATURE-390`).
   const editorGroupShown = !record || readOnly || status !== undefined;
-  // An empty hint counts as none: no bubble, no description.
-  const backDescription = backHint === "" ? undefined : backHint;
-  const backButton = (
-    <Button
-      type="button"
-      variant="ghost"
-      size="sm"
-      className="shrink-0"
-      onClick={onBack}
-      data-focus-nav=""
-      data-testid="editor-back"
-    >
-      <ArrowLeftIcon aria-hidden="true" />
-      {t("editor.back")}
-    </Button>
-  );
 
   return (
     <header
@@ -725,28 +710,12 @@ function EditorHeader({
         spent && "flex-wrap",
       )}
     >
-      {folded("back") ? (
-        <IconButtonTooltip label={t("editor.back")} hint={backDescription}>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            className="shrink-0"
-            onClick={onBack}
-            data-focus-nav=""
-            data-testid="editor-back"
-          >
-            <ArrowLeftIcon aria-hidden="true" />
-          </Button>
-        </IconButtonTooltip>
-      ) : backDescription === undefined ? (
-        backButton
-      ) : (
-        // Labelled, the bubble shows the hint alone; the name stays "Back" (`SUI-FEATURE-146`).
-        <IconButtonTooltip label={t("editor.back")} hint={backDescription} labelled>
-          {backButton}
-        </IconButtonTooltip>
-      )}
+      <BackButton
+        label={t("editor.back")}
+        hint={backHint === "" ? undefined : backHint}
+        iconOnly={folded("back")}
+        onClick={onBack}
+      />
       <div
         ref={titleBox}
         data-slot="editor-title"
@@ -1065,6 +1034,58 @@ function HeaderTool({
         </Button>
       )}
     </IconButtonTooltip>
+  );
+}
+
+// Back (`SUI-FEATURE-146`): one element, labelled or folded to its arrow (`SUI-FEATURE-090`), so neither
+// a fold nor a toggled `hint` remounts it and a focused Back stays focused. Labelled, the bubble shows
+// the hint alone and opens only with one; folded, it shows the label and the hint below it, the label
+// being the name. Keyboard focus opens no bubble (`SUI-FEATURE-074`); the hint reaches it as the
+// description. An empty hint counts as none.
+function BackButton({
+  label,
+  hint,
+  iconOnly,
+  onClick,
+}: {
+  label: string;
+  hint: string | undefined;
+  iconOnly: boolean;
+  onClick: () => void;
+}) {
+  const id = React.useId();
+  const [open, setOpen] = React.useState(false);
+  // Labelled without a hint, Back has no bubble: an open it refuses is no open, so it never surfaces
+  // later, once a hint arrives or Back folds, with no pointer on it.
+  const shows = iconOnly || hint !== undefined;
+  if (open && !shows) setOpen(false);
+  return (
+    <>
+      <Tooltip open={open} onOpenChange={(next) => setOpen(next && shows)}>
+        <TooltipTrigger asChild onFocus={keepClosedOnFocus}>
+          <Button
+            type="button"
+            variant="ghost"
+            size={iconOnly ? "icon-sm" : "sm"}
+            className="shrink-0"
+            onClick={onClick}
+            aria-label={iconOnly ? label : undefined}
+            aria-describedby={hint === undefined ? undefined : id}
+            data-focus-nav=""
+            data-testid="editor-back"
+          >
+            <ArrowLeftIcon aria-hidden="true" />
+            {iconOnly ? null : label}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>{bubbleText(label, hint, !iconOnly)}</TooltipContent>
+      </Tooltip>
+      {hint === undefined ? null : (
+        <span id={id} hidden>
+          {hint}
+        </span>
+      )}
+    </>
   );
 }
 

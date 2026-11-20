@@ -17,6 +17,7 @@ import {
 } from "./keyboard-focus-open-internal.js";
 import { usePressKeepsClosed } from "./press-keeps-closed.js";
 import { type Shortcut, ShortcutChip, shortcutVariants } from "./shortcut-chip-internal.js";
+import { bubbleText, keepClosedOnFocus } from "./tooltip-bubble-internal.js";
 
 // One tooltip behaviour (`GL-UI-016`/`GL-UI-017`): every tooltip, the overflow tooltip included, opens
 // after the one hint delay and closes at once — once the pointer has left both element and bubble, on
@@ -1318,32 +1319,10 @@ function OverflowTooltip({
   );
 }
 
-// An icon button's hint opens on hover only (`SUI-FEATURE-074`): opened by focus, also when the focus
-// returns programmatically, the bubble beside it would cover the neighbour of its row and catch that
-// one's clicks. The text reaches the focus as the name, or as the description while disabled.
-function keepClosedOnFocus(event: React.FocusEvent): void {
-  event.preventDefault();
-}
-
 // An element's own `aria-describedby` ids, in order and each once.
 function uniqueIds(describedBy: string | undefined): string | undefined {
   const ids = [...new Set(describedBy?.split(/\s+/).filter(Boolean))];
   return ids.length === 0 ? undefined : ids.join(" ");
-}
-
-// The text of an icon button's bubble: `label` alone, or with a description `second` (a lock's reason
-// or a hint) below it, or that description `alone` where the control's name is its visible text.
-function bubbleText(label: string, second: string | undefined, alone: boolean): React.ReactNode {
-  if (second === undefined) return label;
-  if (alone) return second;
-  return (
-    <>
-      <span className="block">{label}</span>
-      <span className="mt-1 block opacity-90" data-slot="tooltip-hint">
-        {second}
-      </span>
-    </>
-  );
 }
 
 // The description hint of an icon-only control: shows `label`, which

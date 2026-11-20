@@ -16,6 +16,7 @@ import {
 import { helpIdFor } from "./label-with-help.js";
 import { usePressKeepsClosed } from "./press-keeps-closed.js";
 import { type Shortcut, ShortcutChip, shortcutVariants } from "./shortcut-chip-internal.js";
+import { keepClosedOnFocus } from "./tooltip-bubble-internal.js";
 import {
   OverflowReportContext,
   TooltipContent,
@@ -117,12 +118,6 @@ function DescriptionText({ id, text }: { id: string; text: string }) {
     </span>,
     document.body,
   );
-}
-
-// Opened by focus, the hint would stand as the top-most dismissable layer and swallow the first Escape
-// of a dialog; keyboard and screen-reader users get the text through `aria-describedby`.
-function keepClosedOnFocus(event: React.FocusEvent): void {
-  event.preventDefault();
 }
 
 // A running button (`busy`) that is the trigger itself keeps its hint closed on hover until the run

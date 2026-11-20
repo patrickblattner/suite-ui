@@ -86,6 +86,7 @@
     "./ui/toast-hold-internal": { "recommended": 889, "maximum": 934 },
     "./ui/toaster": { "recommended": 19883, "maximum": 20878 },
     "./ui/tooltip": { "recommended": 31756, "maximum": 33344 },
+    "./ui/tooltip-bubble-internal": { "recommended": 318, "maximum": 334 },
     "./ui/upload-step": { "recommended": 39231, "maximum": 43461 },
     "./ui/usage-table": { "recommended": 8163, "maximum": 8572 },
     "./ui/use-edit-shortcuts": { "recommended": 1194, "maximum": 1254 },

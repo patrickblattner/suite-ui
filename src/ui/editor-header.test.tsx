@@ -333,6 +333,16 @@ describe("EditorHeader", () => {
 
 const BACK_HINT = "Opens the template library with all templates.";
 
+// A bare draft header whose `backHint` a rerender toggles (finding #872).
+const hintedHeader = (backHint?: string) => (
+  <EditorHeader
+    title="Spring newsletter"
+    {...{ canUndo: false, canRedo: false, dirty: false, saving: false }}
+    {...{ onBack: noop, onUndo: noop, onRedo: noop, onSave: noop, onReset: noop }}
+    {...(backHint !== undefined ? { backHint } : {})}
+  />
+);
+
 // A hint's bubble opens after the hint delay: fake timers, and a ResizeObserver jsdom lacks.
 function withHintTimers() {
   beforeEach(() => {
@@ -1640,7 +1650,7 @@ describe("EditorHeader at narrow width", () => {
     const compactFolds = shrink();
     fresh.unmount();
 
-    const { rerender } = render(header());
+    const { rerender } = render(hintedHeader());
     const menu = openMenu();
     rerender(header("full"));
     resize();
@@ -2198,29 +2208,31 @@ describe("EditorHeader at narrow width", () => {
     expect(bar).toHaveAttribute("data-shrink", "0");
   });
 
-  it("lets go of the parts a fold step swaps out", async () => {
+  // Back folds in place (#872); the step still lets go of what it watched for the step (#613).
+  it("lets go of the parts a fold step resizes", async () => {
     available = 2000;
     renderHeader();
     const back = screen.getByTestId("editor-back");
     available = 250;
     resize();
-    await waitFor(() => expect(screen.getByTestId("editor-back")).not.toBe(back));
+    await waitFor(() => expect(back).toHaveAttribute("data-size", "icon-sm"));
+    expect(screen.getByTestId("editor-back")).toBe(back);
     await waitFor(() => expect(observers.flatMap((observer) => observer.released)).toContain(back));
   });
 
-  it("lets go of a part a step swaps out while it keeps watching, on a window resize (#613)", async () => {
-    available = 2000;
-    renderHeader();
-    const back = screen.getByTestId("editor-back");
-    // A window resize steps outside the observers: they stay connected, and only the swapped part goes.
-    available = 250;
-    act(() => {
-      window.dispatchEvent(new Event("resize"));
-    });
-    expect(screen.getByTestId("editor-back")).not.toBe(back);
+  // A fold no longer swaps a child of the header (#872): the part dropped here is Back's description,
+  // gone with `backHint`. The observers stay connected, and only that part goes (#613).
+  it("lets go of a part the header drops while it keeps watching (#613)", async () => {
+    const { rerender } = render(hintedHeader(BACK_HINT));
+    const description = document.querySelector("[data-slot=editor-header] > span[hidden]");
+    expect(description).toHaveTextContent(BACK_HINT);
+    rerender(hintedHeader());
+    expect(description?.isConnected).toBe(false);
     await waitFor(() =>
       expect(
-        observers.some((observer) => !observer.disconnected && observer.released.includes(back)),
+        observers.some(
+          (observer) => !observer.disconnected && observer.released.includes(description!),
+        ),
       ).toBe(true),
     );
   });
@@ -3267,6 +3279,71 @@ describe("EditorHeader at narrow width", () => {
     },
   );
 
+  // Review of #971: a hover on the unhinted wide Back leaves no open state behind that a fold would
+  // surface with no pointer on Back.
+  it("a hover on Back without backHint leaves no bubble for a fold that comes later", () => {
+    vi.useFakeTimers();
+    try {
+      renderHeader({ lifecycle: lifecycle() });
+      const back = screen.getByTestId("editor-back");
+      fireEvent.pointerMove(back, { pointerType: "mouse" });
+      act(() => {
+        vi.advanceTimersByTime(1500);
+      });
+      fireEvent.pointerLeave(back, { pointerType: "mouse" });
+      available = 360;
+      resize();
+      expect(back).toHaveAttribute("data-size", "icon-sm");
+      act(() => {
+        vi.advanceTimersByTime(1500);
+      });
+      expect(document.querySelector("[data-slot=tooltip-content]")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // #598, #613: a window resize steps outside the observers; Back folds in place (#872) and every
+  // observer stays connected.
+  it("a window resize folds Back in place, the observers staying connected", () => {
+    available = 2000;
+    renderHeader();
+    const back = screen.getByTestId("editor-back");
+    available = 250;
+    act(() => {
+      window.dispatchEvent(new Event("resize"));
+    });
+    expect(screen.getByTestId("editor-back")).toBe(back);
+    expect(back).toHaveAttribute("data-size", "icon-sm");
+    expect(observers.every((observer) => !observer.disconnected)).toBe(true);
+  });
+
+  // Finding #872: folding and unfolding keeps the same Back node, so a focused Back stays focused.
+  it.each([
+    ["without backHint", {}],
+    ["with backHint", { backHint: BACK_HINT }],
+  ] as const)(
+    "%s a focused Back folded and unfolded by a resize stays the same node, focused",
+    (_, props) => {
+      renderHeader({ ...props, lifecycle: lifecycle() });
+      const back = screen.getByTestId("editor-back");
+      expect(back).toHaveAttribute("data-size", "sm");
+      act(() => back.focus());
+      available = 360;
+      resize();
+      expect(screen.getByTestId("editor-back")).toBe(back);
+      expect(back).toHaveAttribute("data-size", "icon-sm");
+      expect(back).toHaveFocus();
+      expect(back).toHaveAccessibleName("Back");
+      available = 2000;
+      resize();
+      expect(screen.getByTestId("editor-back")).toBe(back);
+      expect(back).toHaveAttribute("data-size", "sm");
+      expect(back).toHaveFocus();
+      expect(back).toHaveAccessibleName("Back");
+    },
+  );
+
   // SUI-FEATURE-146 AC 2: folded to its arrow, Back's bubble shows "Back" and the hint below it.
   it("a folded Back with backHint shows Back and the hint below it; the name stays Back", () => {
     vi.useFakeTimers();
@@ -3338,6 +3415,40 @@ describe("EditorHeader backHint", () => {
     const back = screen.getByTestId("editor-back");
     expect(back).not.toHaveAttribute("aria-describedby");
     fireEvent.pointerMove(back, { pointerType: "mouse" });
+    act(() => {
+      vi.advanceTimersByTime(1500);
+    });
+    expect(bubble()).toBeNull();
+  });
+
+  // Finding #872: toggling backHint keeps the same Back node, so a focused Back stays focused.
+  it("toggling backHint keeps the focused Back the same node, focused", () => {
+    const { rerender } = render(hintedHeader());
+    const back = screen.getByTestId("editor-back");
+    act(() => back.focus());
+    rerender(hintedHeader(BACK_HINT));
+    expect(screen.getByTestId("editor-back")).toBe(back);
+    expect(back).toHaveFocus();
+    expect(back).toHaveAccessibleName("Back");
+    expect(back).toHaveAccessibleDescription(BACK_HINT);
+    rerender(hintedHeader());
+    expect(screen.getByTestId("editor-back")).toBe(back);
+    expect(back).toHaveFocus();
+    expect(back).not.toHaveAttribute("aria-describedby");
+    expect(bubble()).toBeNull();
+  });
+  // Review of #971: a hover on the unhinted wide Back leaves no open state behind that a later hint
+  // would surface with no pointer on Back.
+  it("a hover on Back without backHint leaves no bubble for a hint that arrives later", () => {
+    const { rerender } = render(hintedHeader());
+    const back = screen.getByTestId("editor-back");
+    fireEvent.pointerMove(back, { pointerType: "mouse" });
+    act(() => {
+      vi.advanceTimersByTime(1500);
+    });
+    expect(bubble()).toBeNull();
+    fireEvent.pointerLeave(back, { pointerType: "mouse" });
+    rerender(hintedHeader(BACK_HINT));
     act(() => {
       vi.advanceTimersByTime(1500);
     });
