@@ -426,7 +426,8 @@ function MediaDetailShell({
   const previewState = refused ? "noRenderer" : givenState;
   const geometry = usePanelGeometry(open);
   const { returnTarget: returnTargetRef, isOpen: panelOpenRef } = useCoveredInert(open);
-  const autoFocused = useAutoFocused(open, "[data-slot=media-detail]");
+  const content = React.useRef<HTMLDivElement>(null);
+  const autoFocused = useAutoFocused(open, "[data-slot=media-detail]", content);
   const preview = React.useRef<HTMLDivElement>(null);
   // A submit shows every field's error and focuses the first invalid field (`GL-UI-038`).
   const [submits, submitted, endSubmits, submitEnds] = useFieldSubmits();
@@ -740,6 +741,7 @@ function MediaDetailShell({
     >
       <SheetPrimitive.Portal>
         <SheetPrimitive.Content
+          ref={content}
           data-slot="media-detail"
           data-testid="media-detail"
           aria-describedby={undefined}

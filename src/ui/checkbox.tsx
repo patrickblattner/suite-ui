@@ -5,11 +5,11 @@ import { CheckIcon } from "lucide-react";
 import { cn } from "../lib/cn.js";
 import { FieldUserEditContext, useFieldErrorAttributes } from "./field-error.js";
 import { useFieldLockReason, WithFieldValueHint } from "./field-value-hint.js";
+import { FIELD_LOCKED_FRAME } from "./locked-look-internal.js";
 
 // Locked with its field's reason (`SUI-FEATURE-450`), in colour, never element opacity: border, fill and
 // check mixed half with `--surface` (`SUI-FEATURE-251`), `GrayText` under forced colours.
-const LOCKED_LOOK =
-  "aria-disabled:cursor-not-allowed aria-disabled:border-[color-mix(in_srgb,var(--input)_50%,var(--surface))] aria-disabled:data-[state=checked]:border-transparent aria-disabled:data-[state=checked]:bg-[color-mix(in_srgb,var(--primary)_50%,var(--surface))] dark:aria-disabled:data-[state=checked]:bg-[color-mix(in_srgb,var(--primary)_50%,var(--surface))] aria-disabled:data-[state=checked]:text-[color-mix(in_srgb,var(--primary-foreground)_50%,var(--surface))] forced-colors:aria-disabled:border-[GrayText] forced-colors:aria-disabled:text-[GrayText]";
+const LOCKED_LOOK = `${FIELD_LOCKED_FRAME} aria-disabled:data-[state=checked]:border-transparent aria-disabled:data-[state=checked]:bg-[color-mix(in_srgb,var(--primary)_50%,var(--surface))] dark:aria-disabled:data-[state=checked]:bg-[color-mix(in_srgb,var(--primary)_50%,var(--surface))] aria-disabled:data-[state=checked]:text-[color-mix(in_srgb,var(--primary-foreground)_50%,var(--surface))]`;
 
 // In a hinted field it carries the label's hint (`WithFieldValueHint`). GL-UI-013: the hit area grows to at least 24 × 24 px around the unchanged control.
 // Locked with its field's reason it takes `aria-disabled`, never `disabled`: it stays focusable, and a

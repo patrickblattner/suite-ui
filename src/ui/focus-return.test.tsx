@@ -873,7 +873,7 @@ describe("useAutoFocused", () => {
     const onNoted = vi.fn();
     // The own content mounts one commit after `open`, like a portal's.
     function Own({ open, shown }: { open: boolean; shown: boolean }) {
-      const noted = useAutoFocused(open, "[data-slot=panel]");
+      const noted = useAutoFocused(open, "[data-slot=panel]", useRef(null));
       useEffect(() => {
         if (shown) onNoted(noted.current);
       }, [shown, noted]);
@@ -897,5 +897,26 @@ describe("useAutoFocused", () => {
     act(() => screen.getByRole("textbox", { name: "Other" }).focus());
     rerender(page(true, true));
     expect(onNoted).toHaveBeenCalledWith(screen.getByRole("textbox", { name: "Own" }));
+  });
+
+  // #817: reopened within the exit animation, the panel's own closed node is not another panel.
+  it("notes the autoFocus in its own panel still closing from the last open", () => {
+    const seen: { noted: { current: HTMLElement | null } | null } = { noted: null };
+    function Own({ open }: { open: boolean }) {
+      const self = useRef<HTMLDivElement>(null);
+      const noted = useAutoFocused(open, "[data-slot=panel]", self);
+      useEffect(() => {
+        seen.noted = noted;
+      });
+      return (
+        <div ref={self} data-slot="panel">
+          <input aria-label="Own" />
+        </div>
+      );
+    }
+    const { rerender } = render(<Own open={false} />);
+    rerender(<Own open />);
+    act(() => screen.getByRole("textbox", { name: "Own" }).focus());
+    expect(seen.noted?.current).toBe(screen.getByRole("textbox", { name: "Own" }));
   });
 });

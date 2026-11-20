@@ -1533,6 +1533,69 @@ describe("EditPanel", () => {
       // #813: the list's own pager takes the keys inside the non-modal panel.
       expect(screen.getByTestId("pagination-summary")).toHaveTextContent("Page 3 / 3 (23)");
     });
+
+    // #818: with nothing focused, the panel's record pager takes ←/→ where it pages; the only list
+    // pager in it pages where the record pager does not (a disabled direction, a panel above it).
+    function PanelWithList({ last = false, above = false }: { last?: boolean; above?: boolean }) {
+      const [page, setPage] = useState(1);
+      const [record, setRecord] = useState(1);
+      return (
+        <>
+          <EditPanel
+            open
+            onOpenChange={vi.fn()}
+            title="Channel"
+            pager={{
+              position: `${record}/5`,
+              onPrevious: vi.fn(),
+              onNext: () => setRecord((value) => value + 1),
+              nextDisabled: last,
+            }}
+          >
+            <TablePagination
+              page={page}
+              setPage={setPage}
+              pageSize={10}
+              setPageSize={vi.fn()}
+              totalPages={3}
+              total={23}
+            />
+          </EditPanel>
+          {above ? (
+            <EditPanel open onOpenChange={vi.fn()} title="Above" testIdPrefix="above">
+              x
+            </EditPanel>
+          ) : null}
+        </>
+      );
+    }
+    function pressOnBody(times: number) {
+      act(() => (document.activeElement as HTMLElement | null)?.blur());
+      expect(document.activeElement).toBe(document.body);
+      for (let index = 0; index < times; index += 1) key(document.body, "ArrowRight");
+    }
+
+    it("with nothing focused, ←/→ page the records, not the list in the panel", () => {
+      render(<PanelWithList />);
+      // Each record change re-registers the panel's listener, after the list pager's.
+      pressOnBody(2);
+      expect(screen.getByTestId("edit-panel-position")).toHaveTextContent("3/5");
+      expect(screen.getByTestId("pagination-summary")).toHaveTextContent("Page 1 / 3 (23)");
+    });
+
+    it("with nothing focused and the record direction disabled, the list in the panel pages", () => {
+      render(<PanelWithList last />);
+      pressOnBody(1);
+      expect(screen.getByTestId("edit-panel-position")).toHaveTextContent("1/5");
+      expect(screen.getByTestId("pagination-summary")).toHaveTextContent("Page 2 / 3 (23)");
+    });
+
+    it("with nothing focused under another panel, the list in the lower panel pages", () => {
+      render(<PanelWithList above />);
+      pressOnBody(1);
+      expect(screen.getByTestId("edit-panel-position")).toHaveTextContent("1/5");
+      expect(screen.getByTestId("pagination-summary")).toHaveTextContent("Page 2 / 3 (23)");
+    });
   });
 
   // Collector row 659: a panel opened from a menu entry keeps its field's `autoFocus`.

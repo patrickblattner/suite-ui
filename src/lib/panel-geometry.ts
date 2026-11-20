@@ -29,19 +29,31 @@ function usePanelGeometry(open: boolean): React.CSSProperties {
       };
       // The region may only now be in the document (a panel mounted open).
       measure();
-      const region = contentRegion();
-      if (region === null) return () => {};
       // A band appearing, leaving or changing height resizes the region (a fixed-height frame) or one
-      // of its ancestors (a scrolling document); a scroll of the document or of an app's own scroll
-      // container moves it.
-      const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
-      for (let node: Element | null = region; node !== null; node = node.parentElement) {
-        observer?.observe(node);
-      }
+      // of its ancestors (a scrolling document), or — beside it — moves it without resizing anything:
+      // the bands before the region and its ancestors are watched too, and a band added or removed
+      // there (#688). A scroll of the document or of an app's own scroll container moves it. A region
+      // the app remounts is followed to its new node (#686).
+      const resizes = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
+      const follow = watchRegion(() => {
+        measure();
+        resizes?.disconnect();
+        for (let node = contentRegion(); node !== null; node = node.parentElement) {
+          resizes?.observe(node);
+          for (
+            let band = node.previousElementSibling;
+            band !== null;
+            band = band.previousElementSibling
+          ) {
+            resizes?.observe(band);
+          }
+        }
+      });
       window.addEventListener("resize", measure);
       window.addEventListener("scroll", measure, { capture: true, passive: true });
       return () => {
-        observer?.disconnect();
+        follow();
+        resizes?.disconnect();
         window.removeEventListener("resize", measure);
         window.removeEventListener("scroll", measure, { capture: true });
       };
@@ -105,10 +117,53 @@ function contentRegion(): HTMLElement | null {
   return region;
 }
 
+/**
+ * Calls `changed` now and whenever a child is added to or removed from the content region's
+ * ancestors: a band before it came or left, or the region itself was replaced. The watched chain
+ * follows the region found then; without one (a `<main>` the app removed while a page loads) every
+ * addition in the document is watched until a region appears. Returns the stop.
+ */
+function watchRegion(changed: () => void): () => void {
+  const watch = new MutationObserver(run);
+  function run() {
+    changed();
+    watch.disconnect();
+    const region = contentRegion();
+    if (region === null) watch.observe(document.body, { childList: true, subtree: true });
+    for (let node = region; node?.parentElement != null; node = node.parentElement) {
+      watch.observe(node.parentElement, { childList: true });
+    }
+  }
+  run();
+  return () => watch.disconnect();
+}
+
 /** The covered region's top edge in the viewport, 0 without a located region. */
 function regionTop(): number {
   const region = contentRegion();
   return region === null ? 0 : Math.max(0, region.getBoundingClientRect().top);
+}
+
+// Holds `region` `inert` for one panel; returns the release.
+function holdInert(region: HTMLElement): () => void {
+  let entry = covered.get(region);
+  if (entry === undefined) {
+    entry = { holds: 0, appSet: region.hasAttribute("inert") };
+    covered.set(region, entry);
+    if (!entry.appSet) region.setAttribute("inert", "");
+  }
+  entry.holds += 1;
+  const held = entry;
+  return () => {
+    held.holds -= 1;
+    // Lifted after the current update's effects: a panel replaced by the next in the same update
+    // (a view handing over to its edit panel) keeps the region `inert` throughout.
+    queueMicrotask(() => {
+      if (held.holds > 0 || covered.get(region) !== held) return;
+      covered.delete(region);
+      if (!held.appSet) region.removeAttribute("inert");
+    });
+  };
 }
 
 /**
@@ -176,25 +231,19 @@ function useCoveredInert(open: boolean): {
       if (previous !== null) previous.moved = true;
       returnTarget.current = previous === null ? recorded.current : { opener: previous.opener };
     }
-    const region = contentRegion();
-    if (region === null) return;
-    let entry = covered.get(region);
-    if (entry === undefined) {
-      entry = { holds: 0, appSet: region.hasAttribute("inert") };
-      covered.set(region, entry);
-      if (!entry.appSet) region.setAttribute("inert", "");
-    }
-    entry.holds += 1;
-    const held = entry;
+    // A region the app remounts while the panel is open takes the hold over (#686).
+    let region: HTMLElement | null = null;
+    let release = () => {};
+    const stop = watchRegion(() => {
+      const next = contentRegion();
+      if (next === region) return;
+      release();
+      region = next;
+      release = next === null ? () => {} : holdInert(next);
+    });
     return () => {
-      held.holds -= 1;
-      // Lifted after the current update's effects: a panel replaced by the next in the same update
-      // (a view handing over to its edit panel) keeps the region `inert` throughout.
-      queueMicrotask(() => {
-        if (held.holds > 0 || covered.get(region) !== held) return;
-        covered.delete(region);
-        if (!held.appSet) region.removeAttribute("inert");
-      });
+      stop();
+      release();
     };
   }, [open]);
   return { returnTarget, isOpen };

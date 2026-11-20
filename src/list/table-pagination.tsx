@@ -39,12 +39,25 @@ type Step = {
 // The mounted pagers: with the focus on `body`, ←/→ page only while exactly one is mounted.
 let mountedPagers = 0;
 
-// Whether ←/→ at `focused` page the list of the pager `root`: in the same list frame — an entry, the
+// Whether the record pager of the edit panel around `root` takes `key` with nothing focused: the
+// panel is the topmost open one and that direction is enabled (`SUI-FEATURE-144`, #811). Its ‹ is
+// the pager's first button, its › the last.
+function panelPagerTakes(root: HTMLElement, key: string): boolean {
+  const panel = root.closest('[data-slot="edit-panel"]');
+  const panels = document.querySelectorAll('[data-slot="edit-panel"][data-state="open"]');
+  if (panel === null || panels[panels.length - 1] !== panel) return false;
+  const buttons = panel.querySelectorAll('[data-slot="edit-panel-pager"] button');
+  const button = key === "ArrowLeft" ? buttons[0] : buttons[buttons.length - 1];
+  return button !== undefined && button.getAttribute("aria-disabled") !== "true";
+}
+
+// Whether `key` (←/→) at `focused` pages the list of the pager `root`: in the same list frame — an entry, the
 // table, the pager or the frame itself — or on `body` with this the only pager; never in a field, a control with its own
-// arrows, the toolbar or the focused scroller (`SUI-FEATURE-053`).
-function pagesFrom(focused: Element | null, root: HTMLElement): boolean {
+// arrows, the toolbar or the focused scroller (`SUI-FEATURE-053`). On `body` the record pager of an
+// edit panel around the list takes the key first where it pages (#818).
+function pagesFrom(focused: Element | null, root: HTMLElement, key: string): boolean {
   if (focused === null || focused === document.body || focused === document.documentElement) {
-    return mountedPagers === 1;
+    return mountedPagers === 1 && !panelPagerTakes(root, key);
   }
   if (isTextField(focused) || focused.closest(OWN_ARROWS)) return false;
   if (root.contains(focused)) return true;
@@ -95,7 +108,7 @@ function TablePagination({
       // A list in the non-modal edit panel keeps its keys (`GL-UI-006`, #813): only another dialog,
       // or an open overlay, rests them.
       const panel = root.closest('[data-slot="edit-panel"]');
-      if (isInOtherDialog(focused, panel) || !pagesFrom(focused, root)) return;
+      if (isInOtherDialog(focused, panel) || !pagesFrom(focused, root, event.key)) return;
       const target = event.key === "ArrowLeft" ? page - 1 : page + 1;
       if (target < 1 || target > totalPages) return;
       event.preventDefault();

@@ -25,14 +25,12 @@ type FieldFormProps = Omit<React.ComponentProps<"form">, "onSubmit" | "noValidat
 // bubble blocks the submit. Its own submit stays here, so a block around it in the React tree (a
 // portal inside an `EditPanel`) hears nothing, and its fields keep its state, not the block's.
 function FieldForm({ onSubmit, record, onReset, children, ...props }: FieldFormProps) {
-  const [submits, submitted, endSubmits, submitEnds] = useFieldSubmits();
+  const [submits, , endSubmits, submitEnds, attempt] = useFieldSubmits();
   const [shownRecord, setShownRecord] = React.useState(record);
   if (record !== shownRecord) {
     setShownRecord(record);
     endSubmits();
   }
-  // The latest submit: an older one's success, settling later, ends nothing.
-  const attempts = React.useRef(0);
   return (
     <form
       noValidate
@@ -40,16 +38,7 @@ function FieldForm({ onSubmit, record, onReset, children, ...props }: FieldFormP
       onSubmit={(event) => {
         event.preventDefault();
         event.stopPropagation();
-        submitted(event.currentTarget);
-        const own = ++attempts.current;
-        // Only `true` is a success; an older submit settling later ends nothing.
-        const settle = (value: unknown) => {
-          if (value === true && own === attempts.current) endSubmits();
-        };
-        const result = onSubmit(event);
-        if (typeof (result as { then?: unknown } | null)?.then === "function")
-          (result as PromiseLike<unknown>).then(settle, () => undefined);
-        else settle(result);
+        attempt(event.currentTarget, () => onSubmit(event));
       }}
       onReset={(event) => {
         endSubmits();

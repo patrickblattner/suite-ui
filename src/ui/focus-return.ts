@@ -446,14 +446,22 @@ function useFocusAfterRun(
  * focus finds none in the panel: the panel focuses the noted field instead of its container. Noted in
  * an insertion effect, so before React applies `autoFocus` in the layout phase (the portal mounts the
  * content one commit later); the first focus inside the slot while open counts — inside this panel
- * only: a slot already in the document as it opens is another open panel (#812).
+ * only: a slot already in the document as it opens is another open panel (#812), unless it is the
+ * panel's own node `self` (#817).
  */
-function useAutoFocused(open: boolean, slot: string): React.RefObject<HTMLElement | null> {
+function useAutoFocused(
+  open: boolean,
+  slot: string,
+  self: React.RefObject<HTMLElement | null>,
+): React.RefObject<HTMLElement | null> {
   const noted = React.useRef<HTMLElement | null>(null);
   React.useInsertionEffect(() => {
     if (!open) return;
     noted.current = null;
-    const others = new Set(document.querySelectorAll(slot));
+    // `self` already set: the panel reopens within its exit animation and Radix reuses its node (#817).
+    const others = new Set(
+      [...document.querySelectorAll(slot)].filter((node) => node !== self.current),
+    );
     const note = (event: FocusEvent) => {
       if (noted.current !== null || !(event.target instanceof HTMLElement)) return;
       const own = event.target.closest(slot);
@@ -461,7 +469,7 @@ function useAutoFocused(open: boolean, slot: string): React.RefObject<HTMLElemen
     };
     document.addEventListener("focusin", note, true);
     return () => document.removeEventListener("focusin", note, true);
-  }, [open, slot]);
+  }, [open, slot, self]);
   return noted;
 }
 

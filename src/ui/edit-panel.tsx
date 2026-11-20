@@ -249,7 +249,7 @@ function EditPanel({
   // The typed but uncommitted entries of the panel's own fields (`SUI-FEATURE-118` rev 6).
   const [fieldDrafts] = React.useState(createFieldDrafts);
   // A submit shows every field's error and focuses the first invalid field (`GL-UI-038`).
-  const [submits, submitted, endSubmits, submitEnds] = useFieldSubmits();
+  const [submits, , endSubmits, submitEnds, attemptSubmit] = useFieldSubmits();
   // Another record in the pager ends the submit state, in the render that shows it, the fields
   // mounted (`GL-UI-038` rev 4): the pager's `recordKey`, else its index (the first number of
   // `position`), so a change in the set's size alone ends nothing.
@@ -264,25 +264,14 @@ function EditPanel({
     setShownRecord(record);
     endSubmits();
   }
-  // The latest submit: an older one's success, settling later, ends nothing.
-  const attempts = React.useRef(0);
   // The panel's submit, from its own button and from Save/Apply in the leave dialog alike: every
   // invalid field shows its error and takes the focus, also one the user never left (`GL-UI-038`
   // §Absenden, `SUI-FEATURE-150`); a locked panel saves nothing. A submit that reports success
   // (`true`, or a promise resolving `true`) ends the submit state.
   function attempt(form: HTMLElement | null | undefined): unknown {
-    if (form != null) submitted(form);
-    const own = ++attempts.current;
-    const result = submitDisabled || onSubmit === undefined ? false : onSubmit();
-    if (typeof (result as { then?: unknown } | null)?.then === "function") {
-      (result as PromiseLike<unknown>).then(
-        (value) => {
-          if (value === true && own === attempts.current) endSubmits();
-        },
-        () => undefined,
-      );
-    } else if (result === true) endSubmits();
-    return result;
+    return attemptSubmit(form, () =>
+      submitDisabled || onSubmit === undefined ? false : onSubmit(),
+    );
   }
   const { guard, step, dialog, working, run } = useLeaveConfirm({
     dirty: open && dirty && !view,
@@ -344,7 +333,7 @@ function EditPanel({
 
   const geometry = usePanelGeometry(open);
   const { returnTarget: returnTargetRef } = useCoveredInert(open);
-  const autoFocused = useAutoFocused(open, "[data-slot=edit-panel]");
+  const autoFocused = useAutoFocused(open, "[data-slot=edit-panel]", panel);
   const Body = view ? "div" : "form";
   const fields = (
     <FieldSubmitContext.Provider value={view ? null : submits}>

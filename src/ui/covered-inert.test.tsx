@@ -490,6 +490,84 @@ describe("the panel's top edge follows the covered region (SUI-FEATURE-142 rev 4
     );
     expect(screen.getByRole("dialog").style.top).toBe("0px");
   });
+
+  // #688: a band before a fixed-height main leaves; nothing resizes or scrolls, yet main moves up.
+  it("follows a band leaving before the region without a resize", async () => {
+    regionTop = 40;
+    stubRegionTop();
+    const page = (band: boolean) => (
+      <div>
+        {band ? <div>Dev mode</div> : null}
+        <main data-testid="content">
+          <EditPanel open onOpenChange={() => {}} title="Item" mode="view">
+            x
+          </EditPanel>
+        </main>
+      </div>
+    );
+    const { rerender } = render(page(true));
+    const panel = screen.getByRole("dialog");
+    expect(panel.style.top).toBe("40px");
+    regionTop = 0;
+    rerender(page(false));
+    await waitFor(() => expect(panel.style.top).toBe("0px"));
+  });
+});
+
+// #686: the app removes its main in one commit (a spinner while the page loads) and adds it back in
+// a later one, while a panel over it stays open.
+describe("a region gone and back (#686)", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("a region gone and back in a later commit is inert again and the top edge follows", async () => {
+    let top = 40;
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      return this.dataset.testid === "content"
+        ? new DOMRect(0, top, 800, 600 - top)
+        : new DOMRect();
+    });
+    const page = (shown: boolean) => (
+      <div>
+        {shown ? <main data-testid="content">x</main> : <p>Loading</p>}
+        <EditPanel open onOpenChange={() => {}} title="Item" mode="view">
+          x
+        </EditPanel>
+      </div>
+    );
+    const { rerender } = render(page(true));
+    const panel = screen.getByRole("dialog");
+    expect(panel.style.top).toBe("40px");
+    rerender(page(false));
+    await waitFor(() => expect(panel.style.top).toBe("0px"));
+    top = 24;
+    rerender(page(true));
+    await waitFor(() => expect(screen.getByTestId("content")).toHaveAttribute("inert"));
+    await waitFor(() => expect(panel.style.top).toBe("24px"));
+  });
+});
+
+// #686: the app remounts its main while a panel over it stays open.
+it("a remounted region takes over inert, the detached one lets it go", async () => {
+  const page = (key: number) => (
+    <div>
+      <main key={key} data-testid={`main-${key}`}>
+        x
+      </main>
+      <EditPanel open onOpenChange={() => {}} title="Item">
+        x
+      </EditPanel>
+    </div>
+  );
+  const { rerender } = render(page(1));
+  const first = screen.getByTestId("main-1");
+  expect(first).toHaveAttribute("inert");
+  rerender(page(2));
+  await waitFor(() => expect(screen.getByTestId("main-2")).toHaveAttribute("inert"));
+  await waitFor(() => expect(first).not.toHaveAttribute("inert"));
 });
 
 describe("MediaDetailShell: the covered content area is inert while open (SUI-FEATURE-142)", () => {

@@ -70,8 +70,16 @@ const FieldUserEditContext = React.createContext<(() => void) | null>(null);
 // itself. After the submit's render the focus goes to the form's first invalid field (`GL-UI-038`
 // §Absenden). Third and fourth: what the form calls once its submit state ends (a successful submit,
 // a different record shown; also during its render), and the count of those ends it passes to
-// `FieldSubmitEndContext`.
-function useFieldSubmits(): [number, (form: HTMLElement) => void, () => void, number] {
+// `FieldSubmitEndContext`. Fifth: a whole submit attempt (#837) — notes it on `form` (when given),
+// runs the app's submit and ends the state when it reports success (`true`, or a promise resolving
+// `true`); an older attempt settling later ends nothing. Returns the submit's result.
+function useFieldSubmits(): [
+  number,
+  (form: HTMLElement) => void,
+  () => void,
+  number,
+  (form: HTMLElement | null | undefined, run: () => unknown) => unknown,
+] {
   const [submit, setSubmit] = React.useState<{ count: number; form: HTMLElement | null }>({
     count: 0,
     form: null,
@@ -90,7 +98,20 @@ function useFieldSubmits(): [number, (form: HTMLElement) => void, () => void, nu
     [],
   );
   const end = React.useCallback(() => setEnds((current) => current + 1), []);
-  return [submit.count, submitted, end, ends];
+  const attempts = React.useRef(0);
+  const attempt = (form: HTMLElement | null | undefined, run: () => unknown): unknown => {
+    if (form != null) submitted(form);
+    const own = ++attempts.current;
+    const settle = (value: unknown) => {
+      if (value === true && own === attempts.current) end();
+    };
+    const result = run();
+    if (typeof (result as { then?: unknown } | null)?.then === "function")
+      (result as PromiseLike<unknown>).then(settle, () => undefined);
+    else settle(result);
+    return result;
+  };
+  return [submit.count, submitted, end, ends, attempt];
 }
 
 // The click on a submit control locked with a reason (an invalid entry), as a button handler's

@@ -5,6 +5,7 @@ import { RadioGroup as RadioGroupPrimitive } from "radix-ui";
 import { cn } from "../lib/cn.js";
 import { FieldGroupContext, FieldUserEditContext, useFieldErrorAttributes } from "./field-error.js";
 import { useFieldLockReason } from "./field-value-hint.js";
+import { FIELD_LOCKED_FRAME } from "./locked-look-internal.js";
 
 // The keys that move the focus to another option in radix: the arrow keys, and Home/End and
 // PageUp/PageDown to the first or last one. Each checks the option it focuses, so focus and checked
@@ -27,8 +28,7 @@ const GroupLockedContext = React.createContext(false);
 
 // Locked, in colour, never element opacity: border and dot mixed half with `--surface`
 // (`SUI-FEATURE-251`), `GrayText` under forced colours.
-const LOCKED_LOOK =
-  "aria-disabled:cursor-not-allowed aria-disabled:border-[color-mix(in_srgb,var(--input)_50%,var(--surface))] aria-disabled:text-[color-mix(in_srgb,var(--primary)_50%,var(--surface))] aria-disabled:[&_svg]:fill-[color-mix(in_srgb,var(--primary)_50%,var(--surface))] forced-colors:aria-disabled:border-[GrayText] forced-colors:aria-disabled:text-[GrayText]";
+const LOCKED_LOOK = `${FIELD_LOCKED_FRAME} aria-disabled:text-[color-mix(in_srgb,var(--primary)_50%,var(--surface))] aria-disabled:[&_svg]:fill-[color-mix(in_srgb,var(--primary)_50%,var(--surface))]`;
 
 // A focus key moves the focus to another option and checks it (WAI-ARIA radio group pattern, #438).
 // radix checks on that focus only while the key is still down, but it moves the focus in a timeout:
