@@ -7,7 +7,7 @@ import {
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 
-import { isInDialog, isTextField } from "../lib/keyboard.js";
+import { isInDialog, isTextField, OWN_ARROWS } from "../lib/keyboard.js";
 import { focusListFrame, GRID_ITEM_ATTR, LIST_FRAME_SELECTOR } from "../lib/list-focus.js";
 import { MEASURED_TRIGGER, MeasuredCell } from "../lib/select-sizer.js";
 import { Button } from "../ui/button.js";
@@ -38,10 +38,6 @@ type Step = {
 
 // The mounted pagers: with the focus on `body`, ←/→ page only while exactly one is mounted.
 let mountedPagers = 0;
-
-// Controls whose arrows mean something of their own (`GL-UI-006` §Fokus-Regel).
-const OWN_ARROWS =
-  '[role="tablist"], [role="listbox"], [role="menu"], [role="combobox"], [role="radiogroup"], [role="slider"]';
 
 // Whether ←/→ at `focused` page the list of the pager `root`: in the same list frame — an entry, the
 // table, the pager or the frame itself — or on `body` with this the only pager; never in a field, a control with its own
@@ -94,7 +90,9 @@ function TablePagination({
       if (event.shiftKey) return;
       const root = rootRef.current;
       const focused = document.activeElement;
-      if (root === null || isInDialog(focused) || !pagesFrom(focused, root)) return;
+      // Behind an open panel the list is `inert` (`SUI-FEATURE-142`): the panel's pager owns the keys.
+      if (root === null || root.closest("[inert]") !== null) return;
+      if (isInDialog(focused) || !pagesFrom(focused, root)) return;
       const target = event.key === "ArrowLeft" ? page - 1 : page + 1;
       if (target < 1 || target > totalPages) return;
       event.preventDefault();
@@ -183,6 +181,7 @@ function TablePagination({
       ref={rootRef}
       className="flex w-full items-center justify-end gap-[var(--pager-gap)] text-sm"
       data-tooltip-row=""
+      data-slot="table-pagination"
       data-testid="pagination"
     >
       {step({

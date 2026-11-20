@@ -518,6 +518,8 @@ export const en = {
   pager: {
     previous: "Previous",
     next: "Next",
+    previousDisabled: "Previous: possible once there is an entry before this one.",
+    nextDisabled: "Next: possible once there is an entry after this one.",
   },
   // The slide view and player (`SlideView`, `SlidePlayer`).
   slides: {

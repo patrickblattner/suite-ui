@@ -15,13 +15,13 @@ import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
-import { isTextField } from "../lib/keyboard.js";
+import { isTextField, OWN_ARROWS } from "../lib/keyboard.js";
 import { isCompositionKey } from "./composition.js";
 import { type RowActionSet, type RowUsage, useRowActionButtons } from "../list/row-actions.js";
 import { PANEL_SURFACE_CLASS, useCoveredInert, usePanelGeometry } from "../lib/panel-geometry.js";
 import { Button } from "./button.js";
 import { inAppFrame, PanelTabBoundary } from "../lib/panel-tab.js";
-import { returnFocus } from "./focus-return.js";
+import { returnFocus, useAutoFocused } from "./focus-return.js";
 import {
   createFieldDrafts,
   FieldDraftsContext,
@@ -125,10 +125,6 @@ type MediaDetailMode =
       onSave?: () => unknown;
       onReset?: () => void;
     };
-
-// Keys that belong to the focused control, not to paging.
-const OWN_ARROWS =
-  'video, audio, iframe, select, [role="slider"], [role="combobox"], [role="listbox"], [role="option"], [role="radio"], [role="tab"], [role="menuitem"]';
 
 // At most this much of a text medium shows (`SUI-FEATURE-140`), in UTF-8 bytes.
 const TEXT_LIMIT = 200 * 1024;
@@ -430,6 +426,7 @@ function MediaDetailShell({
   const previewState = refused ? "noRenderer" : givenState;
   const geometry = usePanelGeometry(open);
   const { returnTarget: returnTargetRef, isOpen: panelOpenRef } = useCoveredInert(open);
+  const autoFocused = useAutoFocused(open, "[data-slot=media-detail]");
   const preview = React.useRef<HTMLDivElement>(null);
   // A submit shows every field's error and focuses the first invalid field (`GL-UI-038`).
   const [submits, submitted, endSubmits, submitEnds] = useFieldSubmits();
@@ -750,7 +747,10 @@ function MediaDetailShell({
           style={geometry}
           onOpenAutoFocus={(event) => {
             event.preventDefault();
-            (event.currentTarget as HTMLElement).focus();
+            // A field's own `autoFocus` wins, also when a closing menu pulled it back.
+            const content = event.currentTarget as HTMLElement;
+            const own = autoFocused.current;
+            (own !== null && content.contains(own) ? own : content).focus();
           }}
           onCloseAutoFocus={(event) => {
             event.preventDefault();

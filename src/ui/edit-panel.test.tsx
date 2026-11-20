@@ -4,15 +4,18 @@ import { type FormEvent, type ReactNode, type SVGProps, useState } from "react";
 import { Link, MemoryRouter, useLocation, useNavigate } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { DataTableShell } from "../list/data-table-shell.js";
 import { type RowAction } from "../list/row-actions.js";
-import { openBubble } from "../list/test-utils.js";
+import { TablePagination } from "../list/table-pagination.js";
+import { hintOf, openBubble } from "../list/test-utils.js";
 import { SidebarProvider, useSidebar } from "../shell/sidebar-provider.js";
 import { Button } from "./button.js";
 import { EditPanel, type EditPanelProps } from "./edit-panel.js";
 import { Field } from "./field.js";
 import { Input } from "./input.js";
+import { TableCell, TableHead, TableRow } from "./table.js";
 import { TagInput } from "./tag-input.js";
-import { focusSidebarEntry, stableIds } from "./test-utils.js";
+import { focusSidebarEntry, openFromMenu, stableIds } from "./test-utils.js";
 
 // A head action that runs a handler (`SUI-FEATURE-331`: `RowAction` also takes a link form).
 type ButtonAction = Extract<RowAction, { onClick: () => void }>;
@@ -66,6 +69,9 @@ function WithTrigger() {
     </>
   );
 }
+
+const key = (target: Element, name: string, init: KeyboardEventInit = {}) =>
+  fireEvent.keyDown(target, { key: name, ...init });
 
 function Toggle() {
   const { toggle } = useSidebar();
@@ -1241,6 +1247,252 @@ describe("EditPanel", () => {
     expect(onNext).not.toHaveBeenCalled();
     // Locked by aria-disabled, the button keeps the focus it had when paging reached the end.
     expect(next).toHaveFocus();
+  });
+
+  // SUI-FEATURE-144: the pager's fixed ←/→ shortcut, its chip, `aria-keyshortcuts` and key binding.
+  describe("pager keys (SUI-FEATURE-144)", () => {
+    it("AC1: on record 2/3 ‹ and › show the chips ← and → and carry aria-keyshortcuts", () => {
+      renderPanel({ pager: { position: "2/3", onPrevious: vi.fn(), onNext: vi.fn() } });
+      const previous = screen.getByTestId("edit-panel-previous");
+      const next = screen.getByTestId("edit-panel-next");
+      expect(previous).toHaveAttribute("aria-keyshortcuts", "ArrowLeft");
+      expect(next).toHaveAttribute("aria-keyshortcuts", "ArrowRight");
+      expect(hintOf(previous).hover1500).toBe("Previous←");
+      expect(hintOf(next).hover1500).toBe("Next→");
+    });
+
+    it("AC2: on record 1/3 ‹ offers no shortcut, names its reason and ← does nothing", () => {
+      const onPrevious = vi.fn();
+      function Paging() {
+        const [first, setFirst] = useState(true);
+        return (
+          <>
+            <button type="button" data-testid="unlock" onClick={() => setFirst(false)}>
+              unlock
+            </button>
+            <EditPanel
+              open
+              onOpenChange={vi.fn()}
+              title="Channel"
+              pager={{ position: "1/3", onPrevious, onNext: vi.fn(), previousDisabled: first }}
+            >
+              <Input aria-label="Name" />
+            </EditPanel>
+          </>
+        );
+      }
+      render(<Paging />);
+      const previous = screen.getByTestId("edit-panel-previous");
+      expect(previous).not.toHaveAttribute("aria-keyshortcuts");
+      expect(previous).toHaveAccessibleDescription(i18n.t("suite:pager.previousDisabled"));
+      expect(hintOf(previous).hover1500).not.toContain("←");
+      expect(screen.getByTestId("edit-panel-next")).toHaveAttribute(
+        "aria-keyshortcuts",
+        "ArrowRight",
+      );
+      key(screen.getByTestId("edit-panel"), "ArrowLeft");
+      expect(onPrevious).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByTestId("unlock"));
+      expect(previous).toHaveAttribute("aria-keyshortcuts", "ArrowLeft");
+      expect(hintOf(previous).hover1500).toBe("Previous←");
+    });
+
+    it("AC3: in the panel → pages once; in a text field, with a modifier or in a tab list it does not", () => {
+      const onNext = vi.fn();
+      render(
+        <EditPanel
+          open
+          onOpenChange={vi.fn()}
+          title="Channel"
+          pager={{ position: "2/3", onPrevious: vi.fn(), onNext }}
+        >
+          <Input aria-label="Name" />
+          <textarea aria-label="Note" />
+          <div contentEditable data-testid="rich" />
+          <div role="tablist">
+            <button type="button" role="tab" data-testid="tab">
+              Tab
+            </button>
+          </div>
+          <button type="button" data-testid="plain">
+            Plain
+          </button>
+        </EditPanel>,
+      );
+      // jsdom has no `isContentEditable`.
+      Object.defineProperty(screen.getByTestId("rich"), "isContentEditable", { value: true });
+      const plain = screen.getByTestId("plain");
+      plain.focus();
+      key(plain, "ArrowRight");
+      expect(onNext).toHaveBeenCalledTimes(1);
+      for (const modifier of ["shiftKey", "altKey", "ctrlKey", "metaKey"]) {
+        key(plain, "ArrowRight", { [modifier]: true });
+      }
+      for (const own of [
+        screen.getByRole("textbox", { name: "Name" }),
+        screen.getByRole("textbox", { name: "Note" }),
+        screen.getByTestId("rich"),
+        screen.getByTestId("tab"),
+      ]) {
+        own.focus();
+        key(own, "ArrowRight");
+      }
+      expect(onNext).toHaveBeenCalledTimes(1);
+    });
+
+    it("AC4: with unsaved changes → opens the leave dialog; while it is open ←/→ do nothing", async () => {
+      const onNext = vi.fn();
+      const onPrevious = vi.fn();
+      renderPanel({ dirty: true, pager: { position: "2/3", onPrevious, onNext } });
+      const panel = screen.getByTestId("edit-panel");
+      panel.focus();
+      key(panel, "ArrowRight");
+      const dialog = await screen.findByTestId("leave-guard");
+      expect(onNext).not.toHaveBeenCalled();
+      await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
+      key(document.activeElement!, "ArrowLeft");
+      key(document.activeElement!, "ArrowRight");
+      expect(screen.getAllByTestId("leave-guard")).toHaveLength(1);
+      fireEvent.click(screen.getByTestId("leave-guard-discard"));
+      expect(onNext).toHaveBeenCalledTimes(1);
+      expect(onPrevious).not.toHaveBeenCalled();
+    });
+
+    it("AC5: over a paginated list, nothing focused, → pages the panel and the list stays", () => {
+      const onNext = vi.fn();
+      function Page() {
+        const [page, setPage] = useState(1);
+        return (
+          <>
+            <main>
+              <TablePagination
+                page={page}
+                setPage={setPage}
+                pageSize={10}
+                setPageSize={vi.fn()}
+                totalPages={3}
+                total={23}
+              />
+            </main>
+            <EditPanel
+              open
+              onOpenChange={vi.fn()}
+              title="Channel"
+              pager={{ position: "2/3", onPrevious: vi.fn(), onNext }}
+            >
+              <Input aria-label="Name" />
+            </EditPanel>
+          </>
+        );
+      }
+      render(<Page />);
+      act(() => (document.activeElement as HTMLElement | null)?.blur());
+      expect(document.activeElement).toBe(document.body);
+      key(document.body, "ArrowRight");
+      expect(onNext).toHaveBeenCalledTimes(1);
+      expect(screen.getByTestId("pagination-summary")).toHaveTextContent("Page 1 / 3 (23)");
+    });
+
+    it("AC6: without pager no button offers ←/→", () => {
+      renderPanel();
+      expect(document.querySelector("[aria-keyshortcuts*=Arrow]")).toBeNull();
+    });
+  });
+
+  // SUI-FEATURE-144 AC3 with GL-UI-006 §Fokus-Regel/§Pagination: these keep their own ←/→.
+  describe("pager keys (SUI-FEATURE-144): a list or a native control in the panel", () => {
+    it("AC3: a select, range, radio or player keeps ←/→", () => {
+      const onNext = vi.fn();
+      renderPanel({ pager: { position: "2/3", onPrevious: vi.fn(), onNext } });
+      const panel = screen.getByTestId("edit-panel");
+      const controls = [
+        document.createElement("select"),
+        Object.assign(document.createElement("input"), { type: "range" }),
+        Object.assign(document.createElement("input"), { type: "radio" }),
+        Object.assign(document.createElement("video"), { controls: true, tabIndex: 0 }),
+      ];
+      for (const control of controls) {
+        panel.append(control);
+        control.focus();
+        expect(control).toHaveFocus();
+        key(control, "ArrowRight");
+      }
+      expect(onNext).not.toHaveBeenCalled();
+    });
+
+    it("AC3: a list in the panel keeps ←/→ — rows, scroller, its pager, a grid — after an inner page change too", () => {
+      const onNext = vi.fn();
+      function Panel() {
+        const [page, setPage] = useState(1);
+        return (
+          <EditPanel
+            open
+            onOpenChange={vi.fn()}
+            title="Channel"
+            pager={{ position: "2/3", onPrevious: vi.fn(), onNext }}
+          >
+            <DataTableShell
+              inset="sheet"
+              head={<TableHead>Name</TableHead>}
+              columnCount={1}
+              isPending={false}
+              isEmpty={false}
+              empty="Nothing here."
+              loadingRowTestId="inner-loading"
+              emptyTestId="inner-empty"
+              scrollLabel="Usages"
+              scrollTestId="inner-scroller"
+              pagination={
+                <TablePagination
+                  page={page}
+                  setPage={setPage}
+                  pageSize={10}
+                  setPageSize={vi.fn()}
+                  totalPages={3}
+                  total={23}
+                />
+              }
+            >
+              <TableRow data-grid-item="" tabIndex={0} data-testid="inner-row">
+                <TableCell>a</TableCell>
+              </TableRow>
+            </DataTableShell>
+            <div role="grid" aria-label="Cells">
+              <div role="row">
+                <div role="gridcell" tabIndex={0} data-testid="cell">
+                  x
+                </div>
+              </div>
+            </div>
+          </EditPanel>
+        );
+      }
+      render(<Panel />);
+      // The inner pager re-registers its listener after its page changes, i.e. after the panel's.
+      fireEvent.click(screen.getByTestId("pagination-next"));
+      expect(screen.getByTestId("pagination-summary")).toHaveTextContent("Page 2 / 3 (23)");
+      for (const own of [
+        screen.getByTestId("inner-row"),
+        screen.getByTestId("inner-scroller"),
+        screen.getByTestId("pagination-prev"),
+        screen.getByTestId("cell"),
+      ]) {
+        own.focus();
+        expect(own).toHaveFocus();
+        key(own, "ArrowRight");
+      }
+      expect(onNext).not.toHaveBeenCalled();
+    });
+  });
+
+  // Collector row 659: a panel opened from a menu entry keeps its field's `autoFocus`.
+  it("opened from a menu entry, a field's autoFocus wins over the container", async () => {
+    await openFromMenu((open, setOpen) => (
+      <EditPanel open={open} onOpenChange={setOpen} title="Channel" mode="edit">
+        <Input aria-label="Name" autoFocus />
+      </EditPanel>
+    ));
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Name" })).toHaveFocus());
   });
 
   it("without pager the header holds the title alone, as before", () => {

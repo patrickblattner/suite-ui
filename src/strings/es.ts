@@ -483,6 +483,8 @@ export const es: SuiteStrings = {
   pager: {
     previous: "Anterior",
     next: "Siguiente",
+    previousDisabled: "Anterior: posible en cuanto haya una entrada antes de esta.",
+    nextDisabled: "Siguiente: posible en cuanto haya una entrada después de esta.",
   },
   // The slide view and player (`SlideView`, `SlidePlayer`).
   slides: {

@@ -11,6 +11,8 @@ import * as React from "react";
 import { useTranslation } from "react-i18next";
 
 import { cn } from "../lib/cn.js";
+import { isInDialog, isTextField, OWN_ARROWS } from "../lib/keyboard.js";
+import { LIST_FRAME_SELECTOR } from "../lib/list-focus.js";
 import { type RowAction, RowActionButton } from "../list/row-actions.js";
 import { isCompositionKey } from "./composition.js";
 import {
@@ -23,7 +25,7 @@ import { Button } from "./button.js";
 import { inAppFrame, PanelTabBoundary } from "../lib/panel-tab.js";
 import { DisabledReasonRow, type SubmitLock } from "../lib/disabled-reason-row.js";
 import { FIELD_SELECTOR } from "./dialog.js";
-import { returnFocus } from "./focus-return.js";
+import { returnFocus, useAutoFocused } from "./focus-return.js";
 import { createFieldDrafts, FieldDraftsContext } from "./field-drafts-internal.js";
 import {
   FieldSubmitContext,
@@ -124,7 +126,8 @@ type EditPanelProps = {
   onBack?: () => void;
   backDisabled?: boolean;
   // With `pager` the header carries ‹ and › left of the title, the position beside them. A locked
-  // button is `aria-disabled`, not `disabled`: paging to the end keeps the focus on it.
+  // button is `aria-disabled`, not `disabled`: paging to the end keeps the focus on it. `←`/`→` page
+  // as a click on ‹/› does, with their chip and `aria-keyshortcuts` while usable (`SUI-FEATURE-144`).
   pager?: EditPanelPager;
   // The record's decision actions, in every mode (`SUI-FEATURE-420`): the head's right group, wrapping
   // below the title (still right-aligned) where it does not fit beside it. Plain clicks: they neither
@@ -167,6 +170,28 @@ const ENTER_ACTIVATES = new Set([
   "radio",
   "range",
 ]);
+
+// A list inside the panel keeps ←/→ (`GL-UI-006` §Pagination, §Fokus-Regel): its frame — entries,
+// focusable scroller, toolbar — its own `TablePagination`, a grid and a focused scroll region. Checked by
+// the focus, so the outcome does not hang on which `keydown` listener was registered first.
+const LIST_OWN_ARROWS = `${LIST_FRAME_SELECTOR}, [data-slot="table-pagination"], [role="grid"], [role="region"][tabindex]`;
+
+// Whether ←/→ page the records of the open `panel` (`SUI-FEATURE-144`, `GL-UI-006` §Fokus-Regel): the
+// focus in the panel or nowhere, not in a field or a control with arrows of its own, no modifier held,
+// no modal dialog open.
+function pagesRecords(event: KeyboardEvent, panel: HTMLElement | null): boolean {
+  if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return false;
+  if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return false;
+  if (event.shiftKey || panel === null) return false;
+  const focused = document.activeElement;
+  if (focused !== null && focused !== document.body && focused !== document.documentElement) {
+    if (!panel.contains(focused) || isTextField(focused)) return false;
+    if (focused.closest(`${OWN_ARROWS}, ${LIST_OWN_ARROWS}`) !== null) return false;
+  }
+  // The panel is a non-modal dialog itself: only another dialog, or an open overlay, rests the keys.
+  const layer = focused?.closest('[role="dialog"], [role="alertdialog"]') ?? null;
+  return (layer === null || layer === panel) && !isInDialog(null);
+}
 
 // The edit panel (`GL-UI-027` §Bearbeitungsflächen, `SUI-FEATURE-030`): from the right over the whole
 // content area, its left edge at the current sidebar width, so the navigation stays visible and
@@ -296,8 +321,26 @@ function EditPanel({
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [open, guard, onOpenChange]);
 
+  // ←/→ page like a click on ‹/› (`SUI-FEATURE-144`, `GL-UI-006`): with the focus in the panel or
+  // nothing focused, never in a field or a control with arrows of its own, never with a modifier, a
+  // modal dialog open (the leave dialog too) or on a locked side.
+  const panel = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    if (!open || pager === undefined) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!pagesRecords(event, panel.current)) return;
+      const previous = event.key === "ArrowLeft";
+      if (previous ? pager.previousDisabled === true : pager.nextDisabled === true) return;
+      event.preventDefault();
+      guard(previous ? pager.onPrevious : pager.onNext);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [open, pager, guard]);
+
   const geometry = usePanelGeometry(open);
   const { returnTarget: returnTargetRef } = useCoveredInert(open);
+  const autoFocused = useAutoFocused(open, "[data-slot=edit-panel]");
   const Body = view ? "div" : "form";
   const fields = (
     <FieldSubmitContext.Provider value={view ? null : submits}>
@@ -376,7 +419,11 @@ function EditPanel({
         <SheetTitle className="text-lg leading-none">{title}</SheetTitle>
       ) : (
         <div data-slot="edit-panel-pager" data-tooltip-row="" className="flex items-center gap-1">
-          <IconButtonTooltip label={t("pager.previous")}>
+          <IconButtonTooltip
+            label={t("pager.previous")}
+            disabledText={t("pager.previousDisabled")}
+            shortcut="ArrowLeft"
+          >
             <Button
               type="button"
               variant="ghost"
@@ -390,7 +437,11 @@ function EditPanel({
               <ChevronLeftIcon aria-hidden="true" />
             </Button>
           </IconButtonTooltip>
-          <IconButtonTooltip label={t("pager.next")}>
+          <IconButtonTooltip
+            label={t("pager.next")}
+            disabledText={t("pager.nextDisabled")}
+            shortcut="ArrowRight"
+          >
             <Button
               type="button"
               variant="ghost"
@@ -431,6 +482,7 @@ function EditPanel({
     >
       <SheetPrimitive.Portal>
         <SheetPrimitive.Content
+          ref={panel}
           data-slot="edit-panel"
           data-testid={testIdPrefix}
           data-mode={mode}
@@ -446,7 +498,9 @@ function EditPanel({
                     content.querySelector("[data-slot=edit-panel-fields]") ?? content
                   ).querySelector<HTMLElement>(FIELD_SELECTOR)
                 : null;
-            (field ?? content).focus();
+            // A field's own `autoFocus` wins, also when a closing menu pulled it back.
+            const own = autoFocused.current;
+            (own !== null && content.contains(own) ? own : (field ?? content)).focus();
           }}
           onCloseAutoFocus={(event) => {
             event.preventDefault();

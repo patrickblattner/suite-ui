@@ -493,6 +493,8 @@ export const de: SuiteStrings = {
   pager: {
     previous: "Vorheriges",
     next: "Nächstes",
+    previousDisabled: "Vorheriges: möglich, sobald es vor diesem Eintrag einen weiteren gibt.",
+    nextDisabled: "Nächstes: möglich, sobald es nach diesem Eintrag einen weiteren gibt.",
   },
   // The slide view and player (`SlideView`, `SlidePlayer`).
   slides: {

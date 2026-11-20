@@ -30,6 +30,16 @@ function isTextField(element: Element | null): boolean {
   return element instanceof HTMLInputElement && !NON_TEXT_INPUTS.has(element.type);
 }
 
+/**
+ * Controls whose arrows mean something of their own (`GL-UI-006` §Fokus-Regel): they keep ←/→. Native
+ * ones (a `select`, a player, a frame, a range or radio input) as well as their ARIA counterparts. One
+ * literal, not a joined array: a call at module level would stay in every entry importing this module.
+ */
+const OWN_ARROWS =
+  'select, video, audio, iframe, input[type="range"], input[type="radio"], [role="tablist"], [role="tab"], ' +
+  '[role="listbox"], [role="option"], [role="menu"], [role="menuitem"], [role="combobox"], ' +
+  '[role="radiogroup"], [role="radio"], [role="slider"]';
+
 /** A modal dialog or sheet is open, or the key comes from inside a dialog: page shortcuts rest. */
 function isInDialog(element: Element | null): boolean {
   if (element?.closest('[role="dialog"], [role="alertdialog"]')) return true;
@@ -118,5 +128,6 @@ export {
   isInDialog,
   isMacPlatform,
   isTextField,
+  OWN_ARROWS,
   shortcutChip,
 };

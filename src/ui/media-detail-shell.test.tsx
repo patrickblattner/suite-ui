@@ -16,7 +16,7 @@ import {
   MediaUsageList,
 } from "./media-detail-shell.js";
 import { TagInput } from "./tag-input.js";
-import { focusSidebarEntry, stableIds } from "./test-utils.js";
+import { focusSidebarEntry, openFromMenu, stableIds } from "./test-utils.js";
 
 afterEach(async () => {
   cleanup();
@@ -1818,4 +1818,20 @@ describe("MediaDetailShell: visible lock reason (SUI-FEATURE-125, SUI-FEATURE-13
       expect(stableIds(footer().outerHTML)).toMatchSnapshot();
     },
   );
+});
+
+// Collector row 659: opened from a menu entry, a field's `autoFocus` wins over the container.
+it("MediaDetailShell opened from a menu entry keeps a field's autoFocus", async () => {
+  await openFromMenu((open, setOpen) => (
+    <MediaDetailShell
+      open={open}
+      onClose={() => setOpen(false)}
+      fields={<Input aria-label="Name" autoFocus />}
+      {...{ onPrev: vi.fn(), onNext: vi.fn(), onSave: vi.fn(), onReset: vi.fn() }}
+      {...{ position: 1, total: 2, kind: "image", src: "/media/a.jpg", alt: "a.jpg" }}
+      dirty={false}
+      saving={false}
+    />
+  ));
+  await waitFor(() => expect(screen.getByRole("textbox", { name: "Name" })).toHaveFocus());
 });

@@ -1,8 +1,15 @@
-import { act, screen } from "@testing-library/react";
-import type * as React from "react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import * as React from "react";
 import { hydrateRoot, type Root } from "react-dom/client";
 import { renderToString } from "react-dom/server";
 import { expect, vi } from "vitest";
+
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "./dropdown-menu.js";
 
 // React's ids count across a test file, so a snapshot numbers them by first appearance instead.
 export function stableIds(html: string): string {
@@ -94,4 +101,33 @@ export function expectHydratedIntact({
   expect(logged).toEqual([]);
   expect(container.querySelector("input")).toBe(input);
   expect(input.value).toBe("typed before hydration");
+}
+
+// Collector row 659: opens the panel `panel(open, setOpen)` renders from a modal menu entry by keyboard.
+// The closing menu's focus trap pulls the focus back while the panel opens; its return to the trigger is
+// held here as the `inert` content region holds it in a browser.
+export async function openFromMenu(
+  panel: (open: boolean, setOpen: (open: boolean) => void) => React.ReactNode,
+): Promise<void> {
+  function FromMenu() {
+    const [open, setOpen] = React.useState(false);
+    return (
+      <>
+        <DropdownMenu>
+          <DropdownMenuTrigger data-testid="menu">Menu</DropdownMenuTrigger>
+          <DropdownMenuContent onCloseAutoFocus={(event) => event.preventDefault()}>
+            <DropdownMenuItem data-testid="item" onSelect={() => setOpen(true)}>
+              Open
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        {panel(open, setOpen)}
+      </>
+    );
+  }
+  render(<FromMenu />);
+  fireEvent.keyDown(screen.getByTestId("menu"), { key: "Enter" });
+  const item = await screen.findByTestId("item");
+  item.focus();
+  fireEvent.keyDown(item, { key: "Enter" });
 }
