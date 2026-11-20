@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.247.0 — #953 UploadStep lock/trigger/failureAction, #954 InlineMessage info tone, #955 EditPanel pager keys (minor)
 
 - **Added (#954, SUI-FEATURE-096 rev 5):** `InlineMessage` takes a third tone `tone="info"` for a neutral message: `InfoIcon` in `--muted-foreground`, `role="status"`, screen-reader prefix `inline.info` with the words of `status.info` (Info: / Info: / Información:). `error` and `warn` and `FieldError` are unchanged. The gallery shows the info line beside the other two tones.
 - Changed baselines (#954, the info line on the components page and the `inline.info` row on the strings page): `gallery/__screenshots__/components-{de,en,es}-{light,dark}.png`, `components-de-{light,dark}-{390,1440}.png`, `gallery-{de,en,es}-{light,dark}.png` and `gallery-de-{light,dark}-{390,1440}.png` (20 files).
