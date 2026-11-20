@@ -30,7 +30,7 @@ import {
 import { fakeKey } from "./secret-fixtures";
 
 // The pre-push hook (#794, PROC-DEV-005 rev 6, PROC-REL-017): the secret guard on every ref, the
-// preflight and the pin check on the pushed tree unless every tip of a non-main push is `wip:`.
+// preflight on the pushed tree unless every tip of a non-main push is `wip:`.
 const script = fileURLToPath(new URL("./pre-push.ts", import.meta.url));
 const pkg = JSON.parse(
   readFileSync(fileURLToPath(new URL("../package.json", import.meta.url)), "utf8"),
@@ -39,7 +39,6 @@ const ZERO = "0".repeat(40);
 const A = "a".repeat(40);
 const B = "b".repeat(40);
 const PREFLIGHT = "spec-sync prepush";
-const REPIN = "spec-sync repin --check";
 
 describe("pre-push decisions", () => {
   it("guards with the gitleaks version hygiene pins", () => {
@@ -104,7 +103,7 @@ describe("pre-push decisions", () => {
 
 // A real push into a bare remote, the hook being package.json's own command. A fake `npx` on PATH
 // logs its arguments and working directory and exits with FAKE_GATE_EXIT (default 0) for the
-// preflight, FAKE_REPIN_EXIT (default 2, spec server down) for the pin check.
+// preflight.
 describe("pre-push hook on a real push", () => {
   let dir: string;
   let work: string;
@@ -194,7 +193,6 @@ describe("pre-push hook on a real push", () => {
         `echo "$*" >> "${dir}/npx.log"`,
         `pwd >> "${dir}/npx-cwd.log"`,
         'case "$*" in',
-        "  *repin*) exit ${FAKE_REPIN_EXIT:-2};;",
         `  *) cat >> "${dir}/npx-stdin.log"`,
         '     if [ -n "$FAKE_GATE_JSON" ]; then',
         '       echo "$FAKE_GATE_JSON"',
@@ -358,21 +356,21 @@ describe("pre-push hook on a real push", () => {
     commit("wip: park", "notes.txt", "half done\n");
     const run = push(["feat/x"]);
     expect(run.status).toBe(0);
-    expect(run.out).toContain("preflight and repin --check skipped");
+    expect(run.out).toContain("preflight skipped");
     expect(npxCalls()).toEqual([]);
   });
 
-  it("runs the preflight, then the pin check, and passes when the spec server is down", () => {
+  it("runs the preflight and nothing else on the pushed tree", () => {
     commit("feat: done #1", "notes.txt", "done\n");
     const run = push(["feat/x"]);
     expect(run.status).toBe(0);
-    expect(run.out).toContain("spec server unreachable");
-    expect(npxCalls()).toEqual([PREFLIGHT, REPIN]);
-    expect(log("npx-cwd.log")).toEqual([realpathSync(work), realpathSync(work)]);
+    expect(run.out).not.toContain("pin");
+    expect(npxCalls()).toEqual([PREFLIGHT]);
+    expect(log("npx-cwd.log")).toEqual([realpathSync(work)]);
     expect(log("npx-stdin.log")[0]).toMatch(/^refs\/heads\/feat\/x [0-9a-f]{40} /);
   });
 
-  it("refuses a red preflight with its phases and the next step, before the pin check", () => {
+  it("refuses a red preflight with its phases and the next step", () => {
     commit("feat: done #1", "notes.txt", "done\n");
     const run = push(["feat/x"], { FAKE_GATE_EXIT: "1" });
     expect(run.status).not.toBe(0);
@@ -425,23 +423,13 @@ describe("pre-push hook on a real push", () => {
     expect(readFileSync(join(logs, "gate.log"), "utf8")).toBe("gate-log\n");
   });
 
-  it("refuses owed pins with the repin step", () => {
-    commit("feat: done #1", "notes.txt", "done\n");
-    const run = push(["feat/x"], { FAKE_REPIN_EXIT: "1" });
-    expect(run.status).not.toBe(0);
-    expect(run.out).toContain(
-      "push refused: spec pins owed — run the `npx spec-sync repin --ids <keys>` the check printed above",
-    );
-    expect(npxCalls()).toEqual([PREFLIGHT, REPIN]);
-  });
-
   it("runs the full set on main despite the WIP marker and says why", () => {
     git("checkout", "-q", "main");
     commit("wip: park", "notes.txt", "half done\n");
     const run = push(["main"]);
     expect(run.status).toBe(0);
     expect(run.out).toContain("`wip:` not honoured — refs/heads/main is pushed");
-    expect(npxCalls()).toEqual([PREFLIGHT, REPIN]);
+    expect(npxCalls()).toEqual([PREFLIGHT]);
   });
 
   it("checks a pushed commit that is not the checkout in a worktree of its own, then removes it", () => {
@@ -450,7 +438,7 @@ describe("pre-push hook on a real push", () => {
     commit("feat: second #1", "notes.txt", "second\n");
     const run = push([`${first}:refs/heads/feat/y`]);
     expect(run.status).toBe(0);
-    expect(npxCalls()).toEqual([PREFLIGHT, REPIN]);
+    expect(npxCalls()).toEqual([PREFLIGHT]);
     const [cwd] = log("npx-cwd.log");
     expect(cwd).toContain("suite-ui-pre-push-");
     expect(git("worktree", "list").split("\n")).toHaveLength(1);

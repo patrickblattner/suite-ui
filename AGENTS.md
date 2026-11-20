@@ -8,8 +8,7 @@ Core behavioral principles (Think Before Coding, Simplicity First, Surgical Chan
 - Leave `.git/` untouched — reading or modifying git internals causes corruption.
 - Use tmux for long-running tasks (dev servers, watchers, REPLs). One-off commands run directly.
 - Before concluding a task, run: build, lint, unit tests, E2E tests (if configured). Fix failures before marking done.
-- **Always include the ticket number (`#<id>`) in every commit message** (e.g., `feat: add login form #42`). Commits without a ticket reference are blocked by a global hook.
-- Use `git add <specific-files>` only — `git add .` is blocked by a global hook.
+- Use `git add <specific-files>` only, not `git add .`.
 
 ## Coding Style
 

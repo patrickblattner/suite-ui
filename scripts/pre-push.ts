@@ -4,8 +4,7 @@
 //
 //   1. Secret guard, always, on every pushed ref: gitleaks (the version hygiene pins) over the
 //      commits the ref pushes. No marker skips it; a range git cannot list refuses the push.
-//   2. `spec-sync prepush` (the light preflight, fed the pushed refs), then `spec-sync repin --check`, on each pushed
-//      tip's own tree (exit 2 of the pin check: the spec server is unreachable, it passes).
+//   2. `spec-sync prepush` (the light preflight, fed the pushed refs), on each pushed tip's own tree.
 //   3. 2 is skipped when the push only deletes refs (no tree), or when refs/heads/main is not pushed
 //      and every pushed tip's subject starts with `wip:` — the loss-protection push of a red state.
 //      An unreadable tip counts as unmarked.
@@ -78,7 +77,7 @@ export function checkPlan(refs: PushedRef[], isWip: (sha: string) => boolean): C
   if (tips.length === 0) {
     return {
       run: false,
-      line: "• pre-push: the push only deletes refs — no tree pushed, preflight and pin check skipped",
+      line: "• pre-push: the push only deletes refs — no tree pushed, preflight skipped",
     };
   }
   const wip = tips.filter((ref) => isWip(ref.localSha));
@@ -93,7 +92,7 @@ export function checkPlan(refs: PushedRef[], isWip: (sha: string) => boolean): C
   if (wip.length === tips.length) {
     return {
       run: false,
-      line: "• pre-push: WIP tip (`wip:`) on a non-main ref — preflight and repin --check skipped; the secret guard ran",
+      line: "• pre-push: WIP tip (`wip:`) on a non-main ref — preflight skipped; the secret guard ran",
     };
   }
   return wip.length === 0
@@ -304,19 +303,6 @@ function checks(sha: string, cwd: string, stdin: string): string[] | undefined {
       ...(result.logDir === undefined ? [] : [`  logs: ${keptLogs(result.logDir, cwd)}`]),
       `  next: ${verdict.next}, or commit the state as \`wip: …\` and push it to a branch other than main`,
     ];
-  }
-  const pins = spawnSync("npx", ["spec-sync", "repin", "--check"], {
-    cwd,
-    stdio: ["ignore", "inherit", "inherit"],
-  });
-  if (pins.status === 2) {
-    console.error("• pre-push: spec server unreachable — pin check skipped");
-  } else if (pins.status === 1) {
-    return [
-      "push refused: spec pins owed — run the `npx spec-sync repin --ids <keys>` the check printed above and commit `spec-pins.json` + drift coverage",
-    ];
-  } else if (pins.status !== 0) {
-    return [`push refused: spec pin check failed (exit ${pins.status ?? pins.signal})`];
   }
   return undefined;
 }

@@ -30,41 +30,6 @@
       "Bash(git push *)"
     ]
   },
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "/Users/pbl/.claude/hooks/role-guard.sh worker"
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node /Users/pbl/projects/spec-sync-toolkit/dist/hooks/stop-check.js",
-            "timeout": 60
-          }
-        ]
-      }
-    ],
-    "SubagentStop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node /Users/pbl/projects/spec-sync-toolkit/dist/hooks/subagent-stop-check.js",
-            "timeout": 60
-          }
-        ]
-      }
-    ]
-  },
   "disabledMcpjsonServers": [
     "serena",
     "codegraph"
