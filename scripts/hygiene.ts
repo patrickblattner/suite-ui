@@ -9,8 +9,9 @@
 // Tools: jscpd, dependency-cruiser, Semgrep OSS (vendored packs in .semgrep/, no registry call), Trivy
 // `fs`, size-limit (lines in size-limit-lines.json), `spec-sync licence-inventory` and ESLint's `security`
 // count (its per-finding exceptions beside it) plus one count per complexity rule (#862); the inventory adds
-// knip, gitleaks over the full history and Trivy `fs --include-dev-deps` (GL-CODE-003; its devDependency
-// count lands in summary.json beside `counts`, never in the ratchet). No network except Trivy's vulnerability DB update.
+// knip, gitleaks over the full history, Trivy `fs --include-dev-deps` and `npm audit`'s malware over all
+// dependencies (GL-CODE-003; both land in summary.json beside `counts`, never in the ratchet). No network
+// except Trivy's vulnerability DB update and the inventory's npm audit.
 //
 // The gate is red when a count rises above its baseline, when an `exports` entry has no size lines, or
 // when a tool produces no readable result (a missing number is never a zero): a scanner whose version
@@ -125,6 +126,8 @@ interface TrivyReport {
           PkgName?: string;
           InstalledVersion?: string;
           Severity?: string;
+          Title?: string;
+          CweIDs?: string[];
         }[]
       | null;
   }[];
@@ -143,14 +146,30 @@ const findingKey = (
   v: { PkgName?: string; InstalledVersion?: string; VulnerabilityID?: string },
 ) => [target, v.PkgName, v.InstalledVersion, v.VulnerabilityID].join("|");
 
-// One row of PROC-REL-007's `night-findings` `dependencies.json`.
+// One row of PROC-REL-007's `night-findings` `dependencies.json`, marked with its route
+// (GL-CODE-003 rev 6, GL-CODE-002 §Security findings): `security` goes to the security master at once,
+// `ticket` is an ordinary ticket of the lead — no collector, no repin, no release because of it.
 export interface DependencyFinding {
   id: string;
   severity: string;
-  source: "trivy-fs";
+  source: "trivy-fs" | "npm-audit";
   package: string;
   version: string;
   path: string;
+  route: "security" | "ticket";
+}
+
+// A devDependency finding goes to the security master when it is malware or a compromised version
+// (title "Malware in …", CWE-506 embedded malicious code) or critical: whether a critical one runs
+// code at install or build time is not in Trivy's data, so the security master sorts it.
+export function devRoute(v: {
+  Severity?: string;
+  Title?: string;
+  CweIDs?: string[];
+}): DependencyFinding["route"] {
+  const malware =
+    v.Title?.startsWith("Malware in ") === true || v.CweIDs?.includes("CWE-506") === true;
+  return malware || v.Severity === "CRITICAL" ? "security" : "ticket";
 }
 
 // GL-CODE-003: the inventory names production and devDependency findings separately. The
@@ -178,25 +197,20 @@ export function trivyDevOnly(production: TrivyReport, withDev: TrivyReport): Dep
         package: v.PkgName ?? "",
         version: v.InstalledVersion ?? "",
         path: result.Target ?? "",
+        route: devRoute(v),
       })),
   );
 }
 
-// PROC-REL-007: CRITICAL/HIGH take the ticket route (one ticket per vulnerability id), MEDIUM/LOW
-// the collector route; Trivy's UNKNOWN takes neither and is counted on its own. Each count is of
-// distinct vulnerability ids, so one CVE in two installed versions counts once.
+// The devDependency rows per route. Each count is of distinct vulnerability ids, so one CVE in two
+// installed versions counts once.
 export function trivyDevRoutes(findings: DependencyFinding[]): {
+  security: number;
   ticket: number;
-  collector: number;
-  unknown: number;
 } {
-  const ids = (severities: string[]) =>
-    new Set(findings.filter((f) => severities.includes(f.severity)).map((f) => f.id)).size;
-  return {
-    ticket: ids(["CRITICAL", "HIGH"]),
-    collector: ids(["MEDIUM", "LOW"]),
-    unknown: ids(["UNKNOWN"]),
-  };
+  const ids = (route: DependencyFinding["route"]) =>
+    new Set(findings.filter((f) => f.route === route).map((f) => f.id)).size;
+  return { security: ids("security"), ticket: ids("ticket") };
 }
 
 // knip's JSON reporter lists, per file, one array per issue type; `file` and `owners` (CODEOWNERS)
@@ -502,6 +516,76 @@ function trivyScan(
   // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: the repo root (module URL); form (1): out (+ literal .spec-sync/hygiene[/gate]) + a literal report name
   writeFileSync(join(out, file ?? (includeDevDeps ? "trivy-dev-deps.json" : "trivy.json")), text);
   return text;
+}
+
+// GL-CODE-003: the inventory's `npm audit` over all dependencies, devDependencies included, counts
+// only malware (GHSA type malware, title "Malware in …"), fixable or not. npm exits 1 both with
+// findings and on a failed audit, so the report decides: a failed audit carries `error`, a readable
+// one `vulnerabilities`; anything else is unreadable, never "0 malware".
+export interface MalwareFinding {
+  package: string;
+  title: string;
+  url: string;
+  severity: string;
+}
+
+type AuditVia = string | { name?: string; title?: string; url?: string; severity?: string };
+
+export function auditMalware(ran: Ran): MalwareFinding[] {
+  let report: {
+    error?: unknown;
+    message?: string;
+    vulnerabilities?: Record<string, { via?: AuditVia[] }>;
+  };
+  try {
+    report = JSON.parse(ran.stdout) as typeof report;
+  } catch {
+    throw new Unreadable(
+      `npm audit exited ${ran.status} without a JSON report: ${ran.stderr.trim().split("\n")[0] ?? ""}`,
+    );
+  }
+  if (
+    report.error !== undefined ||
+    typeof report.vulnerabilities !== "object" ||
+    report.vulnerabilities === null
+  ) {
+    throw new Unreadable(
+      `npm audit failed (exit ${ran.status}): ${report.message ?? JSON.stringify(report.error)}`,
+    );
+  }
+  const found = new Map<string, MalwareFinding>();
+  for (const vulnerability of Object.values(report.vulnerabilities)) {
+    for (const via of vulnerability.via ?? []) {
+      if (typeof via === "string" || !via.title?.startsWith("Malware in ")) continue;
+      found.set(via.url ?? via.title, {
+        package: via.name ?? "",
+        title: via.title,
+        url: via.url ?? "",
+        severity: (via.severity ?? "unknown").toUpperCase(),
+      });
+    }
+  }
+  return [...found.values()];
+}
+
+// A malware hit as a `dependencies.json` row: always route `security` (GL-CODE-003 rev 6).
+export function malwareRow(hit: MalwareFinding): DependencyFinding {
+  return {
+    id: hit.url.split("/").pop() || hit.title,
+    severity: hit.severity,
+    source: "npm-audit",
+    package: hit.package,
+    version: "",
+    path: "package-lock.json",
+    route: "security",
+  };
+}
+
+function npmAuditMalware(out: string): MalwareFinding[] {
+  const ran = run("npm", ["audit", "--json"]);
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: the repo root (module URL); form (1): out (+ literal .spec-sync/hygiene[/gate]) + a literal report name
+  writeFileSync(join(out, "npm-audit.json"), ran.stdout);
+  return auditMalware(ran);
 }
 
 function trivy(out: string) {
@@ -886,12 +970,34 @@ function inventory(): number {
     json("Trivy", trivyScan(out, { includeDevDeps: true, severityFilter: false })),
   );
   const routes = trivyDevRoutes(devFindings);
+  // GL-CODE-002 §Security findings: runtime/shipped Trivy, every gitleaks and Semgrep finding go to the
+  // security master; devDependencies by their route (GL-CODE-003 rev 6).
   console.log(
-    `hygiene: trivy --include-dev-deps (no severity filter) — production fixable HIGH/CRITICAL ${counts["trivy.fixable-high-or-critical"]}; devDependencies ${devFindings.length} (HIGH/CRITICAL ${routes.ticket} → ticket route, MEDIUM/LOW ${routes.collector} → collector route, UNKNOWN ${routes.unknown} → neither)`,
+    `hygiene: routes — to the security master at once: production (runtime/shipped) Trivy ${counts["trivy.fixable-high-or-critical"]}, gitleaks ${counts["gitleaks.history"]}, semgrep ${counts["semgrep.error-or-warning"]}, devDependencies ${routes.security} (malware, compromised version or critical); ordinary lead ticket (no collector, no repin or release): devDependencies ${routes.ticket}`,
   );
+  // A malware hit goes to the security master at once; the run stays green (GL-CODE-003). An audit
+  // that did not run proves nothing: the inventory ends red.
+  let malware: MalwareFinding[] | null = null;
+  try {
+    malware = npmAuditMalware(out);
+  } catch (error) {
+    if (!(error instanceof Unreadable)) throw error;
+    console.error(`hygiene: RED unreadable — ${error.message}; malware check unproven`);
+  }
+  if (malware !== null) {
+    console.log(
+      `hygiene: npm audit (all dependencies, devDependencies included) — malware ${malware.length}`,
+    );
+    for (const hit of malware) {
+      console.error(
+        `hygiene: MALWARE ${hit.package}: ${hit.title} ${hit.url} — to the security master at once (ask_question, project security)`,
+      );
+    }
+  }
   const head = run("git", ["rev-parse", "HEAD"]).stdout.trim();
   const recordedAt = new Date().toISOString();
-  const dependencies = { schemaVersion: 1, run: recordedAt, commit: head, findings: devFindings };
+  const findings = [...devFindings, ...(malware ?? []).map(malwareRow)];
+  const dependencies = { schemaVersion: 1, run: recordedAt, commit: head, findings };
   // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: the repo root (module URL); form (1): out (+ literal .spec-sync/hygiene[/gate]) + a literal report name
   writeFileSync(join(out, "dependencies.json"), `${JSON.stringify(dependencies, null, 2)}\n`);
   const summary = {
@@ -901,17 +1007,15 @@ function inventory(): number {
     // Beside `eslint.security`, never a ratchet count (GL-CODE-020 "Visible count").
     eslintSecurityExcepted: eslintExcepted,
     // Production is `counts["trivy.fixable-high-or-critical"]`; devDependencies split by route.
-    trivyDevDependencies: {
-      "trivy.fixable-high-or-critical": routes.ticket,
-      "trivy.fixable-medium-or-low": routes.collector,
-      "trivy.fixable-unknown-severity": routes.unknown,
-    },
+    trivyDevDependencies: routes,
     sizes: Object.fromEntries(size.checks.map((check) => [check.name, check.size])),
+    // null: the audit did not run, never a zero.
+    npmAuditMalware: malware,
   };
   // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: the repo root (module URL); form (1): out (+ literal .spec-sync/hygiene[/gate]) + a literal report name
   writeFileSync(join(out, "summary.json"), `${JSON.stringify(summary, null, 2)}\n`);
   console.log(`hygiene: inventory ${JSON.stringify(counts)} — ${join(out, "summary.json")}`);
-  return 0;
+  return malware === null ? 1 : 0;
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

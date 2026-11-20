@@ -15,8 +15,10 @@ import { tmpdir } from "node:os";
 import { join, matchesGlob } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  auditMalware,
   changedSources,
   depcruiseCounts,
+  devRoute,
   ESLINT_COMPLEXITY_RULES,
   eslintArgs,
   eslintComplexityCounts,
@@ -32,6 +34,7 @@ import {
   gitleaksScan,
   jscpdCounts,
   knipCounts,
+  malwareRow,
   recordLintRun,
   reusableLintReport,
   rises,
@@ -172,8 +175,9 @@ describe("hygiene tool counts", () => {
     expect(trivyDevOnly({ Results: [] }, withDev)).toHaveLength(3);
   });
 
-  // GL-CODE-003 rev 3 / PROC-REL-007: HIGH/CRITICAL → ticket route, MEDIUM/LOW → collector route.
-  it("routes a planted HIGH dev-only finding to tickets and a MEDIUM one to the collector", () => {
+  // GL-CODE-003 rev 6: every devDependency finding but malware, a compromised version or a critical
+  // one is an ordinary ticket of the lead; never the collector.
+  it("routes planted HIGH and MEDIUM dev-only findings to the lead's ticket", () => {
     const vuln = (PkgName: string, VulnerabilityID: string, Severity: string) => ({
       PkgName,
       InstalledVersion: "1.0.0",
@@ -198,7 +202,7 @@ describe("hygiene tool counts", () => {
       ],
     };
     const findings = trivyDevOnly(production, withDev);
-    expect(trivyDevRoutes(findings)).toEqual({ ticket: 1, collector: 1, unknown: 0 });
+    expect(trivyDevRoutes(findings)).toEqual({ security: 0, ticket: 2 });
     expect(findings).toContainEqual({
       id: "CVE-MED",
       severity: "MEDIUM",
@@ -206,12 +210,13 @@ describe("hygiene tool counts", () => {
       package: "esbuild",
       version: "1.0.0",
       path: "package-lock.json",
+      route: "ticket",
     });
     expect(findings.map((f) => f.id)).not.toContain("CVE-9");
     expect(trivyDevOnly(production, production)).toEqual([]);
   });
 
-  it("counts one CVE in two installed versions once on the ticket route, rows keep the version", () => {
+  it("counts one CVE in two installed versions once on its route, rows keep the version", () => {
     const vuln = (InstalledVersion: string) => ({
       PkgName: "vite",
       InstalledVersion,
@@ -223,29 +228,31 @@ describe("hygiene tool counts", () => {
     };
     const findings = trivyDevOnly({ Results: [] }, withDev);
     expect(findings.map((f) => f.version)).toEqual(["5.0.0", "6.0.0"]);
-    expect(trivyDevRoutes(findings)).toEqual({ ticket: 1, collector: 0, unknown: 0 });
+    expect(trivyDevRoutes(findings)).toEqual({ security: 0, ticket: 1 });
   });
 
-  it("counts UNKNOWN severity on its own, never on the collector route", () => {
-    const withDev = {
-      Results: [
-        {
-          Target: "package-lock.json",
-          Vulnerabilities: [
-            {
-              PkgName: "x",
-              InstalledVersion: "1.0.0",
-              VulnerabilityID: "CVE-U",
-              Severity: "UNKNOWN",
-            },
-            { PkgName: "y", InstalledVersion: "1.0.0", VulnerabilityID: "CVE-L", Severity: "LOW" },
-          ],
-        },
-      ],
-    };
-    const findings = trivyDevOnly({ Results: [] }, withDev);
-    expect(findings.find((f) => f.id === "CVE-U")?.severity).toBe("UNKNOWN");
-    expect(trivyDevRoutes(findings)).toEqual({ ticket: 0, collector: 1, unknown: 1 });
+  it("routes malware, a compromised version and a critical devDependency finding to the security master", () => {
+    expect(devRoute({ Severity: "HIGH", Title: "Malware in evil" })).toBe("security");
+    expect(devRoute({ Severity: "UNKNOWN", CweIDs: ["CWE-506"] })).toBe("security");
+    expect(devRoute({ Severity: "CRITICAL", Title: "Prototype pollution" })).toBe("security");
+    expect(devRoute({ Severity: "HIGH" })).toBe("ticket");
+    expect(devRoute({ Severity: "UNKNOWN" })).toBe("ticket");
+    expect(
+      malwareRow({
+        package: "evil",
+        title: "Malware in evil",
+        url: "https://github.com/advisories/GHSA-xxxx-yyyy",
+        severity: "CRITICAL",
+      }),
+    ).toEqual({
+      id: "GHSA-xxxx-yyyy",
+      severity: "CRITICAL",
+      source: "npm-audit",
+      package: "evil",
+      version: "",
+      path: "package-lock.json",
+      route: "security",
+    });
   });
 
   // GL-CODE-003: the gate scans production only, filtered to HIGH/CRITICAL; --include-dev-deps
@@ -271,6 +278,58 @@ describe("hygiene tool counts", () => {
       trivyOutput({ stdout: "{", stderr: "FATAL db download failed\nmore", status: 1 }),
     ).toThrow(new Unreadable("trivy exited 1: FATAL db download failed"));
     expect(() => trivyOutput({ stdout: "", stderr: "", status: null })).toThrow(Unreadable);
+  });
+
+  // GL-CODE-003 rev 5 (#975): npm audit over all dependencies counts malware only.
+  const audit = (vulnerabilities: object) =>
+    JSON.stringify({ auditReportVersion: 2, vulnerabilities, metadata: {} });
+  const advisory = (name: string, title: string, severity: string) => ({
+    source: 1,
+    name,
+    dependency: name,
+    title,
+    url: `https://github.com/advisories/GHSA-${name}`,
+    severity,
+  });
+  it("npm audit: a malware advisory is a hit, a high advisory and a transitive string are not", () => {
+    const stdout = audit({
+      evil: {
+        name: "evil",
+        severity: "critical",
+        via: [advisory("evil", "Malware in evil", "critical")],
+      },
+      parent: { name: "parent", severity: "critical", via: ["evil"] },
+      lodash: {
+        name: "lodash",
+        severity: "high",
+        via: [advisory("lodash", "Prototype Pollution in lodash", "high")],
+      },
+    });
+    expect(auditMalware({ stdout, stderr: "", status: 1 })).toEqual([
+      {
+        package: "evil",
+        title: "Malware in evil",
+        url: "https://github.com/advisories/GHSA-evil",
+        severity: "CRITICAL",
+      },
+    ]);
+    expect(auditMalware({ stdout: audit({}), stderr: "", status: 0 })).toEqual([]);
+  });
+
+  it("npm audit: a failed audit is unreadable, never 0 malware", () => {
+    const failed = JSON.stringify({
+      message: "request to https://registry.npmjs.org/-/npm/v1/security/advisories/bulk failed",
+      error: { summary: "", detail: "" },
+    });
+    expect(() => auditMalware({ stdout: failed, stderr: "", status: 1 })).toThrow(
+      new Unreadable(
+        "npm audit failed (exit 1): request to https://registry.npmjs.org/-/npm/v1/security/advisories/bulk failed",
+      ),
+    );
+    expect(() => auditMalware({ stdout: "", stderr: "npm ERR! network", status: 1 })).toThrow(
+      Unreadable,
+    );
+    expect(() => auditMalware({ stdout: "{}", stderr: "", status: 0 })).toThrow(Unreadable);
   });
 
   it("counts knip issues of every type, not the file or its owners", () => {

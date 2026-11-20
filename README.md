@@ -35,7 +35,7 @@ Peer dependencies (never bundled): `react` and `react-dom` ^19.2, `react-router-
 ### Parity check
 
 ```bash
-npx suite-ui-parity --app <cockpit|community> [--root <path>] [--report]
+node_modules/.bin/suite-ui-parity --app <cockpit|community> [--root <path>] [--report]
 ```
 
 Compares the app's own texts for every shared element in `parity-map.json` with the canonical `suite` text and prints one line per deviation. `pending` elements only report, `aligned` elements fail the command (exit 1). `--report` never fails.
@@ -66,12 +66,13 @@ Ask through the spec server Q&A mailbox (project `suite-ui`), never by editing a
 - the affected languages
 - whether it blocks a release
 
-Questions about a design rule go to project `foundation`. Domain questions stay with the app's architect.
+Questions about a design rule go to the spec master, through your own project's mailbox. Domain questions stay with the app's lead.
 
 ## Ownership
 
-- Architect: the Overmind (as for `spec-sync-toolkit`)
-- Build and releases: the `suite-ui` worker under the worker harness
+- Specs: the spec master writes each building block's sheet first and tells the `suite-ui` lead (`GL-UI-004`)
+- Build and releases: the `suite-ui` lead (session `suite-ui`)
+- An app never builds its own copy of a shared building block, not even for now (`GL-UI-004`)
 - Releases are semver tags from a green gate; `npm run release:tag` is the only way to tag and refuses a commit without a green `npm run gate:record` run on its content
 
 ## License

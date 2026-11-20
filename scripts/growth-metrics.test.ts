@@ -49,7 +49,6 @@ interface WeekFile {
   gap_reason?: string;
   targets: { path: string; reason: string }[];
   raises: object[];
-  raise_commits: object[];
 }
 const readWeek = (file: string) => JSON.parse(readFileSync(file, "utf8")) as WeekFile;
 
@@ -130,6 +129,14 @@ describe("growth:metrics", () => {
         return "abc12345\tbump #1\n";
       if (name === "git" && joined.startsWith("show abc12345^:quality-baseline"))
         return JSON.stringify({ counts: { "knip.findings": 1 } });
+      if (name === "git" && joined === "show abc12345 --format= --unified=0 -- CHANGELOG.md")
+        return [
+          "diff --git a/CHANGELOG.md b/CHANGELOG.md",
+          "+++ b/CHANGELOG.md",
+          "@@ -3,0 +4,2 @@",
+          "+- **Size (#1, GL-CODE-021, register #1998):** `./index` maximum 100 → 105 B; cause: a module.",
+          "+- **Fixed (#1):** something else.",
+        ].join("\n");
       if (name === "git" && joined.startsWith("show abc12345:quality-baseline"))
         return JSON.stringify({ counts: { "knip.findings": 2 } });
       if (name === "git" && joined.startsWith("show")) throw new Error("no such file");
@@ -152,10 +159,6 @@ describe("growth:metrics", () => {
       }
       if (name === "type-coverage")
         return JSON.stringify({ correctCount: 1000 - chunkSize / 10, totalCount: 1000 });
-      if (name === "gh" && joined.includes("--label growth-review"))
-        return JSON.stringify([
-          { number: 7, title: "raise #7", url: "u", mergedAt: "2026-11-02T00:00:00Z" },
-        ]);
       throw new Error(`unexpected command ${name} ${joined}`);
     };
     return { root, ledger, run, commands };
@@ -209,11 +212,20 @@ describe("growth:metrics", () => {
     expect(byPath["/cleanness/any/anyCount"]!.delta).toBe(5);
     expect(byPath["/check_times/runs"]!.value).toBe(1);
     expect(byPath["/counts/raises"]).toEqual({ value: 1, previous: 1, delta: 0 });
-    // Raises are the week's PRs labelled growth-review; the measure-file commits stay beside them.
+    // Raises are main's commits that raise a measure-file value, with the CHANGELOG lines naming them.
     expect(file.raises).toEqual([
-      { number: 7, title: "raise #7", url: "u", mergedAt: "2026-11-02T00:00:00Z" },
+      {
+        commit: "abc12345",
+        subject: "bump #1",
+        file: "quality-baseline.json",
+        key: "knip.findings",
+        old: 1,
+        new: 2,
+        named: [
+          "- **Size (#1, GL-CODE-021, register #1998):** `./index` maximum 100 → 105 B; cause: a module.",
+        ],
+      },
     ]);
-    expect(file.raise_commits[0]).toMatchObject({ key: "knip.findings", old: 1, new: 2 });
     expect(JSON.stringify(file)).not.toMatch(/collector/i);
     // `week` and `targets` as `spec-sync review growth` reads them.
     expect(file.week).toBe("2026-W45");
@@ -300,7 +312,7 @@ describe("growth:metrics", () => {
     SPAWN_TIMEOUT,
   );
 
-  it("AC4: needs no model and no network but gh — only git, gh and the local tools run, fetch is never called", async () => {
+  it("AC4: needs no model and no network — only git and the local tools run, fetch is never called", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(() => {
       throw new Error("network");
     });
@@ -309,7 +321,6 @@ describe("growth:metrics", () => {
     expect(new Set(commands)).toEqual(
       new Set([
         "git",
-        "gh",
         "fta",
         "size-limit",
         "depcruise",
@@ -376,20 +387,17 @@ describe("growth:metrics", () => {
     SPAWN_TIMEOUT,
   );
 
-  // #861 (findings 25, 27): a failing gh costs only the raises; git ls-files runs once.
-  it("writes the week's file without raises when gh fails, naming the reason", async () => {
+  // PROC-REL-080 rev 6: the raises come from main's commits, never from a PR label; no network.
+  it("reads the raises from main's history", async () => {
     const { root, ledger, run } = fakeRoot(100);
-    const offline: Exec = (command, args, cwd) => {
-      if (basename(command) === "gh") throw new Error("gh: could not resolve host api.github.com");
+    const logged: string[] = [];
+    const recording: Exec = (command, args, cwd) => {
+      if (basename(command) === "git" && args[0] === "log") logged.push(args.join(" "));
       return run(command, args, cwd);
     };
-    const metrics = await collect(offline, root, ledger, Date.now());
-    expect(metrics.raises).toEqual([]);
-    expect(metrics.raises_unavailable).toBe("gh: could not resolve host api.github.com");
-    expect(metrics.counts).not.toHaveProperty("raises");
-    expect(metrics.modules.map((entry) => entry.module)).toContain("src");
-    const out = join(dir, "growth");
-    expect(() => writeWeek(out, "2026-11-08", metrics)).not.toThrow();
+    const metrics = await collect(recording, root, ledger, Date.now());
+    expect(logged.some((line) => line.startsWith("log main --since="))).toBe(true);
+    expect(metrics.counts.raises).toBe(1);
   });
 
   it("lists the tracked files once per run", async () => {

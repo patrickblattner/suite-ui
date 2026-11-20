@@ -11,9 +11,10 @@
 // in-script, scc's code/comment/blank split), FTA (`fta-cli`), cognitive complexity and the cleanness
 // counts (`eslint-plugin-sonarjs` and typescript-eslint through the ESLint API, never part of the lint
 // config or the gate), `type-coverage`, chunk composition (`source-map-explorer` over a source-map
-// build in a temporary directory), `git log`, dependency-cruiser, the spec-sync ledger and — the only
-// network — `gh` for the week's merged PRs labelled `growth-review` (the raises). No model, never the
-// spec server: the week's collector rows are read by the Overmind itself (SUI-FEATURE-139 rev 3).
+// build in a temporary directory), `git log` (also for the week's raises: main's commits that raise a
+// measure-file value, with the CHANGELOG lines they name it in) — no network — dependency-cruiser and the
+// spec-sync ledger. No model, never the spec server: the week's collector rows are read by the Overmind
+// itself (SUI-FEATURE-139).
 
 import { spawnSync } from "node:child_process";
 import {
@@ -103,6 +104,8 @@ export interface Raise {
   key: string;
   old: number;
   new: number;
+  // The CHANGELOG lines the commit adds that name the raise and its cause (`GL-CODE-021`).
+  named: string[];
 }
 
 // The numbers a measure file holds: ratchet counts and size maxima (recommended lines follow main
@@ -118,16 +121,33 @@ export function measureValues(text: string): Record<string, number> {
   return values;
 }
 
-// The week's raises: every commit since `since` whose change to a measure file raised a value.
+// The CHANGELOG lines a commit adds that name a raise (`**Size (#n, GL-CODE-021 …)**`).
+function namedRaises(run: Exec, root: string, commit: string): string[] {
+  try {
+    return run("git", ["show", commit, "--format=", "--unified=0", "--", "CHANGELOG.md"], root)
+      .split("\n")
+      .filter(
+        (line) => line.startsWith("+") && !line.startsWith("+++") && line.includes("GL-CODE-021"),
+      )
+      .map((line) => line.slice(1).trim());
+  } catch {
+    return [];
+  }
+}
+
+// The week's raises as PROC-REL-080 reads them from the change's own naming: suite-ui lands changes as
+// squash commits on main, without PRs, so a raise is every main commit since `since` whose change to a
+// measure file raised a value, beside the CHANGELOG lines that commit adds to name it (`GL-CODE-021`).
 export function weekRaises(run: Exec, root: string, since: string): Raise[] {
   const log = run(
     "git",
-    ["log", `--since=${since}`, "--format=%H%x09%s", "--", ...MEASURE_FILES],
+    ["log", "main", `--since=${since}`, "--format=%H%x09%s", "--", ...MEASURE_FILES],
     root,
   );
   const raises: Raise[] = [];
   for (const line of log.split("\n").filter(Boolean)) {
     const [commit = "", subject = ""] = line.split("\t");
+    let named: string[] | undefined;
     for (const file of MEASURE_FILES) {
       const show = (rev: string) => {
         try {
@@ -142,44 +162,13 @@ export function weekRaises(run: Exec, root: string, since: string): Raise[] {
       for (const [key, value] of Object.entries(after)) {
         const old = before[key];
         if (old !== undefined && value > old) {
-          raises.push({ commit: commit.slice(0, 8), subject, file, key, old, new: value });
+          named ??= namedRaises(run, root, commit);
+          raises.push({ commit: commit.slice(0, 8), subject, file, key, old, new: value, named });
         }
       }
     }
   }
   return raises;
-}
-
-export interface PrRaise {
-  number: number;
-  title: string;
-  url: string;
-  mergedAt: string;
-}
-
-// The week's raises as PROC-REL-080 rev 5 books them: PRs merged since `since` (YYYY-MM-DD) with a
-// raise, labelled `growth-review`. `gh` is the run's only network.
-export function prRaises(run: Exec, root: string, since: string): PrRaise[] {
-  return JSON.parse(
-    run(
-      "gh",
-      [
-        "pr",
-        "list",
-        "--state",
-        "merged",
-        "--label",
-        "growth-review",
-        "--search",
-        `merged:>=${since}`,
-        "--json",
-        "number,title,url,mergedAt",
-        "--limit",
-        "200",
-      ],
-      root,
-    ),
-  ) as PrRaise[];
 }
 
 export function dependencies(root: string) {
@@ -668,26 +657,12 @@ function trackedFiles(run: Exec, root: string): string[] {
   );
 }
 
-// A failing `gh` (offline, no auth) costs only the raises, never the week's file: `raises` stays
-// empty and `raises_unavailable` names the reason; `counts.raises` is left out.
-function raisesOrReason(run: Exec, root: string, since: string) {
-  try {
-    return { raises: prRaises(run, root, since) };
-  } catch (error) {
-    return {
-      raises: [] as PrRaise[],
-      unavailable: error instanceof Error ? error.message : String(error),
-    };
-  }
-}
-
 export async function collect(run: Exec, root: string, ledger: string, now: number) {
   const weekAgo = new Date(now - 7 * DAY).toISOString();
   const fta = ftaScores(run, root);
   const tracked = trackedFiles(run, root);
   const sources = tracked.filter((file) => SOURCE.test(file));
-  const { raises, unavailable } = raisesOrReason(run, root, weekAgo.slice(0, 10));
-  const raiseCommits = weekRaises(run, root, weekAgo);
+  const raises = weekRaises(run, root, weekAgo);
   const { cycles, boundaryViolations } = cruise(run, root);
   const { complexity, cleanness } = await lintMetrics(root, sources);
   const composed = composition(run, root);
@@ -707,9 +682,6 @@ export async function collect(run: Exec, root: string, ledger: string, now: numb
     size_limit: sizeLimitSizes(run, root),
     ratchet: ratchetCounts(root),
     raises,
-    ...(unavailable === undefined ? {} : { raises_unavailable: unavailable }),
-    // The week's commits that raised a value in a measure file: suite-ui merges without PRs.
-    raise_commits: raiseCommits,
     dependencies: dependencies(root),
     modules: Object.entries(linesOfCode(root, tracked)).map(([module, lines]) => ({
       module,
@@ -723,8 +695,7 @@ export async function collect(run: Exec, root: string, ledger: string, now: numb
     boundary_violations: boundaryViolations,
     check_times: gateTimes(ledger, now - 7 * DAY),
     counts: {
-      ...(unavailable === undefined ? { raises: raises.length } : {}),
-      raise_commits: raiseCommits.length,
+      raises: raises.length,
       fta_files: ftaFiles.length,
       cycles: cycles.length,
       boundary_violations: boundaryViolations.length,
