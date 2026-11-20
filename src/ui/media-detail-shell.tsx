@@ -442,12 +442,13 @@ function MediaDetailShell({
     endSubmits();
   }
   // The latest save: an older one's result, settling later, ends nothing and shows nothing; so does
-  // one made before the submit state last ended (another medium, Reset; #972).
+  // one made before another medium showed or before Reset (#972). Reset outdates them in its handler,
+  // so a save its `onReset` starts stays current (#973); another medium in the commit that shows it,
+  // before any later save can start.
   const attempts = React.useRef(0);
-  const shownEnds = React.useRef(submitEnds);
   React.useLayoutEffect(() => {
-    shownEnds.current = submitEnds;
-  }, [submitEnds]);
+    attempts.current++;
+  }, [shownRecord]);
   const form = React.useRef<HTMLFormElement>(null);
   const pickSlot = React.useRef<HTMLSpanElement>(null);
   // The typed but uncommitted entries of the shell's own fields (`SUI-FEATURE-118` rev 6): they make
@@ -470,8 +471,7 @@ function MediaDetailShell({
   // left (`GL-UI-038` §Absenden, `SUI-FEATURE-150`); a successful one ends the submit state.
   function attempt(): unknown {
     const own = ++attempts.current;
-    const ends = shownEnds.current;
-    const current = () => own === attempts.current && ends === shownEnds.current;
+    const current = () => own === attempts.current;
     const failed = () => {
       if (form.current !== null && current()) submitted(form.current);
     };
@@ -548,6 +548,7 @@ function MediaDetailShell({
         onClick={() => {
           fieldDrafts.discard();
           // Reset discards to the saved values: the submit state ends (`GL-UI-038` rev 4).
+          attempts.current++;
           endSubmits();
           onReset?.();
         }}

@@ -1227,7 +1227,13 @@ describe("MediaDetailShell: Save in the leave dialog is a submit", () => {
 // the surface shows a different medium; the fields stay mounted, so the focus survives paging.
 describe("MediaDetailShell: the submit state ends", () => {
   // Three media, each with an empty (invalid) title; a Note change makes the page dirty.
-  function Paged({ onSave }: { onSave: (clear: () => void) => unknown }) {
+  function Paged({
+    onSave,
+    onReset,
+  }: {
+    onSave: (clear: () => void) => unknown;
+    onReset?: () => void;
+  }) {
     const [position, setPosition] = React.useState(2);
     const [titles, setTitles] = React.useState(["", "", ""]);
     const [note, setNote] = React.useState("");
@@ -1242,7 +1248,10 @@ describe("MediaDetailShell: the submit state ends", () => {
         dirty={note !== ""}
         saving={false}
         onSave={() => onSave(() => setNote(""))}
-        onReset={() => setNote("")}
+        onReset={() => {
+          setNote("");
+          onReset?.();
+        }}
         onPrev={() => setPosition((current) => current - 1)}
         onNext={() => setPosition((current) => current + 1)}
         onClose={() => undefined}
@@ -1380,35 +1389,73 @@ describe("MediaDetailShell: the submit state ends", () => {
     expect(screen.getByText("Enter a title.")).toBeInTheDocument();
   });
 
-  // #972: a save pending across paging that fails later shows nothing on the next medium.
-  it.each([
-    ["rejects", (settle: { reject: () => void }) => settle.reject()],
-    ["resolves false", (settle: { resolve: (value: unknown) => void }) => settle.resolve(false)],
-  ])("a Save pending across → that %s shows no error on the next medium", async (_, fail) => {
-    const settle: { resolve: (value: unknown) => void; reject: () => void } = {
-      resolve: () => {},
-      reject: () => {},
-    };
-    render(
-      <Paged
-        onSave={(clear) => {
-          clear();
-          return new Promise((resolve, reject) => {
-            settle.resolve = resolve;
-            settle.reject = () => reject(new Error("failed"));
-          });
-        }}
-      />,
-    );
-    changeNote();
-    save();
-    fireEvent.click(screen.getByTestId("media-detail-next"));
-    expect(screen.getByTestId("media-detail-position")).toHaveTextContent("3");
+  // A save that stays pending until the test fails it: rejected or resolved `false`.
+  const failures: [string, (settle: Settle) => void][] = [
+    ["rejects", (settle) => settle.reject()],
+    ["resolves false", (settle) => settle.resolve(false)],
+  ];
+  type Settle = { resolve: (value: unknown) => void; reject: () => void };
+  function pendingSave(settle: Settle) {
+    return () =>
+      new Promise((resolve, reject) => {
+        settle.resolve = resolve;
+        settle.reject = () => reject(new Error("failed"));
+      });
+  }
+  async function failSave(fail: (settle: Settle) => void, settle: Settle) {
     await act(async () => {
       fail(settle);
       await Promise.resolve();
     });
-    expect(screen.queryByText("Enter a title.")).toBeNull();
+  }
+
+  // #972: a save pending across paging that fails later shows nothing on the next medium.
+  it.each(failures)(
+    "a Save pending across → that %s shows no error on the next medium",
+    async (_, fail) => {
+      const settle: Settle = { resolve: () => {}, reject: () => {} };
+      const start = pendingSave(settle);
+      render(
+        <Paged
+          onSave={(clear) => {
+            clear();
+            return start();
+          }}
+        />,
+      );
+      changeNote();
+      save();
+      fireEvent.click(screen.getByTestId("media-detail-next"));
+      expect(screen.getByTestId("media-detail-position")).toHaveTextContent("3");
+      await failSave(fail, settle);
+      expect(screen.queryByText("Enter a title.")).toBeNull();
+    },
+  );
+
+  // #973: another medium outdates only the saves before it, not one started once it shows.
+  it.each(failures)("a Save started after → that %s shows its errors", async (_, fail) => {
+    const settle: Settle = { resolve: () => {}, reject: () => {} };
+    render(<Paged onSave={pendingSave(settle)} />);
+    fireEvent.click(screen.getByTestId("media-detail-next"));
+    changeNote();
+    save();
+    await failSave(fail, settle);
+    expect(screen.getByText("Enter a title.")).toBeInTheDocument();
+  });
+
+  // #973 (Codex CX1): Reset outdates the saves before it, not one its handler starts.
+  it.each(failures)("a Save started by onReset that %s shows its errors", async (_, fail) => {
+    const settle: Settle = { resolve: () => {}, reject: () => {} };
+    render(
+      <Paged
+        onSave={pendingSave(settle)}
+        onReset={() => screen.getByLabelText("Title").closest("form")!.requestSubmit()}
+      />,
+    );
+    changeNote();
+    fireEvent.click(screen.getByTestId("media-detail-reset"));
+    await failSave(fail, settle);
+    expect(screen.getByText("Enter a title.")).toBeInTheDocument();
   });
 
   it("Reset after a failed Save ends the submit state (GL-UI-038 rev 4)", async () => {
