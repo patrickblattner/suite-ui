@@ -9,6 +9,7 @@ import { initReactI18next, useTranslation } from "react-i18next";
 import { registerSuiteStrings, suiteStrings, type SuiteLanguage } from "../src/strings/index.js";
 import { installLeaveGuard } from "../src/ui/leave-guard.js";
 import { ComponentsPage } from "./ComponentsPage.js";
+import { DateTimeFieldsPage } from "./DateTimeFieldsPage.js";
 import { EditorHeaderPage, EditorRecordPage, EditorRestorePage } from "./EditorHeaderPage.js";
 import { EditorShellPage } from "./EditorShellPage.js";
 import { EditPanelPage } from "./EditPanelPage.js";
@@ -50,6 +51,7 @@ const PAGES = [
   "strings",
   "tokens",
   "components",
+  "datetime",
   "list",
   "reorder",
   "tiles",
@@ -102,6 +104,7 @@ registerShellLabels();
 const PAGE_CONTENT: Record<Exclude<Page, "strings">, (theme: Theme) => ReactNode> = {
   tokens: () => <TokensPage />,
   components: () => <ComponentsPage />,
+  datetime: () => <DateTimeFieldsPage />,
   list: () => <ListPage />,
   reorder: () => <ReorderPage />,
   tiles: () => <TilesPage />,

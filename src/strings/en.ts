@@ -336,6 +336,18 @@ export const en = {
     placeholder: "Search time zone…",
     empty: "No matching time zone",
   },
+  // The date, time and date-time fields (`SUI-FEATURE-145`).
+  datetime: {
+    chooseDate: "Choose date",
+    chooseTime: "Choose time",
+    chooseDateTime: "Choose date and time",
+    previousMonth: "Previous month",
+    nextMonth: "Next month",
+    invalidDate: "Enter the date as D.M.YYYY",
+    invalidTime: "Enter the time as HH:MM",
+    dateMissing: "This date does not exist",
+    timeMissing: "This time does not exist on this day because of the clock change",
+  },
   // The searchable choice of a record (`Combobox`) and its create dialog (`SUI-FEATURE-093`).
   combobox: {
     placeholder: "Search …",

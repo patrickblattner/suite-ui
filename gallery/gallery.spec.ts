@@ -1166,6 +1166,29 @@ const AXE_PAGES: [
   ],
   // `SUI-FEATURE-371` AC4: the property panel without tabs.
   ["components", (page) => page.getByTestId("property-panel-empty-hint"), "&editor=no-tabs"],
+  // #956 (SUI-FEATURE-145): DateField, TimeField, DateTimeField — idle, invalid, each picker open.
+  ["datetime", (page) => page.getByTestId("datetime-fields")],
+  [
+    "datetime",
+    (page) => page.getByTestId("datetime-fields"),
+    "",
+    ["with invalid entries", enterInvalidDateTimes],
+  ],
+  ...(["date", "time", "datetime"] as const).map(
+    (kind) =>
+      [
+        "datetime",
+        (page: Page) => page.getByTestId("datetime-fields"),
+        "",
+        [
+          `with the ${kind} picker open`,
+          async (page: Page) => {
+            await page.getByTestId(`datetime-${kind}-idle-picker`).click();
+            await expect(page.getByTestId(`datetime-${kind}-idle-popover`)).toBeVisible();
+          },
+        ],
+      ] as (typeof AXE_PAGES)[number],
+  ),
 ];
 
 // A new gallery page cannot skip axe: the page switch offers exactly the pages axe scans.
@@ -21495,4 +21518,84 @@ test("media detail shell: Tab leaves the panel at both ends, also after paging",
   await page.keyboard.press("Escape");
   await expect(shell).toBeHidden();
   await expect(page.getByTestId("media-detail-trigger")).toBeFocused();
+});
+
+// #956 (`SUI-FEATURE-145`): DateField, TimeField and DateTimeField idle, invalid and disabled, and
+// each with its picker open.
+async function enterInvalidDateTimes(page: Page) {
+  for (const [kind, text] of [
+    ["date", "31.4.2026"],
+    ["time", "9:5"],
+    ["datetime", "29.3.2026 02:30"],
+  ] as const) {
+    const input = page.getByTestId(`datetime-${kind}-invalid`);
+    await input.fill(text);
+    await input.blur();
+    await expect(page.getByTestId(`datetime-${kind}-invalid-error`)).toBeVisible();
+  }
+}
+
+for (const lng of LANGUAGES) {
+  for (const theme of THEMES) {
+    test(`datetime ${lng} ${theme}`, async ({ page }) => {
+      await page.goto(`/?page=datetime&lng=${lng}&theme=${theme}`);
+      await expect(page.locator("html")).toHaveAttribute("lang", lng);
+      await enterInvalidDateTimes(page);
+      await parkPointer(page);
+      await expect(page.getByTestId("datetime-fields")).toBeVisible();
+      await expect(page).toHaveScreenshot(`datetime-${lng}-${theme}.png`, { fullPage: true });
+    });
+
+    for (const kind of ["date", "time", "datetime"] as const) {
+      test(`datetime ${kind} picker open ${lng} ${theme}`, async ({ page }) => {
+        await page.goto(`/?page=datetime&lng=${lng}&theme=${theme}`);
+        await expect(page.locator("html")).toHaveAttribute("lang", lng);
+        await page.getByTestId(`datetime-${kind}-idle-picker`).click();
+        await parkPointer(page);
+        await expect(page.getByTestId(`datetime-${kind}-idle-popover`)).toBeVisible();
+        await expect(page).toHaveScreenshot(`datetime-${kind}-open-${lng}-${theme}.png`, {
+          fullPage: true,
+        });
+      });
+    }
+  }
+}
+
+test("datetime: the date-time picker stacks below 640 px", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/?page=datetime&lng=de&theme=light");
+  await page.getByTestId("datetime-datetime-idle-picker").click();
+  const calendar = await page.getByTestId("datetime-datetime-idle-calendar").boundingBox();
+  const times = await page.getByTestId("datetime-datetime-idle-times").boundingBox();
+  expect(times!.y).toBeGreaterThanOrEqual(calendar!.y + calendar!.height);
+  // The list opens at the current step, stacked too.
+  await expect(
+    page.getByTestId("datetime-datetime-idle-times").getByRole("option", { name: "14:30" }),
+  ).toBeInViewport();
+  await parkPointer(page);
+  await expect(page.getByTestId("datetime-datetime-idle-popover")).toBeVisible();
+  await expect(page).toHaveScreenshot("datetime-datetime-open-de-light-390.png", {
+    fullPage: true,
+  });
+});
+
+test("datetime: grid and list side by side from 640 px, fields as high as Input", async ({
+  page,
+}) => {
+  await page.goto("/?page=datetime&lng=en");
+  for (const kind of ["date", "time", "datetime"]) {
+    const box = await page.getByTestId(`datetime-${kind}-idle`).boundingBox();
+    expect(box!.height).toBe(36);
+  }
+  await expect(
+    page.locator(
+      "[data-testid=datetime-fields] input:is([type=date],[type=time],[type=datetime-local])",
+    ),
+  ).toHaveCount(0);
+  await page.getByTestId("datetime-datetime-idle-picker").click();
+  const calendar = await page.getByTestId("datetime-datetime-idle-calendar").boundingBox();
+  const times = await page.getByTestId("datetime-datetime-idle-times").boundingBox();
+  expect(times!.x).toBeGreaterThanOrEqual(calendar!.x + calendar!.width);
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("datetime-datetime-idle")).toBeFocused();
 });

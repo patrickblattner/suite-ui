@@ -313,6 +313,17 @@ export const es: SuiteStrings = {
     placeholder: "Buscar zona horaria…",
     empty: "Ninguna zona horaria coincide",
   },
+  datetime: {
+    chooseDate: "Elegir fecha",
+    chooseTime: "Elegir hora",
+    chooseDateTime: "Elegir fecha y hora",
+    previousMonth: "Mes anterior",
+    nextMonth: "Mes siguiente",
+    invalidDate: "Introduce la fecha como D.M.AAAA",
+    invalidTime: "Introduce la hora como HH:MM",
+    dateMissing: "Esta fecha no existe",
+    timeMissing: "Esta hora no existe este día por el cambio de hora",
+  },
   combobox: {
     placeholder: "Buscar …",
     loading: "Buscando …",

@@ -317,6 +317,17 @@ export const de: SuiteStrings = {
     placeholder: "Zeitzone suchen…",
     empty: "Keine passende Zeitzone",
   },
+  datetime: {
+    chooseDate: "Datum wählen",
+    chooseTime: "Uhrzeit wählen",
+    chooseDateTime: "Datum und Uhrzeit wählen",
+    previousMonth: "Vorheriger Monat",
+    nextMonth: "Nächster Monat",
+    invalidDate: "Datum als T.M.JJJJ eingeben",
+    invalidTime: "Uhrzeit als HH:MM eingeben",
+    dateMissing: "Dieses Datum gibt es nicht",
+    timeMissing: "Diese Uhrzeit gibt es an diesem Tag wegen der Zeitumstellung nicht",
+  },
   combobox: {
     placeholder: "Suchen …",
     loading: "Wird gesucht …",
