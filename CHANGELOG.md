@@ -12,6 +12,7 @@
 - **Size (#970, GL-CODE-021, register #1998):** `./list/filter-bar` maximum 50847 → 53496 B (measured 50949 B + 5 %); cause: the `Select` it bundles now tells an uncontrolled owner of a lock close (finding #858), together with the `OverflowTooltip` stale-open drop (finding #831) and `Hint` carrying the field's lock reason (finding #825).
 - **Size (#970, GL-CODE-021, register #1998):** `./ui/date-time-field` maximum 55568 → 62332 B (measured 59363 B + 5 %); cause: the date/time fields now bundle the package's focus-return fallback (finding #826, GL-UI-050 rev 8).
 - **Removed (#970, finding #825):** `withLockReason` is no longer exported from `@suite/ui/ui/field-value-hint`; `Hint` appends the field's lock reason itself. No app used it.
+- **Fixed (#976, Codex CX1, GL-CODE-003 rev 5):** the inventory's malware check runs `npm audit --json --include=dev --include=optional --include=peer` and drops `NODE_ENV`, `npm_config_omit`, `npm_config_include`, `npm_config_production` and `npm_config_only` from its environment, so an environment or `.npmrc` that omits devDependencies (`NODE_ENV=production`, `omit=dev`, `production=true`) no longer leaves them out of the audit silently.
 
 ## 0.252.0 — #963 InlineMessage live={false}, #975 rule revisions (npm audit malware check, README owners) (minor)
 

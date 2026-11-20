@@ -330,12 +330,12 @@ export interface Ran {
   status: number | null;
 }
 
-function run(command: string, args: string[], cwd = root): Ran {
+function run(command: string, args: string[], cwd = root, env = process.env): Ran {
   const result = spawnSync(command, args, {
     cwd,
     encoding: "utf8",
     maxBuffer: 512 * 1024 * 1024,
-    env: { ...process.env, SEMGREP_SEND_METRICS: "off" },
+    env: { ...env, SEMGREP_SEND_METRICS: "off" },
   });
   if (result.error) throw new Unreadable(`${command}: ${result.error.message}`);
   return { stdout: result.stdout, stderr: result.stderr, status: result.status };
@@ -581,8 +581,27 @@ export function malwareRow(hit: MalwareFinding): DependencyFinding {
   };
 }
 
+// Every dependency type, whatever the environment or an .npmrc omits (`NODE_ENV=production`, `omit=dev`,
+// `production=true`): the include flags override them (checked with npm 11), and the spawn drops the
+// omitting variables as well, so devDependencies are never left out silently (#976, Codex CX1).
+export const NPM_AUDIT_ARGS = [
+  "audit",
+  "--json",
+  "--include=dev",
+  "--include=optional",
+  "--include=peer",
+];
+
+export function npmAuditEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  return Object.fromEntries(
+    Object.entries(env).filter(
+      ([key]) => key !== "NODE_ENV" && !/^npm_config_(omit|include|production|only)$/i.test(key),
+    ),
+  );
+}
+
 function npmAuditMalware(out: string): MalwareFinding[] {
-  const ran = run("npm", ["audit", "--json"]);
+  const ran = run("npm", NPM_AUDIT_ARGS, root, npmAuditEnv(process.env));
   // eslint-disable-next-line security/detect-non-literal-fs-filename -- root: the repo root (module URL); form (1): out (+ literal .spec-sync/hygiene[/gate]) + a literal report name
   writeFileSync(join(out, "npm-audit.json"), ran.stdout);
   return auditMalware(ran);

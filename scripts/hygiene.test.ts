@@ -34,6 +34,8 @@ import {
   gitleaksScan,
   jscpdCounts,
   knipCounts,
+  NPM_AUDIT_ARGS,
+  npmAuditEnv,
   malwareRow,
   recordLintRun,
   reusableLintReport,
@@ -314,6 +316,29 @@ describe("hygiene tool counts", () => {
       },
     ]);
     expect(auditMalware({ stdout: audit({}), stderr: "", status: 0 })).toEqual([]);
+  });
+
+  // #976 (Codex CX1): the audit covers devDependencies whatever the environment omits.
+  it("npm audit: includes every dependency type and drops the omitting environment", () => {
+    expect(NPM_AUDIT_ARGS).toEqual([
+      "audit",
+      "--json",
+      "--include=dev",
+      "--include=optional",
+      "--include=peer",
+    ]);
+    expect(
+      npmAuditEnv({
+        PATH: "/bin",
+        NODE_ENV: "production",
+        npm_config_omit: "dev",
+        NPM_CONFIG_OMIT: "dev",
+        npm_config_production: "true",
+        npm_config_only: "prod",
+        npm_config_include: "",
+        npm_config_registry: "https://registry.npmjs.org/",
+      }),
+    ).toEqual({ PATH: "/bin", npm_config_registry: "https://registry.npmjs.org/" });
   });
 
   it("npm audit: a failed audit is unreadable, never 0 malware", () => {
