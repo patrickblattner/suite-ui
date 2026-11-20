@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.251.0 — #971 labelled promote without icon (RowActionSet step, EditPanel headActions.primary), #973 MediaDetailShell save after Reset (minor)
+
 - **Changed (#971, SUI-FEATURE-330 rev 10, SUI-FEATURE-420 rev 4, GL-UI-011 rev 12, finding #870):** the labelled `RowActionSet` `step` (in `RowActions`, `PreviewToolbar`, `MediaDetailShell` and `MediaTile`) and the `EditPanel` `headActions.primary` show their label without an icon beside it, a lifecycle promote. Folded into the ⋯ menu the step keeps its icon; each `headActions.secondary` keeps icon and label. Names, hints, size, `busy`, `disabledText` and `shortcut` are unchanged; `submitKind="send"` keeps its icon.
 - Gallery (#971, finding #870): changed baselines (the labelled promote without its icon): `gallery/__screenshots__/edit-panel-head-actions-{edit,view}-{de,en,es}-{light,dark}.png`, `edit-panel-head-action-hint-en-light.png`, `list-step-de-light.png`, `media-detail-step-de-light.png` (15 files); `list-step-folded-de-light.png` and `media-tiles-step-de-light.png`, where the step sits folded in the ⋯ menu with its icon, are unchanged.
 - **Fixed (#973, Codex CX1, GL-UI-038 §Absenden):** `MediaDetailShell` Reset outdates the pending saves in its own handler, before `onReset` runs: a save that `onReset` starts (`requestSubmit()`) and that rejects or resolves `false` shows its field errors again. Another medium outdates the earlier saves in the commit that shows it, so a save started after paging shows its errors too.
