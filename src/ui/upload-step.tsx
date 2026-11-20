@@ -248,6 +248,17 @@ function UploadRow({ item, nameId }: { item: UploadItem; nameId: string }) {
   );
 }
 
+// An empty reason passes the type but locks with nothing to read (#803): name it in development.
+function useSilentLockWarning(silentLock: boolean) {
+  React.useEffect(() => {
+    if (silentLock && process.env.NODE_ENV !== "production") {
+      console.error(
+        '@suite/ui UploadStep: disabled with disabledReason="" locks without a reason.',
+      );
+    }
+  }, [silentLock]);
+}
+
 // The upload step, the create mode of the media panel (`GL-UI-027` §Hochladen, `SUI-FEATURE-051`):
 // first the options, then the file choice by drop or button; once the app transfers, one row per file
 // with its status (`GL-UI-033`), the error at its own row. A row keeps its height in every state. Files
@@ -285,6 +296,7 @@ function UploadStep({
   // Busy wins over the lock (`SUI-FEATURE-103`). An empty reason draws no line.
   const locked = disabled === true && busy !== true;
   const reason = locked && disabledReason !== "" ? disabledReason : undefined;
+  useSilentLockWarning(locked && reason === undefined);
   // Rows and the choice never stand together, so the rows' id is free to name the reason.
   const reasonId = `${rowsId}-lock`;
   const lock = locked

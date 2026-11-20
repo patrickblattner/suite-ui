@@ -224,6 +224,19 @@ describe("UploadStep", () => {
     expect(onFiles).toHaveBeenCalledTimes(1);
   });
 
+  // #803: an empty reason passes the type, so development names the silent lock once.
+  it("locked with an empty reason reports it in development", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { rerender } = render(<UploadStep disabled disabledReason="" onFiles={() => {}} />);
+    expect(screen.queryByTestId("upload-disabled-reason")).toBeNull();
+    expect(error).toHaveBeenCalledTimes(1);
+    expect(error.mock.calls[0]![0]).toContain('disabledReason=""');
+    rerender(<UploadStep disabled disabledReason="Locked" onFiles={() => {}} />);
+    rerender(<UploadStep disabled={false} disabledReason="" onFiles={() => {}} />);
+    expect(error).toHaveBeenCalledTimes(1);
+    error.mockRestore();
+  });
+
   it("disabled without a reason, and a trigger without its label, are type errors", () => {
     const onFiles = () => {};
     // @ts-expect-error -- a locked step always names its reason.
