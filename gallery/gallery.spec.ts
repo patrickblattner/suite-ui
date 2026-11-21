@@ -12,6 +12,7 @@ import {
   userMenuOrderViolations,
 } from "../src/testing/index.js";
 import { phoneFrame } from "../src/slides/phone-frame.js";
+import { installReaders } from "./browser-readers.js";
 import { shellTexts } from "./shell-labels.js";
 import { openMediaPanel, openViewModePanel } from "./media-panel.js";
 import { de } from "../src/strings/de.js";
@@ -3060,20 +3061,11 @@ for (const theme of THEMES) {
       if (drawer !== null) await page.getByTestId(drawer).first().click();
       await page.locator(selector).first().waitFor({ state: "attached" });
       await parkPointer(page);
+      await installReaders(page);
       const seen = await page.evaluate(
         ([sel, tok, list, labels, fills]) => {
-          const canvas = document.createElement("canvas");
-          canvas.width = canvas.height = 1;
-          const context = canvas.getContext("2d", { willReadFrequently: true })!;
           // A colour as it shows, drawn over the `under` colour when it is see-through.
-          const rgba = (fill: string, under?: string) => {
-            context.clearRect(0, 0, 1, 1);
-            for (const layer of under === undefined ? [fill] : [under, fill]) {
-              context.fillStyle = layer;
-              context.fillRect(0, 0, 1, 1);
-            }
-            return [...context.getImageData(0, 0, 1, 1).data];
-          };
+          const { rgba } = window.galleryReaders!;
           const surface = document.querySelector(sel as string)!;
           const style = getComputedStyle(surface);
           const tokenOf = (name: string) => rgba(style.getPropertyValue(name));
@@ -3317,21 +3309,7 @@ for (const width of [320, 390]) {
     const frame = page.getByTestId("status-frame-toggle");
     const head = frame.getByTestId("page-header");
     await expect(frame.getByTestId("page-title")).toHaveText("Website-Einstellungen");
-    const layout = () =>
-      head.evaluate((node) => {
-        const own = node.getBoundingClientRect();
-        const title = node.querySelector("[data-testid=page-title]")!;
-        return {
-          height: own.height,
-          overflow: node.scrollWidth - node.clientWidth,
-          // A screen-reader-only text is a 1 px box; it counts for nothing here.
-          outside: [...node.querySelectorAll("*")].filter((el) => {
-            const box = el.getBoundingClientRect();
-            return box.width > 1 && (box.left < own.left - 0.5 || box.right > own.right + 0.5);
-          }).length,
-          titleCut: title.scrollWidth - title.clientWidth,
-        };
-      });
+    const layout = () => headLayout(head);
     const idle = await layout();
     expect(idle).toMatchObject({ overflow: 0, outside: 0, titleCut: 0 });
     const toggle = frame.getByTestId("status-toggle");
@@ -3431,21 +3409,7 @@ for (const headWidth of [320, 390, 480]) {
       (node as HTMLElement).style.width = `${width + 34}px`;
     }, headWidth);
     expect(Math.round((await box(head)).width)).toBe(headWidth);
-    const layout = () =>
-      head.evaluate((node) => {
-        const own = node.getBoundingClientRect();
-        const title = node.querySelector("[data-testid=page-title]")!;
-        return {
-          height: own.height,
-          overflow: node.scrollWidth - node.clientWidth,
-          // A screen-reader-only text is a 1 px box; it counts for nothing here.
-          outside: [...node.querySelectorAll("*")].filter((el) => {
-            const box = el.getBoundingClientRect();
-            return box.width > 1 && (box.left < own.left - 0.5 || box.right > own.right + 0.5);
-          }).length,
-          titleCut: title.scrollWidth - title.clientWidth,
-        };
-      });
+    const layout = () => headLayout(head);
     const idle = await layout();
     expect(idle).toMatchObject({ overflow: 0, outside: 0, titleCut: 0 });
     const toggle = frame.getByTestId("status-toggle");
@@ -3929,20 +3893,11 @@ for (const theme of THEMES) {
     await expect(flip).toHaveAttribute("aria-pressed", "true");
     await expect(flip).toHaveAttribute("aria-disabled", "true");
     await parkPointer(page);
-    const look = () =>
-      page.evaluate(() => {
-        const canvas = document.createElement("canvas");
-        canvas.width = canvas.height = 1;
-        const context = canvas.getContext("2d", { willReadFrequently: true })!;
+    const look = async () => {
+      await installReaders(page);
+      return page.evaluate(() => {
         // A colour as it shows, drawn over the `under` colour when it is see-through.
-        const rgba = (fill: string, under?: string) => {
-          context.clearRect(0, 0, 1, 1);
-          for (const layer of under === undefined ? [fill] : [under, fill]) {
-            context.fillStyle = layer;
-            context.fillRect(0, 0, 1, 1);
-          }
-          return [...context.getImageData(0, 0, 1, 1).data];
-        };
+        const { rgba } = window.galleryReaders!;
         const read = (id: string) => {
           const node = document.querySelector(`[data-testid=${id}]`)!;
           const style = getComputedStyle(node);
@@ -3957,6 +3912,7 @@ for (const theme of THEMES) {
         };
         return { flip: read("image-flip"), crop: read("image-crop") };
       });
+    };
     const rest = await look();
     const half = (color: number[]) =>
       color.slice(0, 3).map((channel, i) => (channel + rest.flip.surface[i]!) / 2);
@@ -6172,6 +6128,36 @@ test("leave guard (BrowserRouter): browser back with a draft asks once and holds
   await expectNoDialog(page);
 });
 
+// Finding #638 (`SUI-FEATURE-331`, `SUI-FEATURE-064`): a same-tab row action link and a same-tab head
+// tool link go through the router, so with a draft each asks first; Cancel keeps the page and the
+// draft, Discard follows the link.
+for (const [what, testId] of [
+  ["row action", "harness-row-link"],
+  ["head tool", "editor-tool-open-item"],
+] as const) {
+  test(`leave guard (BrowserRouter): a same-tab ${what} link with a draft asks first`, async ({
+    page,
+  }) => {
+    await page.goto("/?harness=leave-guard");
+    await expect(page.getByTestId("harness-list")).toBeVisible();
+    const link = page.getByTestId(testId);
+    await expect(link).toHaveAttribute("href", "/item");
+    await expect(link).not.toHaveAttribute("target");
+    await page.getByTestId("harness-value").fill("draft");
+    await link.click();
+    await expect(page.getByTestId("leave-guard")).toBeVisible();
+    expect(pathOf(page)).toBe("/");
+    await page.getByTestId("leave-guard-cancel").click();
+    await expectNoDialog(page);
+    expect(pathOf(page)).toBe("/");
+    await expect(page.getByTestId("harness-value")).toHaveValue("draft");
+    await link.click();
+    await page.getByTestId("leave-guard-discard").click();
+    await expect(page.getByTestId("harness-item")).toBeVisible();
+    expect(pathOf(page)).toBe("/item");
+  });
+}
+
 // #235: the guard holds browser back only when the app's entry installed it before the router
 // rendered. Left out (`&install=none`, as when the guard only arrives with a lazy route), the router's
 // listener comes first and back leaves the draft: the harness above holds back because its entry
@@ -6570,13 +6556,7 @@ test("media detail shell: Used by switches the preview column to the usages", as
 // is the same as on an unlocked button, at full contrast, not dimmed by element opacity.
 test("media detail shell: locked Save and chevron keep the full focus ring", async ({ page }) => {
   const shell = await openMediaDetail(page);
-  const ring = (locator: ReturnType<Page["getByTestId"]>) =>
-    locator.evaluate((node) => {
-      let opacity = 1;
-      for (let el: Element | null = node; el; el = el.parentElement)
-        opacity *= Number(getComputedStyle(el).opacity);
-      return { opacity, shadow: getComputedStyle(node).boxShadow };
-    });
+  const ring = ringOf;
   const previous = shell.getByTestId("media-detail-previous");
   const next = shell.getByTestId("media-detail-next");
   const save = shell.getByTestId("media-detail-save");
@@ -6631,13 +6611,7 @@ test("edit panel: a locked chevron keeps the full focus ring and no dark hover",
   const previous = page.getByTestId("media-panel-previous");
   const next = page.getByTestId("media-panel-next");
   await expect(previous).toHaveAttribute("aria-disabled", "true");
-  const ring = (locator: typeof previous) =>
-    locator.evaluate((node) => {
-      let opacity = 1;
-      for (let el: Element | null = node; el; el = el.parentElement)
-        opacity *= Number(getComputedStyle(el).opacity);
-      return { opacity, shadow: getComputedStyle(node).boxShadow };
-    });
+  const ring = ringOf;
   const color = await utilityColor(page, "bg-ring", "backgroundColor");
   const settled = (locator: typeof previous) =>
     expect.poll(() => boxShadowOf(locator)).toContain(`${color} 0px 0px 0px 3px`);
@@ -9312,6 +9286,24 @@ test("settings section: Enter in the setup form saves the setup only", async ({ 
   await expect(page.getByTestId("settings-general-save")).not.toHaveAttribute("aria-busy", "true");
 });
 
+// Finding #627 (as #912 for the setup form): Enter in a SecretBlock's field saves that entry, not the
+// page form around it.
+test("settings block: Enter in the secret field saves the entry only", async ({ page }) => {
+  await page.goto("/?page=settings&layout=blocks&lng=en");
+  // The page form has a change of its own, so a submit of it would start its save.
+  await page.getByTestId("settings-field-1").fill("changed");
+  const value = page.getByTestId("secret-value");
+  await value.press("Enter");
+  await expect(page.getByTestId("secret-save")).not.toHaveAttribute("aria-busy", "true");
+  await value.fill("changed");
+  await value.press("Enter");
+  await expect(page.getByTestId("secret-save")).toHaveAttribute("aria-busy", "true");
+  await expect(value).toHaveValue("");
+  await expect(value).toBeFocused();
+  // The page form started no save.
+  await expect(page.getByTestId("settings-general-save")).not.toHaveAttribute("aria-busy", "true");
+});
+
 // #912: the gallery's bar-side floor sits in `@layer base` as the cockpit's does, so a package
 // utility on a nested scroller beats it.
 test("settings: a padding utility on a nested scroller beats the bar-side floor", async ({
@@ -10581,6 +10573,42 @@ async function utilityColor(page: Page, className: string, property: "background
     },
     [className, property],
   );
+}
+
+// A utility class's background as drawn, [r, g, b] (finding #623: one reader for every test).
+async function utilityRgb(page: Page, className: string) {
+  const color = await utilityColor(page, className, "backgroundColor");
+  await installReaders(page);
+  return page.evaluate((fill) => window.galleryReaders!.rgba(fill).slice(0, 3), color);
+}
+
+// An element's box shadow and the opacity it shows at, through all its ancestors (#623).
+function ringOf(locator: Locator) {
+  return locator.evaluate((node) => {
+    let opacity = 1;
+    for (let el: Element | null = node; el; el = el.parentElement)
+      opacity *= Number(getComputedStyle(el).opacity);
+    return { opacity, shadow: getComputedStyle(node).boxShadow };
+  });
+}
+
+// A page head's fit (#623): its height, its horizontal overflow, the boxes outside it and how much of
+// the title is cut.
+function headLayout(head: Locator) {
+  return head.evaluate((node) => {
+    const own = node.getBoundingClientRect();
+    const title = node.querySelector("[data-testid=page-title]")!;
+    return {
+      height: own.height,
+      overflow: node.scrollWidth - node.clientWidth,
+      // A screen-reader-only text is a 1 px box; it counts for nothing here.
+      outside: [...node.querySelectorAll("*")].filter((el) => {
+        const box = el.getBoundingClientRect();
+        return box.width > 1 && (box.left < own.left - 0.5 || box.right > own.right + 0.5);
+      }).length,
+      titleCut: title.scrollWidth - title.clientWidth,
+    };
+  });
 }
 
 // SUI-FEATURE-054 / GL-UI-013: every component focused by keyboard draws the one ring, the token at
@@ -13106,16 +13134,11 @@ for (const theme of THEMES) {
       .getByTestId("canvas-edge-right")
       .getByTestId("canvas-name-halo")
       .evaluate((el) => getComputedStyle(el).backgroundColor);
+    await installReaders(page);
     const style = await badge.evaluate((el, halo) => {
       const { backgroundColor, color } = getComputedStyle(el);
       // The badge's colours are opaque, so it stands out on any page, not only on the one tested.
-      const context = document.createElement("canvas").getContext("2d")!;
-      const alpha = (value: string) => {
-        context.clearRect(0, 0, 1, 1);
-        context.fillStyle = value;
-        context.fillRect(0, 0, 1, 1);
-        return context.getImageData(0, 0, 1, 1).data[3];
-      };
+      const { alpha } = window.galleryReaders!;
       return {
         backgroundColor,
         color,
@@ -13141,19 +13164,14 @@ for (const theme of THEMES) {
 // saturated — by one continuous 1 px line, all their colours opaque. The selection frame's solid
 // `--ring` line counts; the hover frame's dashed one does not, only its two halos.
 async function frameColors(frame: Locator) {
+  await installReaders(frame.page());
   return frame.evaluate((el) => {
     const { borderTopColor, borderTopStyle, borderTopWidth, boxShadow } = getComputedStyle(el);
     const halo = (inset: boolean) =>
       [...boxShadow.matchAll(/([a-z]+\([^)]*\)) 0px 0px 0px 1px( inset)?/g)].find(
         (match) => (match[2] !== undefined) === inset,
       )?.[1];
-    const context = document.createElement("canvas").getContext("2d")!;
-    const alpha = (value: string) => {
-      context.clearRect(0, 0, 1, 1);
-      context.fillStyle = value;
-      context.fillRect(0, 0, 1, 1);
-      return context.getImageData(0, 0, 1, 1).data[3];
-    };
+    const { alpha } = window.galleryReaders!;
     const colors = [borderTopColor, halo(false), halo(true)];
     return {
       colors,
@@ -13201,15 +13219,7 @@ for (const theme of THEMES) {
       await page.goto(`/?page=components&lng=en&theme=${theme}`);
       const canvas = page.getByTestId(`canvas-flush-${id}`);
       await canvas.scrollIntoViewIfNeeded();
-      const rgb = (className: string) =>
-        utilityColor(page, className, "backgroundColor").then((color) =>
-          page.evaluate((fill) => {
-            const context = document.createElement("canvas").getContext("2d")!;
-            context.fillStyle = fill;
-            context.fillRect(0, 0, 1, 1);
-            return [...context.getImageData(0, 0, 1, 1).data.slice(0, 3)];
-          }, color),
-        );
+      const rgb = (className: string) => utilityRgb(page, className);
       const [outside, ring, inside] = [
         await rgb("bg-background"),
         await rgb("bg-ring"),
@@ -13251,15 +13261,7 @@ for (const theme of THEMES) {
       await page.goto(`/?page=components&lng=en&theme=${theme}`);
       const scope = page.getByTestId(`canvas-ground-${ground}`);
       await scope.scrollIntoViewIfNeeded();
-      const rgb = (className: string) =>
-        utilityColor(page, className, "backgroundColor").then((color) =>
-          page.evaluate((fill) => {
-            const context = document.createElement("canvas").getContext("2d")!;
-            context.fillStyle = fill;
-            context.fillRect(0, 0, 1, 1);
-            return [...context.getImageData(0, 0, 1, 1).data.slice(0, 3)];
-          }, color),
-        );
+      const rgb = (className: string) => utilityRgb(page, className);
       const [ring, gap] = [await rgb("bg-ring"), await rgb("bg-background")];
       const near = (pixel: number[], color: number[]) =>
         Math.max(...color.map((channel, c) => Math.abs(channel - pixel[c]!))) <= 8;
@@ -15882,17 +15884,7 @@ test("slide player: prefers-reduced-motion plays every animation in no time", as
   ).toBeAttached();
   // Each step's animation with its duration. A transition (the locked chevron's colour, #344) has
   // no animation name.
-  const playing = () =>
-    page.evaluate(() =>
-      document
-        .getAnimations()
-        .filter((animation) => animation instanceof CSSAnimation)
-        .map((animation) => ({
-          name: animation.animationName,
-          duration: animation.effect!.getComputedTiming().duration,
-        }))
-        .filter(({ name }) => name.startsWith("suite-slide-")),
-    );
+  const playing = () => playingSlides(page);
   for (const name of ["suite-slide-slide-in-left", "suite-slide-zoom-in"]) {
     await page.keyboard.press("ArrowRight");
     await expect.poll(async () => (await playing()).map((frame) => frame.name)).toContain(name);
@@ -18398,16 +18390,11 @@ for (const theme of THEMES) {
     await drag({ x: 140, y: 130 }, { x: 18, y: 0 }, async () => {
       const guide = editor.getByTestId("slide-editor-guide-x");
       await expect(guide).toHaveCSS("width", "1px");
+      await installReaders(page);
       const style = await guide.evaluate((node) => {
         const { backgroundColor, boxShadow } = getComputedStyle(node);
         const halo = /([a-z]+\([^)]*\)) 0px 0px 0px 1px/.exec(boxShadow)?.[1];
-        const context = document.createElement("canvas").getContext("2d")!;
-        const alpha = (value: string) => {
-          context.clearRect(0, 0, 1, 1);
-          context.fillStyle = value;
-          context.fillRect(0, 0, 1, 1);
-          return context.getImageData(0, 0, 1, 1).data[3];
-        };
+        const { alpha } = window.galleryReaders!;
         return {
           line: backgroundColor,
           halo,
@@ -21593,6 +21580,8 @@ for (const lng of LANGUAGES) {
       test(`datetime ${kind} picker open ${lng} ${theme}`, async ({ page }) => {
         await page.goto(`/?page=datetime&lng=${lng}&theme=${theme}`);
         await expect(page.locator("html")).toHaveAttribute("lang", lng);
+        // Finding #821: the invalid column shows its error lines beside the open picker.
+        await enterInvalidDateTimes(page);
         await page.getByTestId(`datetime-${kind}-idle-picker`).click();
         await parkPointer(page);
         await expect(page.getByTestId(`datetime-${kind}-idle-popover`)).toBeVisible();
@@ -21607,6 +21596,7 @@ for (const lng of LANGUAGES) {
 test("datetime: the date-time picker stacks below 640 px", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/?page=datetime&lng=de&theme=light");
+  await enterInvalidDateTimes(page);
   await page.getByTestId("datetime-datetime-idle-picker").click();
   const calendar = await page.getByTestId("datetime-datetime-idle-calendar").boundingBox();
   const times = await page.getByTestId("datetime-datetime-idle-times").boundingBox();
@@ -21653,10 +21643,17 @@ test.describe("locked package fields (SUI-FEATURE-450)", () => {
     ["select", "How often it runs."],
     ["combobox", "Who speaks first."],
   ] as const;
-  for (const [field, hint] of hints) {
+  // Finding #824: also TagInput, DateTimeField and TimezoneCombobox, by the element the pointer meets.
+  const hovered = [
+    ...hints.map(([field, hint]) => [field, `locked-${field}-disabled`, hint] as const),
+    ["tag input", "locked-tags-disabled-input", "Where it shows up."],
+    ["date-time field", "locked-datetime-disabled", "When it goes live."],
+    ["timezone combobox", "locked-timezone-disabled", "Times are shown in it."],
+  ] as const;
+  for (const [field, testId, hint] of hovered) {
     test(`a disabled ${field} without a reason shows its value hint on hover`, async ({ page }) => {
       await page.goto("/?page=components&lng=en");
-      const control = page.getByTestId(`locked-${field}-disabled`);
+      const control = page.getByTestId(testId);
       await expect(control).toBeDisabled();
       await control.hover();
       await expect(page.getByRole("tooltip")).toHaveText(hint, { timeout: 5000 });

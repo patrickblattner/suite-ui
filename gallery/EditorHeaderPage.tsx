@@ -240,14 +240,18 @@ export function EditorRestorePage() {
   };
   return (
     <Section id="editor-restore" title="EditorHeader with Restore defaults">
+      {/* Finding #628: a caption over each variant, as the folded heads look alike with the ⋯ closed. */}
       <div className="flex flex-col gap-4">
+        <h3 className="text-sm text-muted-foreground">Full width</h3>
         <div className="rounded-md border" data-testid="editor-restore-wide">
           <EditorHeader {...head} />
         </div>
+        <h3 className="text-sm text-muted-foreground">Folded</h3>
         <div className="w-full max-w-[342px] rounded-md border" data-testid="editor-restore-folded">
           <EditorHeader {...head} />
         </div>
         {/* #912: folded and locked, the ⋯ entry names its reason (`SUI-FEATURE-430` AC 3). */}
+        <h3 className="text-sm text-muted-foreground">Folded, Restore defaults locked</h3>
         <div
           className="w-full max-w-[342px] rounded-md border"
           data-testid="editor-restore-folded-locked"

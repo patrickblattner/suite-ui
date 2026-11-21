@@ -626,6 +626,13 @@ function SecretBlock({ labels }: { labels: (typeof LABELS)[keyof typeof LABELS] 
   const [active, setActive] = useState(true);
   const [value, setValue] = useState("");
   const [saving, setSaving] = useState(false);
+  const save = () => {
+    setSaving(true);
+    window.setTimeout(() => {
+      setValue("");
+      setSaving(false);
+    }, SAVE_MS);
+  };
   return (
     <SettingsBlock
       name={labels.field}
@@ -649,17 +656,17 @@ function SecretBlock({ labels }: { labels: (typeof LABELS)[keyof typeof LABELS] 
         data-testid="secret-value"
         value={value}
         onChange={(event) => setValue(event.target.value)}
+        // Enter saves this entry, never the page form around it (#912, finding #627).
+        onKeyDown={(event) => {
+          if (event.key !== "Enter") return;
+          event.preventDefault();
+          if (value !== "" && !saving) save();
+        }}
       />
       <SettingsActionRow
         dirty={value !== ""}
         saving={saving}
-        onSave={() => {
-          setSaving(true);
-          window.setTimeout(() => {
-            setValue("");
-            setSaving(false);
-          }, SAVE_MS);
-        }}
+        onSave={save}
         onReset={() => setValue("")}
         testIdPrefix="secret"
       />

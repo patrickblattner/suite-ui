@@ -2069,6 +2069,12 @@ function LockedFields() {
     const key = reason === undefined ? "disabled" : "reason";
     return (
       <>
+        {/* Finding #824: a caption over each row, as Checkbox, Switch and RadioGroup look alike in both. */}
+        <h3 className="text-sm text-muted-foreground sm:col-span-2 lg:col-span-5">
+          {reason === undefined
+            ? "Locked without a reason (disabled)"
+            : "Locked with a reason (Field disabledReason)"}
+        </h3>
         <LockedTextFields id={key} reason={reason} />
         <LockedChoiceFields id={key} reason={reason} />
       </>

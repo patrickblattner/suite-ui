@@ -340,10 +340,11 @@ const TagInputField = React.forwardRef<HTMLInputElement, TagInputProps>(function
       aria-disabled={disabled || undefined}
       data-readonly={(readOnly && !disabled) || undefined}
       data-invalid={isInvalid ? "" : undefined}
-      // Disabled, the field opens no hover hint, as the disabled `Slider`.
-      {...(disabled
-        ? {}
-        : { onPointerMove, onPointerLeave, onPointerDown, onPointerDownCapture, onClick })}
+      // Disabled, hover still opens the field's value hint (`SUI-FEATURE-450` AC 5, finding #824); a
+      // press and a click stay out.
+      onPointerMove={onPointerMove}
+      onPointerLeave={onPointerLeave}
+      {...(disabled ? {} : { onPointerDown, onPointerDownCapture, onClick })}
       className={cn(
         "relative flex min-h-9 w-full min-w-0 flex-wrap items-center gap-1 rounded-md border border-input bg-transparent px-2 py-1 shadow-xs transition-[color,box-shadow] dark:bg-input/30",
         "focus-within:border-ring focus-within:focus-ring data-[invalid]:border-destructive",

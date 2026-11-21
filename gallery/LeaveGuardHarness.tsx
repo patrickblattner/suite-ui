@@ -1,3 +1,4 @@
+import { FileTextIcon, SquareArrowOutUpRightIcon } from "lucide-react";
 import { useState } from "react";
 import {
   BrowserRouter,
@@ -9,7 +10,9 @@ import {
   useSearchParams,
 } from "react-router-dom";
 
+import { RowActions } from "../src/list/row-actions.js";
 import { Button } from "../src/ui/button.js";
+import { EditorHeader } from "../src/ui/editor-header.js";
 import { Input } from "../src/ui/input.js";
 import { useLeaveGuard } from "../src/ui/leave-guard.js";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../src/ui/tabs.js";
@@ -77,8 +80,58 @@ function Form({ name }: { name: string }) {
           History back
         </Button>
       </div>
+      {name === "list" ? <SameTabLinks /> : null}
       {dialog}
     </main>
+  );
+}
+
+// Finding #638 (`SUI-FEATURE-331`, `SUI-FEATURE-064`): a same-tab row action link and a same-tab head
+// tool link are the router's `Link`, so with a draft their route change asks first like any other.
+function SameTabLinks() {
+  const noop = () => {};
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="rounded-md border">
+        <EditorHeader
+          title="Item"
+          onBack={noop}
+          dirty={false}
+          saving={false}
+          canUndo={false}
+          canRedo={false}
+          onUndo={noop}
+          onRedo={noop}
+          onSave={noop}
+          onReset={noop}
+          tools={[
+            {
+              id: "open-item",
+              label: "Open item",
+              icon: <FileTextIcon aria-hidden="true" />,
+              href: "/item",
+            },
+          ]}
+        />
+      </div>
+      <table>
+        <tbody>
+          <tr>
+            <RowActions
+              rowName="Item"
+              extra={[
+                {
+                  label: "Open",
+                  icon: SquareArrowOutUpRightIcon,
+                  href: "/item",
+                  "data-testid": "harness-row-link",
+                },
+              ]}
+            />
+          </tr>
+        </tbody>
+      </table>
+    </div>
   );
 }
 

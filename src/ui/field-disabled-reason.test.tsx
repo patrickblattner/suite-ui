@@ -514,6 +514,18 @@ describe("A disabled field (AC5)", () => {
     hoverFor(field, 1500);
     expect(bubble()).toHaveTextContent(HINT);
   });
+
+  // Finding #824: the disabled TagInput's frame, chips included, is the hover trigger as when free.
+  it("a TagInput without a reason shows its value hint on hover of its frame", () => {
+    render(
+      <Field label="Tags" htmlFor="t" valueHint={HINT}>
+        <TagInput id="t" testId="tags" value={["a"]} onChange={() => {}} disabled />
+      </Field>,
+    );
+    expect(screen.getByLabelText("Tags")).toBeDisabled();
+    hoverFor(screen.getByTestId("tags"), 1500);
+    expect(bubble()).toHaveTextContent(HINT);
+  });
 });
 
 describe("The reason arriving and removed (AC6)", () => {
