@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.257.0 — #981 R6 close-out: one-height EditorHeader (sm), Slider as a field, #984 save-failure focus and panel re-measure (minor)
+
 - **Fixed (#984, Codex CX1, GL-UI-038 §Absenden):** a submit that starts valid and fails later with a field error from the server focuses that field again: the shared submit rule of `EditPanel`, `FieldForm` and `MediaDetailShell` (`useFieldSubmits`) notes the submit once more when the current attempt's promise resolves to anything but `true` or rejects, so every field shows its error and the first invalid one takes the focus. An outdated attempt (an older save, or one before paging or Reset) still moves nothing.
 - **Size (#984, GL-CODE-021, register #1998):** maxima at measured + 5 %: `./ui/field-form` 1393 → 1490 B (measured 1419 B); cause: the shared submit rule notes a current attempt's later failure as a submit (CX1).
 - **Fixed (#984, Codex CX2, SUI-FEATURE-142 rev 4):** the panels' region watch skips only out-of-flow nodes after the region chain (a portal root standing `fixed` or `absolute`, and the removal of one it saw come); an in-flow node added or removed after the region (a footer in a centring column, which moves the region without any resize) re-measures the top edge again.
