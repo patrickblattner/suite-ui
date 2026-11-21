@@ -160,9 +160,11 @@ describe("MediaTile", () => {
   it("selected shows the selection ring and is pressed; without it the tile is no choice", () => {
     const { tile } = renderTile({ selected: true });
     expect(tile).toHaveAttribute("aria-pressed", "true");
+    // On hover the ring takes its own hover token (`GL-UI-013` rev 6, #819).
     expect(tile.querySelector("[data-slot=media-tile-selection]")).toHaveClass(
       "ring-2",
       "ring-primary",
+      "group-hover/tile:ring-primary-hover",
     );
     cleanup();
     const plain = renderTile().tile;

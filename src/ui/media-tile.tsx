@@ -172,12 +172,13 @@ function MediaTile({
           className="pointer-events-none absolute inset-0 hidden rounded-[inherit] ring-[3px] ring-ring ring-inset group-focus-visible/tile:block"
         />
       )}
-      {/* The selection ring sits over the tile's edge, independent of the focus ring. */}
+      {/* The selection ring sits over the tile's edge, independent of the focus ring; hover takes the
+          ring's own hover token (`GL-UI-013` rev 6, #819). */}
       {isSelected && (
         <span
           aria-hidden="true"
           data-slot="media-tile-selection"
-          className="pointer-events-none absolute inset-0 rounded-[inherit] ring-2 ring-primary ring-inset"
+          className="pointer-events-none absolute inset-0 rounded-[inherit] ring-2 ring-primary ring-inset group-hover/tile:ring-primary-hover"
         />
       )}
       {isSelected && (

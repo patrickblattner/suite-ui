@@ -56,13 +56,15 @@ describe("TileGridShell tabs", () => {
   });
 
   // Finding #577 (`GL-UI-013`, #850): 6 px of ring room on the top, start and bottom sides, taken back
-  // by an equal negative margin; the end side keeps the list frame's shared gutter alone (`GL-UI-018`).
-  // The gallery measures the ring against the scroller's visible rect.
-  it("the scroller carries ring room on the top, start and bottom sides, not on the end side", () => {
+  // by an equal negative margin; on the bar side exactly the ring's 3 px, not taken back (`GL-UI-018`
+  // rev 11 §Listen-Rahmen). The gallery measures the ring against the scroller's visible rect.
+  it("the scroller carries ring room: 6 px taken back on top, start and bottom, 3 px on the end", () => {
     renderGrid({});
     const classes = screen.getByTestId("tile-grid-scroll").className.split(" ");
-    expect(classes).toEqual(expect.arrayContaining(["-my-1.5", "py-1.5", "-ms-1.5", "ps-1.5"]));
-    expect(classes.some((name) => /^-?(pe|me|px|mx|p|m)-/.test(name))).toBe(false);
+    expect(classes).toEqual(
+      expect.arrayContaining(["-my-1.5", "py-1.5", "-ms-1.5", "ps-1.5", "pe-[3px]"]),
+    );
+    expect(classes.some((name) => /^-?(me|px|mx|p|m)-/.test(name))).toBe(false);
   });
 });
 

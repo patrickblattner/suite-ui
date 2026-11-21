@@ -21771,7 +21771,7 @@ test("locked native checkbox and radio: Enter submits the form, Space changes no
 
 // Finding #577 (`GL-UI-013` "Fokus nie verdeckt"): a tab stop at a scroller's edge shows its whole
 // 3 px ring inside the scroller's visible rect — the data table's row actions scrolled in at the bottom
-// edge, the tile grid's tiles at its top, start and bottom edges. Real scrollbars, so the visible rect
+// edge, the tile grid's tiles at its top, start, end (`GL-UI-018` rev 11 ring room) and bottom edges. Real scrollbars, so the visible rect
 // is the one a person sees.
 test("scrollers keep the whole focus ring of an edge tab stop in view @scrollbars", async ({
   page,
@@ -21797,6 +21797,7 @@ test("scrollers keep the whole focus ring of an edge tab stop in view @scrollbar
       top: Math.max(0, Math.round(top - (r.top - spread))),
       left: Math.max(0, Math.round(left - (r.left - spread))),
       bottom: Math.max(0, Math.round(r.bottom + spread - (top + box.clientHeight))),
+      right: Math.max(0, Math.round(r.right + spread - (left + box.clientWidth))),
     };
   };
   // Keyboard modality, so a focus call draws the ring; it fades in, so measure it at full spread.
@@ -21806,7 +21807,7 @@ test("scrollers keep the whole focus ring of an edge tab stop in view @scrollbar
     await expect.poll(() => target.evaluate(clipped, scroller).then((c) => c.spread)).toBe(3);
     return target.evaluate(clipped, scroller);
   };
-  const none = { spread: 3, top: 0, left: 0, bottom: 0 };
+  const none = { spread: 3, top: 0, left: 0, bottom: 0, right: 0 };
 
   await page.goto("/?page=list&actions=1&band=1");
   const table = "[data-testid=data-table-scroll]";
@@ -21825,6 +21826,21 @@ test("scrollers keep the whole focus ring of an edge tab stop in view @scrollbar
   const tiles = page.getByTestId("media-tiles-scroll").getByTestId("media-tile");
   expect(await focusRing(tiles.first(), grid)).toEqual(none);
   expect(await focusRing(tiles.last(), grid)).toEqual(none);
+  // The tile at the end of the first row, against the bar side.
+  const ends = await tiles.evaluateAll((all) => all.map((el) => el.getBoundingClientRect().right));
+  const endTile = tiles.nth(ends.indexOf(Math.max(...ends)));
+  expect(await focusRing(endTile, grid)).toEqual(none);
+  // In a list frame the ring's outer edge ends where the FilterBar ends (±1 px), the frame's one right
+  // edge (`GL-UI-018` rev 11 §Listen-Rahmen).
+  await page.getByTestId("view-tiles").click();
+  const frame = page.getByTestId("tiles-media").getByTestId("tile-grid");
+  await expect(frame).toBeVisible();
+  const frameTiles = frame.getByTestId("tile-grid-scroll").locator(":scope > div > *");
+  const rights = await frameTiles.evaluateAll((all) =>
+    all.map((el) => el.getBoundingClientRect().right),
+  );
+  const bar = await box(page.getByTestId("tiles-media").getByTestId("filterbar"));
+  expect(Math.abs(Math.max(...rights) + 3 - (bar.x + bar.width))).toBeLessThanOrEqual(1);
 });
 
 // #979 (Codex CX1, `GL-UI-013`): a text field matches `:focus-visible` after a press as well, so the

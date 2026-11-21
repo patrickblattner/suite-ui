@@ -11,10 +11,11 @@ const SKELETON_TILE_COUNT = 6;
 
 // The scroller clips at its padding box, so it carries 6 px of room for the 3 px focus ring of a tile on
 // the top, start and bottom sides, taken back by an equal negative margin: the tiles keep their place and
-// a tile at the edge shows its whole ring (`GL-UI-013` rev 5, #850, finding #577). The end side stays
-// without, as the list frame's shared gutter has it (`GL-UI-018`).
+// a tile at the edge shows its whole ring (`GL-UI-013` rev 5, #850, finding #577). On the bar side it
+// carries exactly the ring's width, not taken back: the ring's outer edge ends where FilterBar and pager
+// end (`GL-UI-018` rev 11 §Listen-Rahmen).
 const SCROLL_CLASS =
-  "relative -my-1.5 -ms-1.5 min-h-6 flex-1 scroll-py-2 overflow-auto py-1.5 ps-1.5 [scrollbar-gutter:stable]";
+  "relative -my-1.5 -ms-1.5 min-h-6 flex-1 scroll-py-2 overflow-auto py-1.5 ps-1.5 pe-[3px] [scrollbar-gutter:stable]";
 
 const GRID_CLASS = "grid grid-cols-[repeat(auto-fill,minmax(12rem,1fr))] gap-4";
 

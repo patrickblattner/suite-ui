@@ -149,6 +149,36 @@ describe("DateField, TimeField, DateTimeField (SUI-FEATURE-145)", () => {
   });
 });
 
+describe("the picker's selected entries (GL-UI-013 rev 6, finding #819)", () => {
+  // GL-UI-013, finding #819: the selected day, filled, still answers hover, with the filled button's
+  // tint; an unselected day keeps the accent tint. The gallery measures the colours.
+  it("the selected day answers hover with the filled tint, not its own fill", () => {
+    render(<DateField testId="field" aria-label="Day" value="2026-04-15" onChange={() => {}} />);
+    fireEvent.click(screen.getByTestId("field-picker"));
+    const calendar = screen.getByTestId("field-calendar");
+    const selected = calendar.querySelector<HTMLElement>("[data-date='2026-04-15']")!;
+    expect(selected.className.split(" ")).toContain("hover:bg-primary-hover");
+    expect(selected.className.split(" ")).not.toContain("hover:bg-primary");
+    const other = calendar.querySelector<HTMLElement>("[data-date='2026-04-16']")!;
+    expect(other.className.split(" ")).toContain("hover:bg-accent");
+  });
+
+  // GL-UI-013 rev 6, finding #819: the selected time step keeps its tint; hover takes the tint's own
+  // hover token, as the selected day does. The gallery measures the colours.
+  it("the selected time step keeps its tint and answers hover with secondary-hover", () => {
+    render(<TimeField testId="field" aria-label="Time" value="14:30" onChange={() => {}} />);
+    fireEvent.click(screen.getByTestId("field-picker"));
+    const selected = within(screen.getByTestId("field-times")).getByRole("option", {
+      selected: true,
+    });
+    const classes = selected.className.split(" ");
+    expect(selected).toHaveTextContent("14:30");
+    expect(classes).toEqual(
+      expect.arrayContaining(["aria-selected:bg-accent", "aria-selected:hover:bg-secondary-hover"]),
+    );
+  });
+});
+
 describe("the picker (SUI-FEATURE-145 §Picker)", () => {
   it.each(["de", "en", "es"])("AC4: the calendar starts on Monday in %s", async (lng) => {
     await i18n.changeLanguage(lng);
@@ -161,19 +191,6 @@ describe("the picker (SUI-FEATURE-145 §Picker)", () => {
     }).format(Date.UTC(2024, 0, 1));
     expect(headers[0]).toHaveAttribute("abbr", monday);
     expect(headers).toHaveLength(7);
-  });
-
-  // GL-UI-013, finding #819: the selected day, filled, still answers hover, with the filled button's
-  // tint; an unselected day keeps the accent tint. The gallery measures the colours.
-  it("the selected day answers hover with the filled tint, not its own fill", () => {
-    render(<DateField testId="field" aria-label="Day" value="2026-04-15" onChange={() => {}} />);
-    fireEvent.click(screen.getByTestId("field-picker"));
-    const calendar = screen.getByTestId("field-calendar");
-    const selected = calendar.querySelector<HTMLElement>("[data-date='2026-04-15']")!;
-    expect(selected.className.split(" ")).toContain("hover:bg-primary-hover");
-    expect(selected.className.split(" ")).not.toContain("hover:bg-primary");
-    const other = calendar.querySelector<HTMLElement>("[data-date='2026-04-16']")!;
-    expect(other.className.split(" ")).toContain("hover:bg-accent");
   });
 
   it("AC4: arrows, PageDown and Enter pick a day; the focus returns to the input", () => {

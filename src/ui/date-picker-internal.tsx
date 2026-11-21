@@ -302,7 +302,9 @@ function TimeList({
             tabIndex={index === active ? 0 : -1}
             aria-selected={sameTime(selected, step)}
             onClick={() => onPick(step)}
-            className="cursor-pointer rounded-sm px-2 py-1.5 text-center text-sm tabular-nums outline-none select-none hover:bg-accent hover:text-accent-foreground focus-visible:focus-ring-inset aria-selected:bg-accent aria-selected:font-medium aria-selected:text-accent-foreground"
+            // The selected step keeps its tint; hover takes the tint's own hover token (`GL-UI-013` rev 6,
+            // #819), as the selected day does with its fill.
+            className="cursor-pointer rounded-sm px-2 py-1.5 text-center text-sm tabular-nums outline-none select-none hover:bg-accent hover:text-accent-foreground focus-visible:focus-ring-inset aria-selected:bg-accent aria-selected:font-medium aria-selected:text-accent-foreground aria-selected:hover:bg-secondary-hover"
           >
             {formatTime(step)}
           </li>
