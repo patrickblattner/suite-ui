@@ -124,13 +124,35 @@ function contentRegion(): HTMLElement | null {
  * addition in the document is watched until a region appears. Returns the stop.
  */
 function watchRegion(changed: () => void): () => void {
-  const watch = new MutationObserver(run);
+  // Each watched parent with its child on the region chain; empty while no region is found.
+  const chain = new Map<Node, Node>();
+  // The region found by the last run.
+  let region: HTMLElement | null = null;
+  const watch = new MutationObserver((records) => {
+    if (chain.size === 0 || records.some(touchesChain) || contentRegion() !== region) run();
+  });
+  // A change after the chain node in its parent (a tooltip, toast or popover portal mounting at the
+  // end of `<body>`) neither moves the region nor replaces it; its size is the ResizeObserver's
+  // (#981 finding #846). Unless it changes which element is the region (a sidebar coming or going
+  // after the chain): that is read with a DOM query, no layout read.
+  function touchesChain(record: MutationRecord): boolean {
+    const own = chain.get(record.target);
+    if (own === undefined || own.parentNode !== record.target) return true;
+    if ([...record.removedNodes].includes(own)) return true;
+    const before = record.previousSibling;
+    return (
+      before === null ||
+      (before !== own && !(own.compareDocumentPosition(before) & Node.DOCUMENT_POSITION_FOLLOWING))
+    );
+  }
   function run() {
     changed();
     watch.disconnect();
-    const region = contentRegion();
+    chain.clear();
+    region = contentRegion();
     if (region === null) watch.observe(document.body, { childList: true, subtree: true });
     for (let node = region; node?.parentElement != null; node = node.parentElement) {
+      chain.set(node.parentElement, node);
       watch.observe(node.parentElement, { childList: true });
     }
   }

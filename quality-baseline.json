@@ -12,11 +12,11 @@
     "licence-inventory.outside-allowlist": 0,
     "knip.findings": 3,
     "eslint.security": 0,
-    "eslint.complexity": 49,
+    "eslint.complexity": 47,
     "eslint.max-depth": 4,
-    "eslint.max-lines-per-function": 176,
+    "eslint.max-lines-per-function": 172,
     "eslint.max-params": 11,
-    "eslint.cognitive-complexity": 23
+    "eslint.cognitive-complexity": 21
   },
   "inventoryOnly": {
     "gitleaks.history": {

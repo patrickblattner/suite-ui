@@ -514,6 +514,64 @@ describe("the panel's top edge follows the covered region (SUI-FEATURE-142 rev 4
   });
 });
 
+// #981 finding #846: a portal mounting at the end of <body> (a tooltip, toast or popover) is no
+// change of the region chain: no region lookup and no layout read.
+describe("portals beside the region (#846)", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("reads no layout when a portal mounts after the region chain", async () => {
+    const rects = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect");
+    render(
+      <div>
+        <div>Dev mode</div>
+        <main data-testid="content">
+          <EditPanel open onOpenChange={() => {}} title="Item" mode="view">
+            x
+          </EditPanel>
+        </main>
+      </div>,
+    );
+    await act(() => Promise.resolve());
+    const reads = () => rects.mock.contexts.filter((node) => node === content()).length;
+    const before = reads();
+    const portal = document.createElement("div");
+    act(() => document.body.append(portal));
+    await act(() => Promise.resolve());
+    act(() => portal.remove());
+    await act(() => Promise.resolve());
+    expect(reads()).toBe(before);
+  });
+
+  // Review of #981: a sidebar that comes or goes after the chain changes which element is the region.
+  it.each([
+    ["mounted", false, "content"],
+    ["removed", true, "main"],
+  ])("follows a sidebar %s after the region chain", async (_, sidebarFirst, region) => {
+    const page = (sidebar: boolean) => (
+      <div>
+        <div data-testid="content">
+          <main data-testid="main">
+            <EditPanel open onOpenChange={() => {}} title="Item" mode="view">
+              x
+            </EditPanel>
+          </main>
+        </div>
+        {sidebar ? <nav id={SIDEBAR_ID} /> : null}
+      </div>
+    );
+    const { rerender } = render(page(sidebarFirst));
+    await act(() => Promise.resolve());
+    const before = sidebarFirst ? content() : screen.getByTestId("main");
+    expect(before).toHaveAttribute("inert");
+    rerender(page(!sidebarFirst));
+    await act(() => Promise.resolve());
+    expect(screen.getByTestId(region)).toHaveAttribute("inert");
+    expect(before).not.toHaveAttribute("inert");
+  });
+});
+
 // #686: the app removes its main in one commit (a spinner while the page loads) and adds it back in
 // a later one, while a panel over it stays open.
 describe("a region gone and back (#686)", () => {

@@ -247,127 +247,14 @@ function CompactSign({
   );
 }
 
-// The one header of every editor page (`GL-UI-034`, `SUI-FEATURE-064`): Back and the title on the
-// left; on the right Undo, Redo, the state ("Saved" or "Draft · unsaved"), Reset and Save. Reset and
-// Save are locked while nothing differs from the saved state; Reset asks first. Ctrl/Cmd+Z and
-// Ctrl+Y / Cmd+Shift+Z answer as the buttons, except in a text field (`GL-UI-006`). The editor's own
-// toolbar stays below or beside it. With `lifecycle` (`SUI-FEATURE-069`) Preview, ⋯ and the next step
-// stand before that group, behind a separator; the next step is locked while the draft is unsaved, so
-// never more than one green button is usable at a time.
-//
-// `SUI-FEATURE-104`: the editor's `tools` lead the right group, behind a separator of their own; a
-// running operation's `status` stands left of the state. `readOnly` drops every write control (Undo,
-// Redo, the state, Reset, Save, the next step, the record's menu) and names the mode instead of the
-// state; at narrow width that text folds like the state, to an eye (rev 3). `readOnly="content"`
-// (`SUI-FEATURE-119`) drops the editor group the same but keeps the lifecycle. `SUI-FEATURE-105`: the
-// title is the page's `h1`, `subtitle` one muted line under it; a title given as an inline input
-// sits in that `h1`, scrolls its own overflow without a tooltip, and is measured by `titleText`,
-// held while the focus is inside it.
-//
-// `SUI-FEATURE-390`: `kind="record"` drops the editor group (Undo, Redo, the state, Reset, Save, the
-// reset confirm) and its shortcuts; everything else stays as in the draft head, and the right group
-// closes up to the edge as the read-only head's does. With `readOnly` it keeps the read-only sign.
-//
-// `SUI-FEATURE-090`: the header measures its own width. While it overflows one line it folds a step
-// (`Fold`); each step remembers the width it needed, and once the header is that wide again it steps
-// back. The title truncates with its full text as a tooltip. There is never more than one ⋯: with a
-// lifecycle it stands after Preview until the first step and leads the group from then on, without
-// one directly left of Save; folded header tools keep their text, icon and lock there, above the
-// lifecycle menu's own entries after a separator.
-// A control that locks under the focus and the Reset confirm hand the focus on as `GL-UI-050` says.
-// Save, Reset, Undo and Redo lock themselves with `aria-disabled` and a trigger lock, so they keep the
-// focus after saving and after the last step (`SUI-FEATURE-120`, #370, #392); a confirmed Reset hands
-// it on from the locked trigger.
-function EditorHeader({
-  title,
-  titleText: measuredText,
-  subtitle,
-  onBack,
-  backHint,
-  kind = "draft",
-  canUndo = false,
-  canRedo = false,
-  onUndo,
-  onRedo,
-  dirty = false,
-  saving: savingOwn = false,
-  pending = false,
-  onSave,
-  onReset,
-  lifecycle,
-  tools: headerTools = [],
-  restoreDefaults,
-  status,
-  readOnly: readOnlyMode = false,
-  layout,
-}: EditorHeaderProps | EditorHeaderRecordProps) {
-  const { t, i18n } = useTranslation("suite");
-  // While the guard's call runs the header works as for a save; the draft takes no step meanwhile.
-  const saving = savingOwn || pending;
-  const undoable = canUndo && !pending;
-  const redoable = canRedo && !pending;
-  // The editor group gives way to "Read only" either way; only a reading role loses the next step
-  // and the record's menu (`SUI-FEATURE-119`).
-  const readOnly = readOnlyMode !== false;
-  const roleReadOnly = readOnlyMode === true;
-  // A record head (`SUI-FEATURE-390`) has no editor group; read-only, neither has a draft head.
-  const record = kind === "record";
-  const noEditorGroup = readOnly || record;
-  const [confirming, setConfirming] = React.useState(false);
-  // A field's typed but uncommitted entry on the page (`SUI-FEATURE-118` rev 8): Reset drops it
-  // before its confirm takes the focus, whose blur would else take the tag over.
-  const drafts = React.useContext(FieldDraftsContext) ?? undefined;
-  const hasDrafts = useHasFieldDrafts(drafts);
-  useEditShortcuts({
-    onUndo: undoable && !noEditorGroup ? onUndo : undefined,
-    onRedo: redoable && !noEditorGroup ? onRedo : undefined,
-  });
-  // The header tools fold with Preview. Read-only, only what it shows can fold; the read-only text
-  // stands in the state's place and folds as `SUI-FEATURE-090` stage 4 (here the second step). A
-  // record head folds the same, without a state unless it is read-only.
-  // "Restore defaults" is a write handle: read-only, it is gone (`SUI-FEATURE-430`).
-  const restore = readOnly ? undefined : restoreDefaults;
-  // The folded entry is the person's edit as the wide button's click is (`GL-UI-038`, #588).
-  const userEdit = React.useContext(FieldUserEditContext);
-  const foldsPreview =
-    lifecycle?.preview !== undefined || headerTools.length > 0 || restore !== undefined;
-  const foldsNext = lifecycle?.next?.icon !== undefined && !roleReadOnly;
-  const folds: Fold[] = noEditorGroup
-    ? [
-        ...(foldsPreview ? ["preview" as const] : []),
-        ...(readOnly ? ["state" as const] : []),
-        "back",
-        ...(foldsNext ? ["next" as const] : []),
-        "title",
-      ]
-    : [
-        "undo",
-        "reset",
-        ...(foldsPreview ? ["preview" as const] : []),
-        "state",
-        "back",
-        "save",
-        ...(foldsNext ? ["next" as const] : []),
-        "title",
-      ];
-  // The title's floor: its first 18 characters and the ellipsis while folding, 6 after the last
-  // step, sized by an invisible copy in the title's own font. A title given as nodes is read back
-  // from the rendered text; an input title has none, so the app names it by `titleText`.
-  const titleBox = React.useRef<HTMLDivElement>(null);
-  const [renderedTitle, setRenderedTitle] = React.useState("");
-  React.useLayoutEffect(() => {
-    if (typeof title === "string" || measuredText !== undefined) return;
-    const text =
-      titleBox.current?.querySelector("[data-slot=editor-title-text]")?.textContent ?? "";
-    setRenderedTitle(text);
-  }, [title, measuredText]);
-  // While the focus is inside the title its measured text holds, so the fold step does too and the
-  // input scrolls instead; leaving the title measures the current `titleText` (`SUI-FEATURE-105` rev 4,
-  // like the status in `SUI-FEATURE-104`: controls never move under typing hands).
+// While the focus is inside the title its measured text holds, so the fold step does too and the
+// input scrolls instead; leaving the title measures the current `titleText` (`SUI-FEATURE-105` rev 4,
+// like the status in `SUI-FEATURE-104`: controls never move under typing hands). Returns the text the
+// header measures, the hold on focus and its release on leaving (#981 finding #625).
+function useTitleHold(measuredText: string | undefined) {
   const [heldText, setHeldText] = React.useState<string | undefined>(undefined);
   // An input title swapped for a text title while it has the focus sends no blur; its hold goes too.
   if (measuredText === undefined && heldText !== undefined) setHeldText(undefined);
-  const typedText = heldText ?? measuredText;
   // The hold ends once the focus has landed where it went, so the refold keeps it on that control;
   // left by a press, once the press has ended, so the pressed control acts where it was pressed.
   // Opened from the header right after typing (the ⋯ menu), a popup holds it as well: a refold would
@@ -442,23 +329,708 @@ function EditorHeader({
     document.addEventListener("pointerup", end, true);
     document.addEventListener("pointercancel", end, true);
   };
-  const titleText = typedText ?? (typeof title === "string" ? title : renderedTitle);
-  const stateText = t(readOnly ? "editor.readOnly" : dirty ? "editor.draft" : "editor.saved");
-  // What the header shows: a new language, state text, title floor or lifecycle label folds it
-  // afresh, so a shorter text (after Save, or in another language) unfolds again without a resize.
-  // Only the title's longest floor counts: typing in a live-bound title refolds nothing. A given
-  // `titleText` counts whole: each change of it measures again, outside a focused title.
-  const content = [
-    i18n.language,
-    stateText,
-    typedText ?? titleText.slice(0, TITLE_BUDGET),
-    lifecycle?.preview?.label,
-    lifecycle?.next?.label,
-    folds.join(),
-  ].join("\u0000");
-  // A control a refold locked or took away (the ⋯ when its tools unfold) hands the focus on in
-  // `GL-UI-050`'s order from where it stood; a Save swapped between icon and text takes it back.
-  // The status counts apart, so one that narrows or goes gives back the folds it took (#581).
+  const hold = () => setHeldText((held) => held ?? measuredText);
+  return { typedText: heldText ?? measuredText, hold, releaseHold };
+}
+
+// The title's text for its floor: its first 18 characters and the ellipsis while folding, 6 after the
+// last step, sized by an invisible copy in the title's own font. A title given as nodes is read back
+// from the rendered text; an input title has none, so the app names it by `titleText`.
+function useTitleText(
+  title: React.ReactNode,
+  measuredText: string | undefined,
+  titleBoxRef: React.RefObject<HTMLDivElement | null>,
+) {
+  const [renderedTitle, setRenderedTitle] = React.useState("");
+  React.useLayoutEffect(() => {
+    if (typeof title === "string" || measuredText !== undefined) return;
+    const text =
+      titleBoxRef.current?.querySelector("[data-slot=editor-title-text]")?.textContent ?? "";
+    setRenderedTitle(text);
+  }, [title, measuredText, titleBoxRef]);
+  const held = useTitleHold(measuredText);
+  const titleText = held.typedText ?? (typeof title === "string" ? title : renderedTitle);
+  return { ...held, titleText };
+}
+
+// A control that locks while it has the focus hands it on.
+function useLockHandsOn(headerRef: React.RefObject<HTMLElement | null>, locks: readonly boolean[]) {
+  React.useLayoutEffect(() => {
+    const node = headerRef.current;
+    if (node === null) return;
+    const active = document.activeElement;
+    if (
+      active instanceof HTMLButtonElement &&
+      node.contains(active) &&
+      active.disabled &&
+      !active.hasAttribute("aria-busy")
+    ) {
+      nextFocusTarget(node, active)?.focus();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs when a lock changes
+  }, locks);
+}
+
+// What a draft head's undo, redo and reset are now; Reset is locked while nothing differs from the
+// saved state or while the save runs, and names why.
+function editorLocks(
+  t: (key: string) => string,
+  state: { dirty: boolean; saving: boolean; pending: boolean },
+  undoable: boolean,
+  redoable: boolean,
+): EditorLocks {
+  const { dirty, saving, pending } = state;
+  return {
+    undoable,
+    redoable,
+    undoNone: pending ? t("editor.pendingHint") : t("editor.undoNone"),
+    redoNone: pending ? t("editor.pendingHint") : t("editor.redoNone"),
+    resetLock: !dirty || saving,
+    resetLockReason: pending
+      ? t("editor.resetPendingHint")
+      : saving
+        ? t("editor.resetSavingHint")
+        : t("editor.resetCleanHint"),
+  };
+}
+
+// What the header lays out, for an app whose status chooses between a full and a compact form (#599).
+function useLayoutHandle(
+  layout: React.Ref<EditorHeaderLayout> | undefined,
+  headerRef: React.RefObject<HTMLElement | null>,
+  titleBoxRef: React.RefObject<HTMLDivElement | null>,
+  floorBoxRef: React.RefObject<HTMLSpanElement | null>,
+) {
+  React.useImperativeHandle(
+    layout,
+    () => ({
+      height: () => headerRef.current?.getBoundingClientRect().height ?? 0,
+      statusFolds: () => {
+        const folds = Number(headerRef.current?.getAttribute("data-shrink") ?? 0);
+        return folds - Number(headerRef.current?.getAttribute("data-bare-shrink") ?? folds);
+      },
+      statusRoom: () => {
+        const node = headerRef.current;
+        const floor = floorBoxRef.current;
+        if (node === null || floor === null || titleBoxRef.current === null) return 0;
+        // The floor stretches over the title's grid column; its text is what the title cannot give up.
+        const text = floor.ownerDocument.createRange();
+        text.selectNodeContents(floor);
+        // The status's slot stands in the action group, behind its row gap.
+        const actions = node.querySelector("[data-slot=editor-actions]");
+        const gap = actions === null ? 0 : parseFloat(getComputedStyle(actions).columnGap || "0");
+        return (
+          titleBoxRef.current.getBoundingClientRect().width -
+          text.getBoundingClientRect().width +
+          statusWidth(node) -
+          gap
+        );
+      },
+      // The header marks its bare step each time it settles; read in between, it may still stand at a
+      // step it is about to leave.
+      onSettle: (listener) => {
+        const node = headerRef.current;
+        if (node === null) return () => {};
+        const settling = new MutationObserver(listener);
+        settling.observe(node, { attributes: true, attributeFilter: ["data-bare-shrink"] });
+        return () => settling.disconnect();
+      },
+    }),
+    [headerRef, titleBoxRef, floorBoxRef],
+  );
+}
+
+// A status that goes while it holds the focus (its operation ended) hands it on in `GL-UI-050`'s
+// order from where it stood, with or without a fold step (#600). Its place is noted while it still
+// stands there; which control is usable is read once the update that removed it is laid out. Returns
+// the status slot's ref.
+function useStatusHandOn(statusGone: boolean) {
+  const statusOpener = React.useRef<Opener | null>(null);
+  const statusSlot = React.useCallback((node: HTMLDivElement) => {
+    return () => {
+      const active = document.activeElement;
+      if (active !== null && node.contains(active)) statusOpener.current = captureOpener(active);
+    };
+  }, []);
+  React.useLayoutEffect(() => {
+    const opener = statusOpener.current;
+    statusOpener.current = null;
+    const active = document.activeElement;
+    if (opener !== null && (active === null || active === document.body)) returnFocus(opener);
+  }, [statusGone]);
+  return statusSlot;
+}
+
+// With every step spent the header may wrap (#221); whether the actions actually stand on a line of
+// their own is read from the layout, and again whenever the header resizes.
+function useWrapped(
+  headerRef: React.RefObject<HTMLElement | null>,
+  titleBoxRef: React.RefObject<HTMLDivElement | null>,
+  spent: boolean,
+) {
+  const [wrapped, setWrapped] = React.useState(false);
+  React.useLayoutEffect(() => {
+    const node = headerRef.current;
+    const actions = node?.querySelector("[data-slot=editor-actions]");
+    if (!spent || !node || !actions || !titleBoxRef.current) {
+      setWrapped(false);
+      return;
+    }
+    const title = titleBoxRef.current;
+    const measure = () =>
+      setWrapped(actions.getBoundingClientRect().top >= title.getBoundingClientRect().bottom);
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    // The last step may be taken while the observers deliver (a resize without a window resize): a
+    // header watched from then on would leave its first notification undelivered, so it is watched
+    // from the next frame on; the read above covers this one (#613).
+    const frame = requestAnimationFrame(() => observer.observe(node));
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+  }, [spent, headerRef, titleBoxRef]);
+  return wrapped;
+}
+
+// What folds when the header does not fit (`SUI-FEATURE-090`). The header tools fold with Preview.
+// Read-only, only what it shows can fold; the read-only text stands in the state's place and folds
+// as `SUI-FEATURE-090` stage 4 (here the second step). A record head folds the same, without a state
+// unless it is read-only.
+function foldOrder(
+  noEditorGroup: boolean,
+  readOnly: boolean,
+  foldsPreview: boolean,
+  foldsNext: boolean,
+): Fold[] {
+  const preview = foldsPreview ? (["preview"] as const) : [];
+  const next = foldsNext ? (["next"] as const) : [];
+  return noEditorGroup
+    ? [...preview, ...(readOnly ? (["state"] as const) : []), "back", ...next, "title"]
+    : ["undo", "reset", ...preview, "state", "back", "save", ...next, "title"];
+}
+
+// What a draft head's undo, redo and reset are now, and why they are locked.
+type EditorLocks = {
+  undoable: boolean;
+  redoable: boolean;
+  undoNone: string;
+  redoNone: string;
+  resetLock: boolean;
+  resetLockReason: string;
+};
+
+// "Restore defaults" ends the folded tools group, with its icon, text and lock reason or hint; `busy`
+// locks it. The folded entry is the person's edit as the wide button's click is (`GL-UI-038`, #588).
+function restoreEntry(
+  restore: EditorRestoreDefaults,
+  label: string,
+  userEdit: (() => void) | null,
+): RowMenuItem {
+  const locked = restore.disabled === true || restore.busy === true;
+  const onRestore = restore.onClick;
+  // The lock's reason first; the hint only for the free entry, as on the wide button.
+  const hint =
+    restore.disabled === true && restore.disabledText !== undefined
+      ? restore.disabledText
+      : locked
+        ? undefined
+        : restore.hint;
+  return {
+    label,
+    icon: <HistoryIcon aria-hidden="true" />,
+    onSelect: () => {
+      userEdit?.();
+      onRestore();
+    },
+    disabled: locked,
+    ...(restore.busy === true ? { busy: true } : {}),
+    ...(hint !== undefined ? { hint } : {}),
+    "data-testid": "editor-menu-restore-defaults",
+  };
+}
+
+// Undo and Redo folded into the ⋯; locked, each names why and offers no shortcut, as the header
+// buttons (#380, #454). Only a draft head folds them, and it always has them.
+function undoEntries(
+  t: (key: string) => string,
+  locks: EditorLocks,
+  onUndo: () => void,
+  onRedo: () => void,
+): RowMenuItem[] {
+  const { undoable, redoable, undoNone, redoNone } = locks;
+  return [
+    {
+      label: t("editor.undo"),
+      icon: <Undo2Icon aria-hidden="true" />,
+      onSelect: onUndo,
+      disabled: !undoable,
+      ...(undoable ? { shortcut: UNDO_SHORTCUT } : { hint: undoNone }),
+      "data-testid": "editor-menu-undo",
+    },
+    {
+      label: t("editor.redo"),
+      icon: <Redo2Icon aria-hidden="true" />,
+      onSelect: onRedo,
+      disabled: !redoable,
+      ...(redoable ? { shortcut: REDO_SHORTCUT } : { hint: redoNone }),
+      "data-testid": "editor-menu-redo",
+    },
+  ];
+}
+
+// The folded preview, from the lifecycle.
+function previewEntry(preview: NonNullable<EditorLifecycle["preview"]>): RowMenuItem {
+  return {
+    label: preview.label,
+    ...(preview.icon !== undefined ? { icon: preview.icon } : {}),
+    onSelect: preview.onClick,
+    disabled: preview.disabledText !== undefined,
+    ...(preview.disabledText !== undefined ? { hint: preview.disabledText } : {}),
+    "data-testid": "editor-menu-preview",
+  };
+}
+
+// The ⋯ menu's own entries from the folded steps, in their order: the header tools (a toggle becomes a
+// checkbox entry) and "Restore defaults", Undo and Redo, Reset, Preview.
+function foldedEntries(
+  folded: (step: Fold) => boolean,
+  t: (key: string) => string,
+  locks: EditorLocks,
+  props: {
+    headerTools: readonly EditorHeaderTool[];
+    restore: EditorRestoreDefaults | undefined;
+    preview: EditorLifecycle["preview"];
+    onUndo: (() => void) | undefined;
+    onRedo: (() => void) | undefined;
+    onReset: () => void;
+    userEdit: (() => void) | null;
+  },
+): RowMenuItem[] {
+  const { headerTools, restore, preview, onUndo, onRedo, onReset, userEdit } = props;
+  const tools: RowMenuItem[] = [];
+  if (folded("preview")) {
+    for (const tool of headerTools) tools.push(foldHeaderTool(tool));
+    if (restore !== undefined)
+      tools.push(restoreEntry(restore, t("actions.restoreDefaults"), userEdit));
+  }
+  if (folded("undo")) tools.push(...undoEntries(t, locks, onUndo!, onRedo!));
+  if (folded("reset")) {
+    tools.push({
+      label: t("actions.reset"),
+      icon: <RotateCcwIcon aria-hidden="true" />,
+      onSelect: onReset,
+      disabled: locks.resetLock,
+      ...(locks.resetLock ? { hint: locks.resetLockReason } : {}),
+      "data-testid": "editor-menu-reset",
+    });
+  }
+  if (preview !== undefined && folded("preview")) tools.push(previewEntry(preview));
+  return tools;
+}
+
+// The record's own menu entries: none for a reading role, which has a ⋯ only for folded tools; in
+// their group form or flat, with their count.
+function recordEntries(lifecycle: EditorLifecycle | undefined, roleReadOnly: boolean) {
+  const records = roleReadOnly ? [] : (lifecycle?.menu?.items ?? []);
+  const groups = menuGroups(records);
+  const count =
+    groups === undefined
+      ? records.length
+      : groups.reduce((sum, group) => sum + group.items.length, 0);
+  return { records, groups, count };
+}
+
+// The one ⋯ of the header: the folded tools above the record's own menu.
+function EditorMenu({
+  tools,
+  entries,
+  label,
+}: {
+  tools: RowMenuItem[];
+  entries: ReturnType<typeof recordEntries>;
+  label: string;
+}) {
+  const { records, groups } = entries;
+  return (
+    // `data-slot` marks the ⋯ for an editor that keeps an edit in progress while its menu is used
+    // (the slide editor's crop, #349); its menu names the trigger with `aria-labelledby`.
+    <span className="contents" data-slot="editor-menu">
+      <RowActionMenu
+        menu={{
+          label,
+          items: groups === undefined ? (records as readonly RowMenuItem[]) : [],
+        }}
+        tools={tools}
+        {...(groups === undefined ? {} : { groups })}
+        size="icon-sm"
+        variant="ghost"
+        data-testid="editor-menu"
+      />
+    </span>
+  );
+}
+
+// The title: an invisible floor that keeps its first characters while folding, the heading (text with
+// its overflow tooltip, or the app's input) and an optional subtitle.
+function EditorTitle({
+  title,
+  measuredText,
+  subtitle,
+  titleFloor,
+  titleBoxRef,
+  floorBoxRef,
+  onHold,
+  onRelease,
+}: {
+  title: React.ReactNode;
+  measuredText: string | undefined;
+  subtitle: React.ReactNode;
+  titleFloor: string;
+  titleBoxRef: React.RefObject<HTMLDivElement | null>;
+  floorBoxRef: React.RefObject<HTMLSpanElement | null>;
+  onHold: () => void;
+  onRelease: (box: HTMLElement) => void;
+}) {
+  return (
+    <div
+      ref={titleBoxRef}
+      data-slot="editor-title"
+      className="grid flex-1 font-medium"
+      onFocus={onHold}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) onRelease(event.currentTarget);
+      }}
+    >
+      <span
+        ref={floorBoxRef}
+        aria-hidden="true"
+        className="invisible col-start-1 row-start-1 whitespace-nowrap"
+      >
+        {titleFloor}
+      </span>
+      {measuredText === undefined ? (
+        <OverflowTooltip>
+          <h1
+            data-slot="editor-title-text"
+            // Its own type, so an app's base `h1` rule does not restyle it.
+            className="col-start-1 row-start-1 m-0 min-w-0 truncate text-sm/[1.5] font-medium"
+            data-testid="page-title"
+          >
+            {title}
+          </h1>
+        </OverflowTooltip>
+      ) : (
+        // An input title scrolls its own overflow; the app gives it the `h1`'s width. The heading is
+        // named by `titleText`, so an empty field still leaves it a name.
+        <h1
+          aria-label={measuredText}
+          data-slot="editor-title-text"
+          className="col-start-1 row-start-1 m-0 flex min-w-0 text-sm/[1.5] font-medium"
+          data-testid="page-title"
+        >
+          {title}
+        </h1>
+      )}
+      {subtitle === undefined ? null : (
+        <OverflowTooltip>
+          <p
+            className="col-start-1 row-start-2 min-w-0 truncate text-sm font-normal text-muted-foreground"
+            data-testid="page-subtitle"
+          >
+            {subtitle}
+          </p>
+        </OverflowTooltip>
+      )}
+    </div>
+  );
+}
+
+// A group divider at full bar height: the stretch reaches through the header's vertical padding;
+// wrapped, it spans the action row and the bottom padding only.
+function GroupDivider({ wrapped, testId }: { wrapped: boolean; testId: string }) {
+  return (
+    <div
+      aria-hidden="true"
+      className={cn("w-px self-stretch bg-border", wrapped ? "-mb-3" : "-my-3")}
+      data-testid={testId}
+    />
+  );
+}
+
+// A draft head's Undo and Redo; locked, each names why and offers no shortcut (#380).
+function UndoRedo({
+  locks,
+  onUndo,
+  onRedo,
+}: {
+  locks: EditorLocks;
+  onUndo: (() => void) | undefined;
+  onRedo: (() => void) | undefined;
+}) {
+  const { t } = useTranslation("suite");
+  const { undoable, redoable, undoNone, redoNone } = locks;
+  return (
+    <>
+      <IconButtonTooltip
+        label={t("editor.undo")}
+        shortcut={UNDO_SHORTCUT}
+        disabledText={undoNone}
+        named
+      >
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          {...(undoable ? {} : { "aria-disabled": true })}
+          onClick={onUndo}
+          // A press keeps the focus where it is, so it does not end an edit in progress there
+          // (a crop being set, #349) before Undo acts on it.
+          onPointerDown={(event) => event.preventDefault()}
+          data-slot="editor-undo"
+          data-testid="editor-undo"
+        >
+          <Undo2Icon aria-hidden="true" />
+        </Button>
+      </IconButtonTooltip>
+      <IconButtonTooltip
+        label={t("editor.redo")}
+        shortcut={REDO_SHORTCUT}
+        disabledText={redoNone}
+        named
+      >
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          {...(redoable ? {} : { "aria-disabled": true })}
+          onClick={onRedo}
+          onPointerDown={(event) => event.preventDefault()}
+          data-slot="editor-redo"
+          data-testid="editor-redo"
+        >
+          <Redo2Icon aria-hidden="true" />
+        </Button>
+      </IconButtonTooltip>
+    </>
+  );
+}
+
+// The state after the status: "Read only" (its text, or its eye folded), a draft head's saved or
+// draft state (its text as a polite status, or its mark folded), nothing on a record head.
+function EditorState({
+  readOnly,
+  record,
+  folded,
+  dirty,
+  stateText,
+}: {
+  readOnly: boolean;
+  record: boolean;
+  folded: boolean;
+  dirty: boolean;
+  stateText: string;
+}) {
+  if (readOnly && folded) {
+    // The read-only text never changes, so neither form is a live region.
+    return (
+      <CompactSign text={stateText} live={false} testId="editor-read-only">
+        <EyeIcon aria-hidden="true" className="size-4 text-muted-foreground" />
+      </CompactSign>
+    );
+  }
+  if (readOnly) {
+    return (
+      <span
+        className="text-sm whitespace-nowrap text-muted-foreground"
+        data-testid="editor-read-only"
+      >
+        {stateText}
+      </span>
+    );
+  }
+  if (record) return null;
+  if (folded) {
+    // Shrunk to its mark, the state stays announced politely, as its text.
+    return (
+      <CompactSign text={stateText} live dirty={dirty} testId="editor-state">
+        {/* Shape and colour both tell the state (WCAG 1.4.1): saved a hollow green ring,
+            a draft a filled amber dot. */}
+        <span
+          aria-hidden="true"
+          data-mark={dirty ? "dot" : "ring"}
+          className={cn("size-2 rounded-full", dirty ? "bg-warn" : "border-2 border-success")}
+        />
+      </CompactSign>
+    );
+  }
+  return (
+    // A change of state is announced politely.
+    <span
+      role="status"
+      data-dirty={dirty}
+      className="text-sm whitespace-nowrap text-muted-foreground"
+      data-testid="editor-state"
+    >
+      {stateText}
+    </span>
+  );
+}
+
+// A draft head's Save: its text, or its icon once folded; clean, it locks itself and keeps the focus.
+function SaveButton({
+  iconOnly,
+  saving,
+  clean,
+  onSave,
+}: {
+  iconOnly: boolean;
+  saving: boolean;
+  clean: boolean;
+  onSave: (() => void) | undefined;
+}) {
+  const { t } = useTranslation("suite");
+  const saveLock = {
+    ...(clean ? { "aria-disabled": true } : {}),
+    onClick: clean ? undefined : onSave,
+  };
+  return iconOnly ? (
+    <IconButtonTooltip label={t("actions.save")} disabledText={t("editor.saveCleanHint")} named>
+      <Button
+        type="button"
+        variant="success"
+        size="icon"
+        busy={saving}
+        {...saveLock}
+        data-testid="editor-save"
+      >
+        <SaveIcon aria-hidden="true" />
+      </Button>
+    </IconButtonTooltip>
+  ) : (
+    <Hint text={t("editor.saveHint")} disabledText={t("editor.saveCleanHint")}>
+      <Button
+        type="button"
+        variant="success"
+        size="default"
+        busy={saving}
+        {...saveLock}
+        data-testid="editor-save"
+      >
+        <SaveIcon aria-hidden="true" />
+        {t("actions.save")}
+      </Button>
+    </Hint>
+  );
+}
+
+// A draft head's Reset; locked, it names why and keeps the focus. A field's typed but uncommitted
+// entry on the page (`SUI-FEATURE-118` rev 8): Reset drops it before its confirm takes the focus,
+// whose blur would else take the tag over.
+function ResetButton({ locks, onConfirm }: { locks: EditorLocks; onConfirm: () => void }) {
+  const { t } = useTranslation("suite");
+  const drafts = React.useContext(FieldDraftsContext) ?? undefined;
+  const hasDrafts = useHasFieldDrafts(drafts);
+  const { resetLock } = locks;
+  return (
+    <Hint text={t("editor.resetHint")} disabledText={locks.resetLockReason}>
+      <Button
+        type="button"
+        variant="outline"
+        size="default"
+        {...(resetLock ? { "aria-disabled": true } : {})}
+        onMouseDown={(event) => {
+          if (hasDrafts) event.preventDefault();
+        }}
+        onClick={() => {
+          if (!resetLock) drafts?.discard();
+          onConfirm();
+        }}
+        data-testid="editor-reset"
+      >
+        <RotateCcwIcon aria-hidden="true" />
+        {t("actions.reset")}
+      </Button>
+    </Hint>
+  );
+}
+
+// The editor's own tools, unfolded, and "Restore defaults" after them, behind their divider.
+function ToolsGroup({
+  tools,
+  restore,
+  divider,
+  wrapped,
+}: {
+  tools: readonly EditorHeaderTool[];
+  restore: EditorRestoreDefaults | undefined;
+  divider: boolean;
+  wrapped: boolean;
+}) {
+  return (
+    <>
+      {tools.map((tool) => (
+        <HeaderTool key={tool.id} {...tool} />
+      ))}
+      {restore === undefined ? null : <RestoreDefaultsButton {...restore} />}
+      {divider ? <GroupDivider wrapped={wrapped} testId="editor-tools-separator" /> : null}
+    </>
+  );
+}
+
+// The record's lifecycle: the ⋯, Preview and the next step, behind their divider.
+function LifecycleGroup({
+  lifecycle,
+  menu,
+  menuLeads,
+  preview,
+  next,
+  divider,
+  wrapped,
+}: {
+  lifecycle: EditorLifecycle;
+  menu: React.ReactNode;
+  menuLeads: boolean;
+  preview: EditorLifecycle["preview"];
+  next: { dirty: boolean; iconOnly: boolean } | undefined;
+  divider: boolean;
+  wrapped: boolean;
+}) {
+  return (
+    <>
+      {/* Unfolded, the app's ⋯ keeps its place after Preview; from the first step the one
+          ⋯ leads the group (`SUI-FEATURE-090` rev 11). */}
+      {menuLeads ? menu : null}
+      {preview === undefined ? null : <PreviewButton {...preview} />}
+      {menuLeads ? null : menu}
+      {next === undefined ? null : (
+        // Content read-only, nothing is saved here, so "Save first" never locks it.
+        <NextStep {...lifecycle.next!} dirty={next.dirty} iconOnly={next.iconOnly} />
+      )}
+      {/* Only between two groups that show something: the editor group after it always does. */}
+      {divider ? <GroupDivider wrapped={wrapped} testId="editor-lifecycle-separator" /> : null}
+    </>
+  );
+}
+
+// What the header shows: a new language, state text, title floor or lifecycle label folds it
+// afresh, so a shorter text (after Save, or in another language) unfolds again without a resize.
+// Only the title's longest floor counts: typing in a live-bound title refolds nothing. A given
+// `titleText` counts whole: each change of it measures again, outside a focused title.
+function foldContent(
+  texts: readonly string[],
+  lifecycle: EditorLifecycle | undefined,
+  folds: readonly Fold[],
+): string {
+  return [...texts, lifecycle?.preview?.label, lifecycle?.next?.label, folds.join()].join("\u0000");
+}
+
+// The header's fold steps over `folds`, measured on the header node. A control a refold locked or
+// took away (the ⋯ when its tools unfold) hands the focus on in `GL-UI-050`'s order from where it
+// stood; a Save swapped between icon and text takes it back. The status counts apart, so one that
+// narrows or goes gives back the folds it took (#581).
+function useHeaderFolds(folds: readonly Fold[], content: string) {
   const { attach, steps: shrink } = useFoldSteps(
     folds.length,
     content,
@@ -474,229 +1046,248 @@ function EditorHeader({
     },
     [attach],
   );
-  const floorBox = React.useRef<HTMLSpanElement>(null);
-  React.useImperativeHandle(
-    layout,
-    () => ({
-      height: () => header.current?.getBoundingClientRect().height ?? 0,
-      statusFolds: () => {
-        const folds = Number(header.current?.getAttribute("data-shrink") ?? 0);
-        return folds - Number(header.current?.getAttribute("data-bare-shrink") ?? folds);
-      },
-      statusRoom: () => {
-        const node = header.current;
-        const floor = floorBox.current;
-        if (node === null || floor === null || titleBox.current === null) return 0;
-        // The floor stretches over the title's grid column; its text is what the title cannot give up.
-        const text = floor.ownerDocument.createRange();
-        text.selectNodeContents(floor);
-        // The status's slot stands in the action group, behind its row gap.
-        const actions = node.querySelector("[data-slot=editor-actions]");
-        const gap = actions === null ? 0 : parseFloat(getComputedStyle(actions).columnGap || "0");
-        return (
-          titleBox.current.getBoundingClientRect().width -
-          text.getBoundingClientRect().width +
-          statusWidth(node) -
-          gap
-        );
-      },
-      // The header marks its bare step each time it settles; read in between, it may still stand at a
-      // step it is about to leave.
-      onSettle: (listener) => {
-        const node = header.current;
-        if (node === null) return () => {};
-        const settling = new MutationObserver(listener);
-        settling.observe(node, { attributes: true, attributeFilter: ["data-bare-shrink"] });
-        return () => settling.disconnect();
-      },
-    }),
-    [],
-  );
-  // A status that goes while it holds the focus (its operation ended) hands it on in `GL-UI-050`'s
-  // order from where it stood, with or without a fold step (#600). Its place is noted while it still
-  // stands there; which control is usable is read once the update that removed it is laid out.
-  const statusOpener = React.useRef<Opener | null>(null);
-  const statusSlot = React.useCallback((node: HTMLDivElement) => {
-    return () => {
-      const active = document.activeElement;
-      if (active !== null && node.contains(active)) statusOpener.current = captureOpener(active);
-    };
-  }, []);
-  const statusGone = status === undefined;
-  React.useLayoutEffect(() => {
-    const opener = statusOpener.current;
-    statusOpener.current = null;
-    const active = document.activeElement;
-    if (opener !== null && (active === null || active === document.body)) returnFocus(opener);
-  }, [statusGone]);
   const folded = (step: Fold) => {
     const index = folds.indexOf(step);
     return index !== -1 && index < shrink;
   };
-  const floor = folded("title") ? TITLE_FLOOR : TITLE_BUDGET;
-  const titleFloor = titleText.length > floor ? `${titleText.slice(0, floor)}…` : titleText;
-  // With every step spent the header may wrap (#221); whether the actions actually stand on a line of
-  // their own is read from the layout, and again whenever the header resizes.
-  const spent = shrink === folds.length;
-  const [wrapped, setWrapped] = React.useState(false);
-  React.useLayoutEffect(() => {
-    const node = header.current;
-    const actions = node?.querySelector("[data-slot=editor-actions]");
-    if (!spent || !node || !actions || !titleBox.current) {
-      setWrapped(false);
-      return;
-    }
-    const title = titleBox.current;
-    const measure = () =>
-      setWrapped(actions.getBoundingClientRect().top >= title.getBoundingClientRect().bottom);
-    measure();
-    if (typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(measure);
-    // The last step may be taken while the observers deliver (a resize without a window resize): a
-    // header watched from then on would leave its first notification undelivered, so it is watched
-    // from the next frame on; the read above covers this one (#613).
-    const frame = requestAnimationFrame(() => observer.observe(node));
-    return () => {
-      cancelAnimationFrame(frame);
-      observer.disconnect();
-    };
-  }, [spent]);
+  return { header, setHeader, shrink, folded, spent: shrink === folds.length };
+}
 
-  // A control that locks while it has the focus hands it on.
-  React.useLayoutEffect(() => {
-    const node = header.current;
-    if (node === null) return;
-    const active = document.activeElement;
-    if (
-      active instanceof HTMLButtonElement &&
-      node.contains(active) &&
-      active.disabled &&
-      !active.hasAttribute("aria-busy")
-    ) {
-      nextFocusTarget(node, active)?.focus();
-    }
-  }, [dirty, saving, undoable, redoable]);
-  const clean = !dirty && !saving;
-  // Reset is locked while nothing differs from the saved state or while the save runs, and names why.
-  const resetLock = !dirty || saving;
-  const resetLockReason = pending
-    ? t("editor.resetPendingHint")
-    : saving
-      ? t("editor.resetSavingHint")
-      : t("editor.resetCleanHint");
-  const undoNone = pending ? t("editor.pendingHint") : t("editor.undoNone");
-  const redoNone = pending ? t("editor.pendingHint") : t("editor.redoNone");
-  const saveLock = {
-    ...(clean ? { "aria-disabled": true } : {}),
-    onClick: clean ? undefined : onSave,
+// The editor group after the lifecycle: a draft head's Undo and Redo, the status, the state, Reset,
+// the ⋯ without a lifecycle, and Save; a record or read-only head keeps the status and the state.
+function EditorGroup({
+  editorGroup,
+  folded,
+  locks,
+  edits,
+  status,
+  state,
+  menu,
+}: {
+  editorGroup: boolean;
+  folded: (step: Fold) => boolean;
+  locks: EditorLocks;
+  edits: {
+    onUndo: (() => void) | undefined;
+    onRedo: (() => void) | undefined;
+    onSave: (() => void) | undefined;
+    onReset: () => void;
   };
-
-  const tools: RowMenuItem[] = [];
-  if (folded("preview")) {
-    // The header tools lead the folded ones; a toggle becomes a checkbox entry.
-    for (const tool of headerTools) tools.push(foldHeaderTool(tool));
-    // "Restore defaults" ends the tools group, with its icon, text and lock reason or hint; `busy`
-    // locks it.
-    if (restore !== undefined) {
-      const locked = restore.disabled === true || restore.busy === true;
-      const onRestore = restore.onClick;
-      // The lock's reason first; the hint only for the free entry, as on the wide button.
-      const hint =
-        restore.disabled === true && restore.disabledText !== undefined
-          ? restore.disabledText
-          : locked
-            ? undefined
-            : restore.hint;
-      tools.push({
-        label: t("actions.restoreDefaults"),
-        icon: <HistoryIcon aria-hidden="true" />,
-        onSelect: () => {
-          userEdit?.();
-          onRestore();
-        },
-        disabled: locked,
-        ...(restore.busy === true ? { busy: true } : {}),
-        ...(hint !== undefined ? { hint } : {}),
-        "data-testid": "editor-menu-restore-defaults",
-      });
-    }
-  }
-  if (folded("undo")) {
-    // Locked, each names why and offers no shortcut, as the header buttons (#380, #454).
-    tools.push(
-      {
-        label: t("editor.undo"),
-        icon: <Undo2Icon aria-hidden="true" />,
-        // Only a draft head folds Undo and Redo, and it always has them.
-        onSelect: onUndo!,
-        disabled: !undoable,
-        ...(undoable ? { shortcut: UNDO_SHORTCUT } : { hint: undoNone }),
-        "data-testid": "editor-menu-undo",
-      },
-      {
-        label: t("editor.redo"),
-        icon: <Redo2Icon aria-hidden="true" />,
-        onSelect: onRedo!,
-        disabled: !redoable,
-        ...(redoable ? { shortcut: REDO_SHORTCUT } : { hint: redoNone }),
-        "data-testid": "editor-menu-redo",
-      },
-    );
-  }
-  if (folded("reset")) {
-    tools.push({
-      label: t("actions.reset"),
-      icon: <RotateCcwIcon aria-hidden="true" />,
-      onSelect: () => setConfirming(true),
-      disabled: resetLock,
-      ...(resetLock ? { hint: resetLockReason } : {}),
-      "data-testid": "editor-menu-reset",
-    });
-  }
-  const preview = lifecycle?.preview;
-  if (preview !== undefined && folded("preview")) {
-    tools.push({
-      label: preview.label,
-      ...(preview.icon !== undefined ? { icon: preview.icon } : {}),
-      onSelect: preview.onClick,
-      disabled: preview.disabledText !== undefined,
-      ...(preview.disabledText !== undefined ? { hint: preview.disabledText } : {}),
-      "data-testid": "editor-menu-preview",
-    });
-  }
-  // A reading role has no record menu; the ⋯ only holds folded tools.
-  const records = roleReadOnly ? [] : (lifecycle?.menu?.items ?? []);
-  const groups = menuGroups(records);
-  const recordCount =
-    groups === undefined
-      ? records.length
-      : groups.reduce((sum, group) => sum + group.items.length, 0);
-  const menu =
-    tools.length + recordCount > 0 ? (
-      // `data-slot` marks the ⋯ for an editor that keeps an edit in progress while its menu is used
-      // (the slide editor's crop, #349); its menu names the trigger with `aria-labelledby`.
-      <span className="contents" data-slot="editor-menu">
-        <RowActionMenu
-          menu={{
-            label: (roleReadOnly ? undefined : lifecycle?.menu?.label) ?? t("editor.more"),
-            items: groups === undefined ? (records as readonly RowMenuItem[]) : [],
-          }}
-          tools={tools}
-          {...(groups === undefined ? {} : { groups })}
-          size="icon-sm"
-          variant="ghost"
-          data-testid="editor-menu"
+  status: React.ReactNode;
+  state: { readOnly: boolean; record: boolean; dirty: boolean; saving: boolean; stateText: string };
+  menu: React.ReactNode;
+}) {
+  const { readOnly, record, dirty, saving, stateText } = state;
+  return (
+    <>
+      {editorGroup && !folded("undo") ? (
+        <UndoRedo locks={locks} onUndo={edits.onUndo} onRedo={edits.onRedo} />
+      ) : null}
+      {status}
+      <EditorState
+        readOnly={readOnly}
+        record={record}
+        folded={folded("state")}
+        dirty={dirty}
+        stateText={stateText}
+      />
+      {editorGroup && !folded("reset") ? (
+        <ResetButton locks={locks} onConfirm={edits.onReset} />
+      ) : null}
+      {/* Without a lifecycle the ⋯ stands directly left of Save. */}
+      {menu}
+      {editorGroup ? (
+        <SaveButton
+          iconOnly={folded("save")}
+          saving={saving}
+          clean={!dirty && !saving}
+          onSave={edits.onSave}
         />
-      </span>
-    ) : null;
+      ) : null}
+    </>
+  );
+}
 
-  // What the lifecycle group shows: a divider stands only between groups that show something.
-  const previewShown = preview !== undefined && !folded("preview");
+// The head's mode from its props: what saves, undoes and redoes now, and what the head shows.
+function headerMode(props: EditorHeaderProps | EditorHeaderRecordProps) {
+  const { kind = "draft", canUndo = false, canRedo = false, dirty = false } = props;
+  const { saving: savingOwn = false, pending = false, readOnly: readOnlyMode = false } = props;
+  const readOnly = readOnlyMode !== false;
+  // A record head (`SUI-FEATURE-390`) has no editor group; read-only, neither has a draft head.
+  const record = kind === "record";
+  const editing = !readOnly && !record;
+  const undoable = canUndo && !pending;
+  const redoable = canRedo && !pending;
+  return {
+    // While the guard's call runs the header works as for a save; the draft takes no step meanwhile.
+    saving: savingOwn || pending,
+    pending,
+    undoable,
+    redoable,
+    // Ctrl+Z and its kin act only while the editor group stands and the step is free.
+    shortcuts: {
+      onUndo: undoable && editing ? props.onUndo : undefined,
+      onRedo: redoable && editing ? props.onRedo : undefined,
+    },
+    dirty,
+    // The editor group gives way to "Read only" either way; only a reading role loses the next step
+    // and the record's menu (`SUI-FEATURE-119`).
+    readOnly,
+    roleReadOnly: readOnlyMode === true,
+    record,
+    noEditorGroup: readOnly || record,
+    headerTools: props.tools ?? [],
+    // "Restore defaults" is a write handle: read-only, it is gone (`SUI-FEATURE-430`).
+    restore: readOnly ? undefined : props.restoreDefaults,
+    stateKey: stateKeyOf(readOnly, dirty),
+    foldsNext: readOnlyMode !== true,
+  };
+}
+
+// The state's text: "Read only", else a draft or saved.
+function stateKeyOf(readOnly: boolean, dirty: boolean): string {
+  if (readOnly) return "editor.readOnly";
+  return dirty ? "editor.draft" : "editor.saved";
+}
+
+// The title's first `floor` characters and the ellipsis, or the whole title when it is that short.
+function floorOf(titleText: string, floor: number): string {
+  return titleText.length > floor ? `${titleText.slice(0, floor)}…` : titleText;
+}
+
+// The one ⋯ from the folded entries and the record's menu, or null without either. The folded entry
+// is the person's edit as the wide button's click is (`GL-UI-038`, #588).
+function useEditorMenu(
+  folded: (step: Fold) => boolean,
+  locks: EditorLocks,
+  props: Omit<Parameters<typeof foldedEntries>[3], "userEdit"> & {
+    lifecycle: EditorLifecycle | undefined;
+    roleReadOnly: boolean;
+  },
+) {
+  const { t } = useTranslation("suite");
+  const userEdit = React.useContext(FieldUserEditContext);
+  const { lifecycle, roleReadOnly } = props;
+  const tools = foldedEntries(folded, t, locks, { ...props, userEdit });
+  const entries = recordEntries(lifecycle, roleReadOnly);
+  const menuShown = tools.length + entries.count > 0;
+  const menu = menuShown ? (
+    <EditorMenu
+      tools={tools}
+      entries={entries}
+      label={(roleReadOnly ? undefined : lifecycle?.menu?.label) ?? t("editor.more")}
+    />
+  ) : null;
+  return { menu, menuShown };
+}
+
+// What each group shows: a divider stands only between groups that show something.
+function shownGroups(
+  mode: ReturnType<typeof headerMode>,
+  head: {
+    lifecycle: EditorLifecycle | undefined;
+    folded: (step: Fold) => boolean;
+    menuShown: boolean;
+    statusShown: boolean;
+  },
+) {
+  const { lifecycle, folded, menuShown, statusShown } = head;
+  const { readOnly, roleReadOnly, record, dirty, headerTools, restore } = mode;
+  const preview = folded("preview") ? undefined : lifecycle?.preview;
   const nextShown = lifecycle?.next !== undefined && !roleReadOnly;
-  const lifecycleShown = lifecycle !== undefined && (menu !== null || previewShown || nextShown);
-  // What stands after the lifecycle: the editor group, a draft head's always; a record head's only
-  // the status or the read-only sign, so its divider never ends the row (`SUI-FEATURE-390`).
-  const editorGroupShown = !record || readOnly || status !== undefined;
+  return {
+    tools: (headerTools.length > 0 || restore !== undefined) && !folded("preview"),
+    preview,
+    // Content read-only, nothing is saved here, so "Save first" never locks it.
+    next: nextShown ? { dirty: dirty && !readOnly, iconOnly: folded("next") } : undefined,
+    lifecycle: lifecycle !== undefined && (menuShown || preview !== undefined || nextShown),
+    // What stands after the lifecycle: the editor group, a draft head's always; a record head's only
+    // the status or the read-only sign, so its divider never ends the row (`SUI-FEATURE-390`).
+    editorGroup: !record || readOnly || statusShown,
+  };
+}
+
+// The one header of every editor page (`GL-UI-034`, `SUI-FEATURE-064`): Back and the title on the
+// left; on the right Undo, Redo, the state ("Saved" or "Draft · unsaved"), Reset and Save. Reset and
+// Save are locked while nothing differs from the saved state; Reset asks first. Ctrl/Cmd+Z and
+// Ctrl+Y / Cmd+Shift+Z answer as the buttons, except in a text field (`GL-UI-006`). The editor's own
+// toolbar stays below or beside it. With `lifecycle` (`SUI-FEATURE-069`) Preview, ⋯ and the next step
+// stand before that group, behind a separator; the next step is locked while the draft is unsaved, so
+// never more than one green button is usable at a time.
+//
+// `SUI-FEATURE-104`: the editor's `tools` lead the right group, behind a separator of their own; a
+// running operation's `status` stands left of the state. `readOnly` drops every write control (Undo,
+// Redo, the state, Reset, Save, the next step, the record's menu) and names the mode instead of the
+// state; at narrow width that text folds like the state, to an eye (rev 3). `readOnly="content"`
+// (`SUI-FEATURE-119`) drops the editor group the same but keeps the lifecycle. `SUI-FEATURE-105`: the
+// title is the page's `h1`, `subtitle` one muted line under it; a title given as an inline input
+// sits in that `h1`, scrolls its own overflow without a tooltip, and is measured by `titleText`,
+// held while the focus is inside it.
+//
+// `SUI-FEATURE-390`: `kind="record"` drops the editor group (Undo, Redo, the state, Reset, Save, the
+// reset confirm) and its shortcuts; everything else stays as in the draft head, and the right group
+// closes up to the edge as the read-only head's does. With `readOnly` it keeps the read-only sign.
+//
+// `SUI-FEATURE-090`: the header measures its own width. While it overflows one line it folds a step
+// (`Fold`); each step remembers the width it needed, and once the header is that wide again it steps
+// back. The title truncates with its full text as a tooltip. There is never more than one ⋯: with a
+// lifecycle it stands after Preview until the first step and leads the group from then on, without
+// one directly left of Save; folded header tools keep their text, icon and lock there, above the
+// lifecycle menu's own entries after a separator.
+// A control that locks under the focus and the Reset confirm hand the focus on as `GL-UI-050` says.
+// Save, Reset, Undo and Redo lock themselves with `aria-disabled` and a trigger lock, so they keep the
+// focus after saving and after the last step (`SUI-FEATURE-120`, #370, #392); a confirmed Reset hands
+// it on from the locked trigger. Its parts are the hooks and components above (#981 finding #625).
+function EditorHeader(props: EditorHeaderProps | EditorHeaderRecordProps) {
+  const { title, titleText: measuredText, subtitle, onBack, backHint, onUndo, onRedo } = props;
+  const { onSave, onReset, lifecycle, status, layout } = props;
+  const { t, i18n } = useTranslation("suite");
+  const mode = headerMode(props);
+  const { saving, undoable, redoable, dirty, readOnly, roleReadOnly, record, noEditorGroup } = mode;
+  const { restore, headerTools } = mode;
+  const [confirming, setConfirming] = React.useState(false);
+  useEditShortcuts(mode.shortcuts);
+  const folds = foldOrder(
+    noEditorGroup,
+    readOnly,
+    lifecycle?.preview !== undefined || headerTools.length > 0 || restore !== undefined,
+    mode.foldsNext && lifecycle?.next?.icon !== undefined,
+  );
+  const titleBox = React.useRef<HTMLDivElement>(null);
+  const { typedText, titleText, hold, releaseHold } = useTitleText(title, measuredText, titleBox);
+  const stateText = t(mode.stateKey);
+  const { header, setHeader, shrink, folded, spent } = useHeaderFolds(
+    folds,
+    foldContent(
+      [i18n.language, stateText, typedText ?? titleText.slice(0, TITLE_BUDGET)],
+      lifecycle,
+      folds,
+    ),
+  );
+  const floorBox = React.useRef<HTMLSpanElement>(null);
+  useLayoutHandle(layout, header, titleBox, floorBox);
+  const statusSlot = useStatusHandOn(status === undefined);
+  const titleFloor = floorOf(titleText, folded("title") ? TITLE_FLOOR : TITLE_BUDGET);
+  const wrapped = useWrapped(header, titleBox, spent);
+  useLockHandsOn(header, [dirty, saving, undoable, redoable]);
+  const locks = editorLocks(t, { dirty, saving, pending: mode.pending }, undoable, redoable);
+  const { menu, menuShown } = useEditorMenu(folded, locks, {
+    headerTools,
+    restore,
+    preview: lifecycle?.preview,
+    onUndo,
+    onRedo,
+    onReset: () => setConfirming(true),
+    lifecycle,
+    roleReadOnly,
+  });
+  const shown = shownGroups(mode, {
+    lifecycle,
+    folded,
+    menuShown,
+    statusShown: status !== undefined,
+  });
+  const editorGroup = !noEditorGroup;
 
   return (
     <header
@@ -716,239 +1307,60 @@ function EditorHeader({
         iconOnly={folded("back")}
         onClick={onBack}
       />
-      <div
-        ref={titleBox}
-        data-slot="editor-title"
-        className="grid flex-1 font-medium"
-        onFocus={() => setHeldText((held) => held ?? measuredText)}
-        onBlur={(event) => {
-          if (!event.currentTarget.contains(event.relatedTarget)) releaseHold(event.currentTarget);
-        }}
-      >
-        <span
-          ref={floorBox}
-          aria-hidden="true"
-          className="invisible col-start-1 row-start-1 whitespace-nowrap"
-        >
-          {titleFloor}
-        </span>
-        {measuredText === undefined ? (
-          <OverflowTooltip>
-            <h1
-              data-slot="editor-title-text"
-              // Its own type, so an app's base `h1` rule does not restyle it.
-              className="col-start-1 row-start-1 m-0 min-w-0 truncate text-sm/[1.5] font-medium"
-              data-testid="page-title"
-            >
-              {title}
-            </h1>
-          </OverflowTooltip>
-        ) : (
-          // An input title scrolls its own overflow; the app gives it the `h1`'s width. The heading is
-          // named by `titleText`, so an empty field still leaves it a name.
-          <h1
-            aria-label={measuredText}
-            data-slot="editor-title-text"
-            className="col-start-1 row-start-1 m-0 flex min-w-0 text-sm/[1.5] font-medium"
-            data-testid="page-title"
-          >
-            {title}
-          </h1>
-        )}
-        {subtitle === undefined ? null : (
-          <OverflowTooltip>
-            <p
-              className="col-start-1 row-start-2 min-w-0 truncate text-sm font-normal text-muted-foreground"
-              data-testid="page-subtitle"
-            >
-              {subtitle}
-            </p>
-          </OverflowTooltip>
-        )}
-      </div>
+      <EditorTitle
+        title={title}
+        measuredText={measuredText}
+        subtitle={subtitle}
+        titleFloor={titleFloor}
+        titleBoxRef={titleBox}
+        floorBoxRef={floorBox}
+        onHold={hold}
+        onRelease={releaseHold}
+      />
       <div
         data-slot="editor-actions"
         data-focus-group=""
         data-tooltip-row=""
         className="ml-auto flex shrink-0 items-center gap-2"
       >
-        {(headerTools.length === 0 && restore === undefined) || folded("preview") ? null : (
-          <>
-            {headerTools.map((tool) => (
-              <HeaderTool key={tool.id} {...tool} />
-            ))}
-            {restore === undefined ? null : <RestoreDefaultsButton {...restore} />}
-            {lifecycleShown || editorGroupShown ? (
-              <div
-                aria-hidden="true"
-                className={cn("w-px self-stretch bg-border", wrapped ? "-mb-3" : "-my-3")}
-                data-testid="editor-tools-separator"
-              />
-            ) : null}
-          </>
-        )}
+        {shown.tools ? (
+          <ToolsGroup
+            tools={headerTools}
+            restore={restore}
+            divider={shown.lifecycle || shown.editorGroup}
+            wrapped={wrapped}
+          />
+        ) : null}
         {lifecycle === undefined ? null : (
-          <>
-            {/* Unfolded, the app's ⋯ keeps its place after Preview; from the first step the one
-                ⋯ leads the group (`SUI-FEATURE-090` rev 11). */}
-            {shrink > 0 ? menu : null}
-            {previewShown ? <PreviewButton {...preview} /> : null}
-            {shrink > 0 ? null : menu}
-            {nextShown ? (
-              // Content read-only, nothing is saved here, so "Save first" never locks it.
-              <NextStep {...lifecycle.next!} dirty={dirty && !readOnly} iconOnly={folded("next")} />
-            ) : null}
-            {/* Full bar height: the stretch reaches through the header's vertical padding; wrapped,
-                it spans the action row and the bottom padding only. Only between two groups that
-                show something: the editor group after it always does. */}
-            {lifecycleShown && editorGroupShown ? (
+          <LifecycleGroup
+            lifecycle={lifecycle}
+            menu={menu}
+            menuLeads={shrink > 0}
+            preview={shown.preview}
+            next={shown.next}
+            divider={shown.lifecycle && shown.editorGroup}
+            wrapped={wrapped}
+          />
+        )}
+        <EditorGroup
+          editorGroup={editorGroup}
+          folded={folded}
+          locks={locks}
+          edits={{ onUndo, onRedo, onSave, onReset: () => setConfirming(true) }}
+          status={
+            status === undefined ? null : (
               <div
-                aria-hidden="true"
-                className={cn("w-px self-stretch bg-border", wrapped ? "-mb-3" : "-my-3")}
-                data-testid="editor-lifecycle-separator"
-              />
-            ) : null}
-          </>
-        )}
-        {folded("undo") || noEditorGroup ? null : (
-          <>
-            {/* Locked, each names why and offers no shortcut (#380). */}
-            <IconButtonTooltip
-              label={t("editor.undo")}
-              shortcut={UNDO_SHORTCUT}
-              disabledText={undoNone}
-              named
-            >
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                {...(undoable ? {} : { "aria-disabled": true })}
-                onClick={onUndo}
-                // A press keeps the focus where it is, so it does not end an edit in progress there
-                // (a crop being set, #349) before Undo acts on it.
-                onPointerDown={(event) => event.preventDefault()}
-                data-slot="editor-undo"
-                data-testid="editor-undo"
+                ref={statusSlot}
+                data-slot="editor-status"
+                className="flex shrink-0 items-center"
               >
-                <Undo2Icon aria-hidden="true" />
-              </Button>
-            </IconButtonTooltip>
-            <IconButtonTooltip
-              label={t("editor.redo")}
-              shortcut={REDO_SHORTCUT}
-              disabledText={redoNone}
-              named
-            >
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                {...(redoable ? {} : { "aria-disabled": true })}
-                onClick={onRedo}
-                onPointerDown={(event) => event.preventDefault()}
-                data-slot="editor-redo"
-                data-testid="editor-redo"
-              >
-                <Redo2Icon aria-hidden="true" />
-              </Button>
-            </IconButtonTooltip>
-          </>
-        )}
-        {status === undefined ? null : (
-          <div ref={statusSlot} data-slot="editor-status" className="flex shrink-0 items-center">
-            {status}
-          </div>
-        )}
-        {readOnly && folded("state") ? (
-          // The read-only text never changes, so neither form is a live region.
-          <CompactSign text={stateText} live={false} testId="editor-read-only">
-            <EyeIcon aria-hidden="true" className="size-4 text-muted-foreground" />
-          </CompactSign>
-        ) : readOnly ? (
-          <span
-            className="text-sm whitespace-nowrap text-muted-foreground"
-            data-testid="editor-read-only"
-          >
-            {stateText}
-          </span>
-        ) : record ? null : folded("state") ? (
-          // Shrunk to its mark, the state stays announced politely, as its text.
-          <CompactSign text={stateText} live dirty={dirty} testId="editor-state">
-            {/* Shape and colour both tell the state (WCAG 1.4.1): saved a hollow green ring,
-                a draft a filled amber dot. */}
-            <span
-              aria-hidden="true"
-              data-mark={dirty ? "dot" : "ring"}
-              className={cn("size-2 rounded-full", dirty ? "bg-warn" : "border-2 border-success")}
-            />
-          </CompactSign>
-        ) : (
-          // A change of state is announced politely.
-          <span
-            role="status"
-            data-dirty={dirty}
-            className="text-sm whitespace-nowrap text-muted-foreground"
-            data-testid="editor-state"
-          >
-            {stateText}
-          </span>
-        )}
-        {folded("reset") || noEditorGroup ? null : (
-          <Hint text={t("editor.resetHint")} disabledText={resetLockReason}>
-            <Button
-              type="button"
-              variant="outline"
-              size="default"
-              {...(resetLock ? { "aria-disabled": true } : {})}
-              onMouseDown={(event) => {
-                if (hasDrafts) event.preventDefault();
-              }}
-              onClick={() => {
-                if (!resetLock) drafts?.discard();
-                setConfirming(true);
-              }}
-              data-testid="editor-reset"
-            >
-              <RotateCcwIcon aria-hidden="true" />
-              {t("actions.reset")}
-            </Button>
-          </Hint>
-        )}
-        {/* Without a lifecycle the ⋯ stands directly left of Save. */}
-        {lifecycle === undefined ? menu : null}
-        {noEditorGroup ? null : folded("save") ? (
-          <IconButtonTooltip
-            label={t("actions.save")}
-            disabledText={t("editor.saveCleanHint")}
-            named
-          >
-            <Button
-              type="button"
-              variant="success"
-              size="icon"
-              busy={saving}
-              {...saveLock}
-              data-testid="editor-save"
-            >
-              <SaveIcon aria-hidden="true" />
-            </Button>
-          </IconButtonTooltip>
-        ) : (
-          <Hint text={t("editor.saveHint")} disabledText={t("editor.saveCleanHint")}>
-            <Button
-              type="button"
-              variant="success"
-              size="default"
-              busy={saving}
-              {...saveLock}
-              data-testid="editor-save"
-            >
-              <SaveIcon aria-hidden="true" />
-              {t("actions.save")}
-            </Button>
-          </Hint>
-        )}
+                {status}
+              </div>
+            )
+          }
+          state={{ readOnly, record, dirty, saving, stateText }}
+          menu={lifecycle === undefined ? menu : null}
+        />
       </div>
       {record ? null : (
         <ConfirmDeleteDialog

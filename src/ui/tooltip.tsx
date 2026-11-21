@@ -731,6 +731,294 @@ function inLine(own: DOMRect, line: DOMRect, bubble: DOMRect, padding: number): 
   };
 }
 
+// The width a bubble wrapped to `width` takes in height, measured on `content` and put back.
+function heightAtWidth(content: HTMLElement, width: number): number {
+  const { width: before, maxWidth } = content.style;
+  content.style.width = content.style.maxWidth = `${width}px`;
+  const height = content.getBoundingClientRect().height;
+  Object.assign(content.style, { width: before, maxWidth });
+  return height;
+}
+
+// In a tile: placed over or under the tile's text inside its visible area, or null for a text wholly
+// outside that area, which has no bubble: nothing it would refer to is in view.
+function placeInTile(
+  trigger: Element,
+  tile: Element,
+  content: HTMLElement,
+  padding: number,
+): RowPlacement | null {
+  const heightAt = (width: number) => heightAtWidth(content, width);
+  const own = trigger.getBoundingClientRect();
+  const { area, blocks } = visibleArea(
+    tile,
+    own,
+    content.closest("[data-radix-popper-content-wrapper]") ?? content,
+    bubbleBand(own, content.getBoundingClientRect().height, heightAt, padding),
+  );
+  if (hiddenIn(own, area)) return null;
+  return inTile(
+    own,
+    tile.getBoundingClientRect(),
+    area,
+    content.getBoundingClientRect().width,
+    heightAt,
+    padding,
+    blocks,
+  );
+}
+
+// What a placement in a bar measures once: the element, its label, its group's and the other
+// controls of the bar, the obstacles of the other bars, and the bubble's width.
+type BarGeometry = {
+  own: DOMRect;
+  label: DOMRect;
+  mine: DOMRect[];
+  others: Element[];
+  bars: DOMRect[];
+  apart: boolean;
+  width: number;
+};
+function barGeometry(trigger: Element, found: Row, width: number): BarGeometry {
+  const { row } = found;
+  const own = trigger.getBoundingClientRect();
+  const marked = row.querySelector(TOOLTIP_GROUP) !== null;
+  const group = found.group ?? [marked ? (outermost(trigger, TOOLTIP_GROUP, row) ?? trigger) : row];
+  const inGroup = (node: Element) => group.some((member) => member.contains(node));
+  const controls = [...row.querySelectorAll(ROW_CONTROL)].filter(
+    (node) => !trigger.contains(node) && !node.contains(trigger),
+  );
+  const mine = controls.filter(inGroup).map((node) => node.getBoundingClientRect());
+  // A label's hint sits on the label's text: the label's whole box is the element's in its group.
+  const label = trigger.closest("label[for]")?.getBoundingClientRect() ?? own;
+  const others = controls.filter((node) => !inGroup(node));
+  const apart = found.apart === true;
+  // The controls of the other bars, which the bubble keeps clear of where it stands at their height,
+  // and so the row's other controls where they are obstacles, not bounds (#542). A bar behind a
+  // modal (aria-hidden, inert) is out of play.
+  const line = (trigger.closest(FIELD) ?? trigger).getBoundingClientRect();
+  const bars = [...document.querySelectorAll(TOOLTIP_ROW)]
+    .filter(
+      (bar) =>
+        !row.contains(bar) &&
+        !bar.contains(trigger) &&
+        bar.closest("[aria-hidden=true], [inert]") === null,
+    )
+    .flatMap((bar) => [...bar.querySelectorAll(ROW_CONTROL)])
+    .map((node) => node.getBoundingClientRect())
+    .concat(apart ? others.map((node) => coveredBox(node, line)) : [])
+    .filter((rect) => rect.width > 0);
+  return { own, label, mine, others, bars, apart, width };
+}
+
+// The group's extent counts each of its controls the bubble would reach at its height, raised
+// beside the element: in a group of stacked options (a radio group) also the option below (#438).
+// The popper rounds the bubble's top to a whole pixel, either way. A bubble that narrows grows
+// taller and may reach more of them: the extent is taken at each height it is chosen at (#511).
+function extentAt(geometry: BarGeometry, height: number, padding: number) {
+  const { own, label, mine, others, apart } = geometry;
+  const bubbleTop = own.top - ALIGN_RAISE;
+  const reached = mine.filter(
+    (rect) =>
+      rect.width > 0 &&
+      rect.bottom > Math.floor(bubbleTop) &&
+      rect.top < Math.ceil(bubbleTop) + height,
+  );
+  const left = Math.min(own.left, label.left, ...reached.map((rect) => rect.left));
+  const right = Math.max(own.right, label.right, ...reached.map((rect) => rect.right));
+  let rightBound = document.documentElement.clientWidth - padding;
+  let leftBound = padding;
+  let leftField: Element | null = null;
+  for (const node of apart ? [] : others) {
+    const rect = node.getBoundingClientRect();
+    if (rect.width <= 0 || rect.bottom <= own.top || rect.top >= own.bottom) continue;
+    if (rect.left >= right) rightBound = Math.min(rightBound, rect.left - SIDE_OFFSET);
+    if (rect.right <= left && rect.right + SIDE_OFFSET > leftBound) {
+      leftBound = rect.right + SIDE_OFFSET;
+      leftField = node;
+    }
+  }
+  const leftText = leftField?.matches(TEXT_FIELD) === true ? (leftField as HTMLInputElement) : null;
+  if (leftText !== null) {
+    leftBound = textEnd(leftText) + TEXT_CLEARANCE;
+  }
+  // Right next to its element the bubble keeps the arrow's length more.
+  const arrowRight = right - own.right < 1 ? ARROW_SIZE : 0;
+  const arrowLeft = own.left - left < 1 ? ARROW_SIZE : 0;
+  return { left, right, rightBound, leftBound, leftText, arrowRight, arrowLeft };
+}
+
+// The popper places the bubble on whole pixels: the bounds round inward, the rooms down.
+function wholeGaps(gaps: Gap[], arrow: number) {
+  return gaps.map((gap, index) => ({
+    ...gap,
+    room: Math.floor(gap.room - (index === 0 ? arrow : 0)),
+    nearest: index === 0,
+  }));
+}
+
+// The side and gap for a bubble of `height`: the bars' controls count over the height it takes
+// where it ends up, raised off the viewport's bottom as the lift below raises it.
+function chooseGap(geometry: BarGeometry, height: number, padding: number) {
+  const { own, bars, width } = geometry;
+  const extent = extentAt(geometry, height, padding);
+  const { left, right, rightBound, leftBound, arrowRight, arrowLeft } = extent;
+  const raised = own.top - ALIGN_RAISE;
+  const bottom = document.documentElement.clientHeight - padding;
+  const top =
+    raised - Math.min(Math.max(0, raised + height - bottom), Math.max(0, raised - padding));
+  const blocks = bars.filter((rect) => rect.bottom > top + 1 && rect.top < top + height - 1);
+  const gapsRight = wholeGaps(
+    gapsAway(
+      right + SIDE_OFFSET,
+      Math.floor(rightBound),
+      blocks.map((rect) => [rect.left, rect.right]),
+    ),
+    arrowRight,
+  );
+  const gapsLeft = wholeGaps(
+    gapsAway(
+      -(left - SIDE_OFFSET),
+      -Math.ceil(leftBound),
+      blocks.map((rect) => [-rect.right, -rect.left]),
+    ),
+    arrowLeft,
+  );
+  const pick = (gaps: typeof gapsRight) =>
+    gaps.find((gap) => gap.room >= width) ??
+    gaps.reduce((widest, gap) => (gap.room > widest.room ? gap : widest));
+  const gapRight = pick(gapsRight);
+  const gapLeft = pick(gapsLeft);
+  const fits = width <= gapRight.room || width <= gapLeft.room;
+  const side: RowPlacement["side"] =
+    width <= gapRight.room || (!fits && gapRight.room >= gapLeft.room) ? "right" : "left";
+  return { fits, side, chosen: side === "right" ? gapRight : gapLeft, extent };
+}
+type GapChoice = ReturnType<typeof chooseGap>;
+
+// Narrowed to its gap it wraps and grows taller: chosen again at the height it takes there, until
+// its room narrows no further (#445). Still narrowing after three rounds, it is chosen at the
+// height it takes at 120 px, its tallest, which no room it may get exceeds.
+function narrowedChoice(
+  geometry: BarGeometry,
+  content: HTMLElement,
+  first: GapChoice,
+  padding: number,
+): GapChoice {
+  let choice = first;
+  if (choice.fits || choice.chosen.room < ROW_MIN_WIDTH) return choice;
+  const before = content.style.getPropertyValue("--tooltip-room");
+  const heightAt = (room: number) => {
+    content.style.setProperty("--tooltip-room", `${room}px`);
+    return content.getBoundingClientRect().height;
+  };
+  let settled = false;
+  for (let round = 0; round < 3 && !settled; round++) {
+    const room = choice.chosen.room;
+    choice = chooseGap(geometry, heightAt(room), padding);
+    settled = choice.fits || choice.chosen.room >= room || choice.chosen.room < ROW_MIN_WIDTH;
+  }
+  if (!settled) choice = chooseGap(geometry, heightAt(ROW_MIN_WIDTH), padding);
+  if (before === "") content.style.removeProperty("--tooltip-room");
+  else content.style.setProperty("--tooltip-room", before);
+  return choice;
+}
+
+// The placement the chosen gap gives.
+function barPlacement(
+  trigger: Element,
+  geometry: BarGeometry,
+  choice: GapChoice,
+  padding: number,
+): RowPlacement {
+  const { own, width } = geometry;
+  const { fits, side, chosen, extent } = choice;
+  const { left, leftText, arrowRight, arrowLeft } = extent;
+  const room = chosen.room;
+  const fallback = !fits && room < ROW_MIN_WIDTH;
+  const over =
+    !fallback &&
+    side === "left" &&
+    chosen.nearest &&
+    leftText !== null &&
+    left - SIDE_OFFSET - arrowLeft - Math.min(width, room) < leftText.getBoundingClientRect().right;
+  // A text field that takes the remaining width has no gap beside it for its own hint either: the
+  // bubble stands over its own empty end, 8 px inside its right edge and 16 px clear of its text
+  // (rev 12), and a press on it focuses the field. Under 120 px there it falls back as any. A side
+  // with room for 120 px comes first: there the bubble narrows, off its own field (#441).
+  const ownText = trigger.matches(TEXT_FIELD) ? (trigger as HTMLInputElement) : null;
+  const ownRoom =
+    ownText === null
+      ? 0
+      : Math.floor(
+          Math.floor(own.right - SIDE_OFFSET) - Math.ceil(textEnd(ownText) + TEXT_CLEARANCE),
+        );
+  if (fallback && ownText !== null && ownRoom >= ROW_MIN_WIDTH) {
+    return {
+      side: "left",
+      // Its right edge 8 px inside the field's.
+      sideOffset: SIDE_OFFSET - own.width,
+      fallback: false,
+      adjacent: false,
+      room: ownRoom,
+      lift: 0,
+      field: ownText,
+    };
+  }
+  if (fallback) {
+    return (
+      atElement(own, width, padding) ?? {
+        side: "right",
+        sideOffset: SIDE_OFFSET,
+        fallback,
+        adjacent: true,
+        room: Infinity,
+        lift: 0,
+        field: null,
+      }
+    );
+  }
+  return {
+    side,
+    // The gap's near edge is the bubble's: on the left it is measured away, as -x.
+    sideOffset: side === "right" ? chosen.edge - own.right : own.left + chosen.edge,
+    fallback,
+    adjacent: chosen.nearest && (side === "right" ? arrowRight : arrowLeft) > 0,
+    room,
+    lift: 0,
+    field: over ? leftText : null,
+  };
+}
+
+// The placement of the bubble of `trigger` measured as `content`; `hidden` for a text in a tile
+// wholly outside its visible area, null where it stands as radix places it.
+function rowPlacement(
+  trigger: Element,
+  content: HTMLElement,
+  padding: number,
+): RowPlacement | "hidden" | null {
+  const tile = trigger.closest(TOOLTIP_TILE);
+  if (tile !== null) return placeInTile(trigger, tile, content, padding) ?? "hidden";
+  const found = rowOf(trigger);
+  const bubble = content.getBoundingClientRect();
+  if (found === null) {
+    const own = trigger.getBoundingClientRect();
+    const line = trigger.closest(TOOLTIP_LINE);
+    return (
+      atElement(own, bubble.width, padding) ??
+      (line === null ? null : inLine(own, line.getBoundingClientRect(), bubble, padding))
+    );
+  }
+  const geometry = barGeometry(trigger, found, bubble.width);
+  const choice = narrowedChoice(
+    geometry,
+    content,
+    chooseGap(geometry, bubble.height, padding),
+    padding,
+  );
+  return barPlacement(trigger, geometry, choice, padding);
+}
+
 // Inside a bar the bubble stands beside the element's group, at the element's height, in the nearest
 // gap that holds it, so it covers no neighbouring control (`GL-UI-016` rev 10 §Lage): right of the
 // group up to the next control of the bar (or the viewport), else left of it. A text field that takes
@@ -741,7 +1029,8 @@ function inLine(own: DOMRect, line: DOMRect, bubble: DOMRect, padding: number): 
 // beside a panel) break a side into several gaps; it takes the nearest that holds it, else the widest
 // (#441). Outside a bar, and beside the element, it stands at the element when no side holds 120 px.
 // A keyboard bubble opened by a holder's focus stands here as well, at its clipped text (rev 17).
-// Measured when the bubble mounts, before it paints.
+// Measured when the bubble mounts, before it paints; the pure placement is `rowPlacement` (#981
+// finding #621).
 function useRowPlacement(content: HTMLElement | null, padding: number): RowPlacement | null {
   const trigger = React.useContext(TriggerNodeContext)?.trigger ?? null;
   const [placement, setPlacement] = React.useState<RowPlacement | null>(null);
@@ -753,239 +1042,11 @@ function useRowPlacement(content: HTMLElement | null, padding: number): RowPlace
   }
   React.useLayoutEffect(() => {
     if (trigger === null || content === null) return;
-    const tile = trigger.closest(TOOLTIP_TILE);
-    if (tile !== null) {
-      // Measuring the DOM before paint is what layout effects are for.
-      const heightAt = (width: number) => {
-        const { width: before, maxWidth } = content.style;
-        content.style.width = content.style.maxWidth = `${width}px`;
-        const height = content.getBoundingClientRect().height;
-        Object.assign(content.style, { width: before, maxWidth });
-        return height;
-      };
-      const own = trigger.getBoundingClientRect();
-      const { area, blocks } = visibleArea(
-        tile,
-        own,
-        content.closest("[data-radix-popper-content-wrapper]") ?? content,
-        bubbleBand(own, content.getBoundingClientRect().height, heightAt, padding),
-      );
-      // A text wholly outside the visible area has no bubble: nothing it would refer to is in view.
-      if (hiddenIn(own, area)) {
-        document.dispatchEvent(new CustomEvent(TOOLTIP_OPEN));
-        return;
-      }
-      const placed = inTile(
-        own,
-        tile.getBoundingClientRect(),
-        area,
-        content.getBoundingClientRect().width,
-        heightAt,
-        padding,
-        blocks,
-      );
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setPlacement(placed);
-      return;
-    }
-    const found = rowOf(trigger);
-    const own = trigger.getBoundingClientRect();
-    const bubble = content.getBoundingClientRect();
-    const width = bubble.width;
-    if (found === null) {
-      const line = trigger.closest(TOOLTIP_LINE);
-      const near =
-        atElement(own, width, padding) ??
-        (line === null ? null : inLine(own, line.getBoundingClientRect(), bubble, padding));
-      if (near !== null) setPlacement(near);
-      return;
-    }
-    const { row } = found;
-    const marked = row.querySelector(TOOLTIP_GROUP) !== null;
-    const group = found.group ?? [
-      marked ? (outermost(trigger, TOOLTIP_GROUP, row) ?? trigger) : row,
-    ];
-    const inGroup = (node: Element) => group.some((member) => member.contains(node));
-    const onLine = (rect: DOMRect) =>
-      rect.width > 0 && rect.bottom > own.top && rect.top < own.bottom;
-    const controls = [...row.querySelectorAll(ROW_CONTROL)].filter(
-      (node) => !trigger.contains(node) && !node.contains(trigger),
-    );
-    const mine = controls.filter(inGroup).map((node) => node.getBoundingClientRect());
-    // A label's hint sits on the label's text: the label's whole box is the element's in its group.
-    const label = trigger.closest("label[for]")?.getBoundingClientRect() ?? own;
-    const others = controls.filter((node) => !inGroup(node));
-    // The group's extent counts each of its controls the bubble would reach at its height, raised
-    // beside the element: in a group of stacked options (a radio group) also the option below (#438).
-    // The popper rounds the bubble's top to a whole pixel, either way. A bubble that narrows grows
-    // taller and may reach more of them: the extent is taken at each height it is chosen at (#511).
-    const extentAt = (height: number) => {
-      const bubbleTop = own.top - ALIGN_RAISE;
-      const reached = mine.filter(
-        (rect) =>
-          rect.width > 0 &&
-          rect.bottom > Math.floor(bubbleTop) &&
-          rect.top < Math.ceil(bubbleTop) + height,
-      );
-      const left = Math.min(own.left, label.left, ...reached.map((rect) => rect.left));
-      const right = Math.max(own.right, label.right, ...reached.map((rect) => rect.right));
-      let rightBound = document.documentElement.clientWidth - padding;
-      let leftBound = padding;
-      let leftField: Element | null = null;
-      for (const node of found.apart === true ? [] : others) {
-        const rect = node.getBoundingClientRect();
-        if (!onLine(rect)) continue;
-        if (rect.left >= right) rightBound = Math.min(rightBound, rect.left - SIDE_OFFSET);
-        if (rect.right <= left && rect.right + SIDE_OFFSET > leftBound) {
-          leftBound = rect.right + SIDE_OFFSET;
-          leftField = node;
-        }
-      }
-      const leftText =
-        leftField?.matches(TEXT_FIELD) === true ? (leftField as HTMLInputElement) : null;
-      if (leftText !== null) {
-        leftBound = textEnd(leftText) + TEXT_CLEARANCE;
-      }
-      // Right next to its element the bubble keeps the arrow's length more.
-      const arrowRight = right - own.right < 1 ? ARROW_SIZE : 0;
-      const arrowLeft = own.left - left < 1 ? ARROW_SIZE : 0;
-      return { left, right, rightBound, leftBound, leftText, arrowRight, arrowLeft };
-    };
-    // The controls of the other bars, which the bubble keeps clear of where it stands at their height,
-    // and so the row's other controls where they are obstacles, not bounds (#542). A bar behind a
-    // modal (aria-hidden, inert) is out of play.
-    const line = (trigger.closest(FIELD) ?? trigger).getBoundingClientRect();
-    const bars = [...document.querySelectorAll(TOOLTIP_ROW)]
-      .filter(
-        (bar) =>
-          !row.contains(bar) &&
-          !bar.contains(trigger) &&
-          bar.closest("[aria-hidden=true], [inert]") === null,
-      )
-      .flatMap((bar) => [...bar.querySelectorAll(ROW_CONTROL)])
-      .map((node) => node.getBoundingClientRect())
-      .concat(found.apart === true ? others.map((node) => coveredBox(node, line)) : [])
-      .filter((rect) => rect.width > 0);
-    // The popper places the bubble on whole pixels: the bounds round inward, the rooms down.
-    const whole = (gaps: Gap[], arrow: number) =>
-      gaps.map((gap, index) => ({
-        ...gap,
-        room: Math.floor(gap.room - (index === 0 ? arrow : 0)),
-        nearest: index === 0,
-      }));
-    // The side and gap for a bubble of `height`: the bars' controls count over the height it takes
-    // where it ends up, raised off the viewport's bottom as the lift below raises it.
-    const choose = (height: number) => {
-      const extent = extentAt(height);
-      const { left, right, rightBound, leftBound, arrowRight, arrowLeft } = extent;
-      const raised = own.top - ALIGN_RAISE;
-      const bottom = document.documentElement.clientHeight - padding;
-      const top =
-        raised - Math.min(Math.max(0, raised + height - bottom), Math.max(0, raised - padding));
-      const blocks = bars.filter((rect) => rect.bottom > top + 1 && rect.top < top + height - 1);
-      const gapsRight = whole(
-        gapsAway(
-          right + SIDE_OFFSET,
-          Math.floor(rightBound),
-          blocks.map((rect) => [rect.left, rect.right]),
-        ),
-        arrowRight,
-      );
-      const gapsLeft = whole(
-        gapsAway(
-          -(left - SIDE_OFFSET),
-          -Math.ceil(leftBound),
-          blocks.map((rect) => [-rect.right, -rect.left]),
-        ),
-        arrowLeft,
-      );
-      const pick = (gaps: typeof gapsRight) =>
-        gaps.find((gap) => gap.room >= width) ??
-        gaps.reduce((widest, gap) => (gap.room > widest.room ? gap : widest));
-      const gapRight = pick(gapsRight);
-      const gapLeft = pick(gapsLeft);
-      const fits = width <= gapRight.room || width <= gapLeft.room;
-      const side: RowPlacement["side"] =
-        width <= gapRight.room || (!fits && gapRight.room >= gapLeft.room) ? "right" : "left";
-      return { fits, side, chosen: side === "right" ? gapRight : gapLeft, extent };
-    };
-    let choice = choose(bubble.height);
-    // Narrowed to its gap it wraps and grows taller: chosen again at the height it takes there, until
-    // its room narrows no further (#445). Still narrowing after three rounds, it is chosen at the
-    // height it takes at 120 px, its tallest, which no room it may get exceeds.
-    if (!choice.fits && choice.chosen.room >= ROW_MIN_WIDTH) {
-      const before = content.style.getPropertyValue("--tooltip-room");
-      const heightAt = (room: number) => {
-        content.style.setProperty("--tooltip-room", `${room}px`);
-        return content.getBoundingClientRect().height;
-      };
-      let settled = false;
-      for (let round = 0; round < 3 && !settled; round++) {
-        const room = choice.chosen.room;
-        choice = choose(heightAt(room));
-        settled = choice.fits || choice.chosen.room >= room || choice.chosen.room < ROW_MIN_WIDTH;
-      }
-      if (!settled) choice = choose(heightAt(ROW_MIN_WIDTH));
-      if (before === "") content.style.removeProperty("--tooltip-room");
-      else content.style.setProperty("--tooltip-room", before);
-    }
-    const { fits, side, chosen, extent } = choice;
-    const { left, leftText, arrowRight, arrowLeft } = extent;
-    const room = chosen.room;
-    const fallback = !fits && room < ROW_MIN_WIDTH;
-    const over =
-      !fallback &&
-      side === "left" &&
-      chosen.nearest &&
-      leftText !== null &&
-      left - SIDE_OFFSET - arrowLeft - Math.min(width, room) <
-        leftText.getBoundingClientRect().right;
-    // A text field that takes the remaining width has no gap beside it for its own hint either: the
-    // bubble stands over its own empty end, 8 px inside its right edge and 16 px clear of its text
-    // (rev 12), and a press on it focuses the field. Under 120 px there it falls back as any. A side
-    // with room for 120 px comes first: there the bubble narrows, off its own field (#441).
-    const ownText = trigger.matches(TEXT_FIELD) ? (trigger as HTMLInputElement) : null;
-    const ownRoom =
-      ownText === null
-        ? 0
-        : Math.floor(
-            Math.floor(own.right - SIDE_OFFSET) - Math.ceil(textEnd(ownText) + TEXT_CLEARANCE),
-          );
-    if (fallback && ownText !== null && ownRoom >= ROW_MIN_WIDTH) {
-      setPlacement({
-        side: "left",
-        // Its right edge 8 px inside the field's.
-        sideOffset: SIDE_OFFSET - own.width,
-        fallback: false,
-        adjacent: false,
-        room: ownRoom,
-        lift: 0,
-        field: ownText,
-      });
-      return;
-    }
-    setPlacement(
-      fallback
-        ? (atElement(own, width, padding) ?? {
-            side: "right",
-            sideOffset: SIDE_OFFSET,
-            fallback,
-            adjacent: true,
-            room: Infinity,
-            lift: 0,
-            field: null,
-          })
-        : {
-            side,
-            // The gap's near edge is the bubble's: on the left it is measured away, as -x.
-            sideOffset: side === "right" ? chosen.edge - own.right : own.left + chosen.edge,
-            fallback,
-            adjacent: chosen.nearest && (side === "right" ? arrowRight : arrowLeft) > 0,
-            room,
-            lift: 0,
-            field: over ? leftText : null,
-          },
-    );
+    // Measuring the DOM before paint is what layout effects are for.
+    const placed = rowPlacement(trigger, content, padding);
+    if (placed === "hidden") document.dispatchEvent(new CustomEvent(TOOLTIP_OPEN));
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    else if (placed !== null) setPlacement(placed);
   }, [trigger, content, padding]);
   // The bubble's height settles once it narrows to its side, so it is measured as it resizes.
   React.useEffect(() => {

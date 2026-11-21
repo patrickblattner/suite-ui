@@ -1193,6 +1193,32 @@ describe("MediaDetailShell: Save in the leave dialog is a submit", () => {
     expect(screen.getByTestId("path")).toHaveTextContent("/media/2");
   });
 
+  // Review of #981 (#845): the shared rule shows the errors as the save starts; the focus it puts on
+  // the first invalid field must not leave the working dialog, and lands there once the save failed.
+  it("a pending Save in the leave dialog keeps the focus in the dialog; failed, it lands on the first invalid field", async () => {
+    let fail!: () => void;
+    const onSave = vi.fn(() => new Promise<boolean>((resolve) => (fail = () => resolve(false))));
+    renderGuarded({ onSave });
+    changeNote();
+    fireEvent.click(screen.getByTestId("media-detail-next"));
+    const save = await screen.findByTestId("leave-guard-save");
+    act(() => save.focus());
+    fireEvent.click(save);
+    await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+    expect(screen.getByTestId("leave-guard")).toBeInTheDocument();
+    expect(screen.getByTestId("leave-guard")).toContainElement(
+      document.activeElement as HTMLElement,
+    );
+    expect(screen.getByLabelText("Title")).not.toHaveFocus();
+    await act(async () => {
+      fail();
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(screen.queryByTestId("leave-guard")).toBeNull());
+    await waitFor(() => expect(screen.getByLabelText("Title")).toHaveFocus());
+    expect(screen.getByText("Enter a title.")).toBeInTheDocument();
+  });
+
   it("Save in the leave dialog whose onSave throws shows the errors", async () => {
     const onSave = vi.fn((): unknown => {
       throw new Error("save failed");
@@ -1441,6 +1467,21 @@ describe("MediaDetailShell: the submit state ends", () => {
     save();
     await failSave(fail, settle);
     expect(screen.getByText("Enter a title.")).toBeInTheDocument();
+  });
+
+  // #981 finding #845: the shared submit rule of EditPanel and FieldForm — the errors show as the save
+  // starts, a success ends them.
+  it("a pending Save shows the errors at once and its success ends them", async () => {
+    const settle: Settle = { resolve: () => {}, reject: () => {} };
+    render(<Paged onSave={pendingSave(settle)} />);
+    changeNote();
+    save();
+    expect(await screen.findByText("Enter a title.")).toBeInTheDocument();
+    await act(async () => {
+      settle.resolve(true);
+      await Promise.resolve();
+    });
+    expect(screen.queryByText("Enter a title.")).toBeNull();
   });
 
   // #973 (Codex CX1): Reset outdates the saves before it, not one its handler starts.

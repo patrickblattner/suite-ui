@@ -430,7 +430,7 @@ function MediaDetailShell({
   const autoFocused = useAutoFocused(open, "[data-slot=media-detail]", content);
   const preview = React.useRef<HTMLDivElement>(null);
   // A submit shows every field's error and focuses the first invalid field (`GL-UI-038`).
-  const [submits, submitted, endSubmits, submitEnds] = useFieldSubmits();
+  const [submits, , endSubmits, submitEnds, attemptSubmit] = useFieldSubmits();
   // A different medium ends the submit state, in the render that shows it: its untouched fields show
   // their errors late again, and they stay mounted, so the focus survives paging (`GL-UI-038` rev 4).
   // The medium's key is `recordKey`, else its position with its `src`: another medium sliding into the
@@ -441,14 +441,6 @@ function MediaDetailShell({
     setShownRecord(record);
     endSubmits();
   }
-  // The latest save: an older one's result, settling later, ends nothing and shows nothing; so does
-  // one made before another medium showed or before Reset (#972). Reset outdates them in its handler,
-  // so a save its `onReset` starts stays current (#973); another medium in the commit that shows it,
-  // before any later save can start.
-  const attempts = React.useRef(0);
-  React.useLayoutEffect(() => {
-    attempts.current++;
-  }, [shownRecord]);
   const form = React.useRef<HTMLFormElement>(null);
   const pickSlot = React.useRef<HTMLSpanElement>(null);
   // The typed but uncommitted entries of the shell's own fields (`SUI-FEATURE-118` rev 6): they make
@@ -466,30 +458,13 @@ function MediaDetailShell({
         ? t("form.unchanged")
         : undefined;
   const reason = showDisabledReason && !saving ? lockReason || undefined : undefined;
-  // The page's submit, from its own Save and from Save in the leave dialog alike: a save that does not
-  // report success shows every invalid field's error and focuses the first, also one the user never
-  // left (`GL-UI-038` §Absenden, `SUI-FEATURE-150`); a successful one ends the submit state.
+  // The page's submit, from its own Save and from Save in the leave dialog alike, on the shared submit
+  // rule of `EditPanel` and `FieldForm` (#981 finding #845): every invalid field shows its error and
+  // the first takes the focus, also one the user never left (`GL-UI-038` §Absenden,
+  // `SUI-FEATURE-150`); a save that reports success (`true`, or a promise resolving `true`) ends the
+  // submit state. An older save, or one made before another medium or Reset, ends nothing (#972, #973).
   function attempt(): unknown {
-    const own = ++attempts.current;
-    const current = () => own === attempts.current;
-    const failed = () => {
-      if (form.current !== null && current()) submitted(form.current);
-    };
-    const settled = (value: unknown) => {
-      if (value !== true) failed();
-      else if (current()) endSubmits();
-    };
-    let result: unknown;
-    try {
-      result = dirty && !submitDisabled ? onSave?.() : false;
-    } catch (error) {
-      failed();
-      throw error;
-    }
-    if (typeof (result as { then?: unknown } | null)?.then === "function") {
-      (result as PromiseLike<unknown>).then(settled, failed);
-    } else settled(result);
-    return result;
+    return attemptSubmit(form.current, () => (dirty && !submitDisabled ? onSave?.() : false));
   }
   const { guard, dialog } = useLeaveConfirm({
     dirty: open && dirty,
@@ -548,7 +523,6 @@ function MediaDetailShell({
         onClick={() => {
           fieldDrafts.discard();
           // Reset discards to the saved values: the submit state ends (`GL-UI-038` rev 4).
-          attempts.current++;
           endSubmits();
           onReset?.();
         }}
