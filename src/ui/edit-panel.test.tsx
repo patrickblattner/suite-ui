@@ -2207,23 +2207,31 @@ describe("EditPanel field errors", () => {
     await waitFor(() => expect(save).toHaveFocus());
   });
 
-  it("a locked panel: Save in the leave dialog shows the errors and calls no onSubmit", async () => {
-    const onSubmit = vi.fn(() => true);
-    render(
-      <MemoryRouter initialEntries={["/list"]}>
-        <Guarded onSubmit={onSubmit} locked />
-      </MemoryRouter>,
-    );
-    changeNote();
-    fireEvent.click(screen.getByTestId("nav"));
-    fireEvent.click(screen.getByTestId("leave-guard-save"));
-    await waitFor(() => expect(screen.queryByTestId("leave-guard")).toBeNull());
-    expect(onSubmit).not.toHaveBeenCalled();
-    expect(screen.getByTestId("path")).toHaveTextContent("/list");
-    expect(screen.getByText("Enter a name.")).toBeInTheDocument();
-    expect(screen.getByText("Enter a city.")).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByLabelText("Name")).toHaveFocus());
-  });
+  // #1004: `Enter` on the dialog answers as the locked Save does on a panel: the panel's locked
+  // submit, unchanged by the page guard's fix.
+  it.each([
+    ["Save in", () => fireEvent.click(screen.getByTestId("leave-guard-save"))],
+    ["Enter on", () => fireEvent.keyDown(screen.getByTestId("leave-guard"), { key: "Enter" })],
+  ])(
+    "a locked panel: %s the leave dialog shows the errors and calls no onSubmit",
+    async (_, press) => {
+      const onSubmit = vi.fn(() => true);
+      render(
+        <MemoryRouter initialEntries={["/list"]}>
+          <Guarded onSubmit={onSubmit} locked />
+        </MemoryRouter>,
+      );
+      changeNote();
+      fireEvent.click(screen.getByTestId("nav"));
+      press();
+      await waitFor(() => expect(screen.queryByTestId("leave-guard")).toBeNull());
+      expect(onSubmit).not.toHaveBeenCalled();
+      expect(screen.getByTestId("path")).toHaveTextContent("/list");
+      expect(screen.getByText("Enter a name.")).toBeInTheDocument();
+      expect(screen.getByText("Enter a city.")).toBeInTheDocument();
+      await waitFor(() => expect(screen.getByLabelText("Name")).toHaveFocus());
+    },
+  );
 
   it("a valid form: Save in the leave dialog saves and lands at the target, no error shown", async () => {
     const onSubmit = vi.fn(() => true);

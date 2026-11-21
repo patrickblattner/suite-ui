@@ -99,6 +99,28 @@ describe("settingsSaveLock: the settings leave dialog follows the page's locked 
     expect(screen.getByTestId("path")).toHaveTextContent("/settings/mail");
   });
 
+  // #1004 (Codex CX1): `Enter` in the dialog answers like its Save; locked, it saves nothing, whether
+  // the dialog itself or any of its controls has the focus.
+  it.each(["dialog", "leave-guard-cancel", "leave-guard-discard", "leave-guard-save"])(
+    "locked: Enter on %s never calls the page's onSave",
+    async (where) => {
+      const { onSave } = openLeaveDialog(true);
+      const dialog = await screen.findByTestId("leave-guard");
+      const target = where === "dialog" ? dialog : screen.getByTestId(where);
+      target.focus();
+      fireEvent.keyDown(target, { key: "Enter" });
+      await new Promise((done) => setTimeout(done, 50));
+      expect(onSave).not.toHaveBeenCalled();
+      expect(screen.getByTestId("path")).toHaveTextContent("/settings/mail");
+    },
+  );
+
+  it("free: Enter on the dialog itself saves, as before", async () => {
+    const { onSave } = openLeaveDialog(false);
+    fireEvent.keyDown(await screen.findByTestId("leave-guard"), { key: "Enter" });
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+  });
+
   it("locked: Discard leaves without saving", async () => {
     const { onSave } = openLeaveDialog(true);
     fireEvent.click(await screen.findByTestId("leave-guard-discard"));

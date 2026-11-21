@@ -136,6 +136,12 @@ type SaveLock = { locked: boolean; carry: (save: React.ReactElement) => React.Re
 // locked package button (`holdsPress`).
 type DialogSaveLock = SaveLock & { holdsPress?: boolean };
 
+// `Enter` on the dialog answers as Save does: locked on a page's guard (`holdsPress`) it runs nothing
+// (#1004); locked on a surface it runs the surface's locked submit, as Save's press does.
+function savesOnEnter(lock: DialogSaveLock | undefined): boolean {
+  return lock?.locked !== true || lock.holdsPress !== true;
+}
+
 // The dialog's Save (Apply where the surface only applies), free or locked, in the surface's carrier
 // of its reason (`SaveLock`, `SUI-FEATURE-250` rev 6). Free, it takes the opening focus.
 function SaveAction({
@@ -282,7 +288,7 @@ function LeaveConfirmDialog({
           if (event.target instanceof HTMLButtonElement) return;
           event.preventDefault();
           if (onSave === undefined) stay();
-          else onSave();
+          else if (savesOnEnter(saveLock)) onSave();
         }}
       >
         <DialogHeader>
