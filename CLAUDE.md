@@ -10,7 +10,11 @@ rule `GL-UI-004`).
 
 ## What this project does
 
-_TODO: Brief description._
+`@suite/ui`: the React 19 + Tailwind 4 component library (built on Radix) that every Suite app
+pins by git tag. It ships the shared building blocks (fields and forms, EditPanel, lists and tiles,
+FilterBar, editor header, leave guard, toasts, settings scaffold, the slide editor and player) and
+their strings in de/en/es. A Storybook-like gallery (`gallery/`) renders every specified state and
+its Playwright suite pins them as screenshot baselines.
 
 ## Specs — Spec-Server v2, accessed via the MCP server `spec`
 
@@ -30,35 +34,47 @@ only an export mirror and is never read. There are **no spec files** in this rep
 - Questions about specs go to the spec master, as the charter says.
 - Hard boundaries are in the specs (vision sheet §Guiding Principles).
 
-## Gate — `spec-sync-toolkit`
+## Path to `main` — phase `development` (`PROC-REL-009`)
 
-The gate comes from the `spec-sync-toolkit` (devDependency, pinned to a tag); custom gate chains
-call the runner instead of declaring a second source of truth.
+suite-ui is in phase `development`: land straight on `main` after the fast local checks you choose
+and the secrets scan. Nothing else holds a push. The big tests (full unit suite, hygiene, knip,
+size limits, the gallery) belong to the test master, who reports reds on their commit. Release tags
+stay, because the apps pull the package by tag.
 
 ```bash
-node_modules/.bin/spec-sync gate --profile local|merge [--changed]          # all phases run, red ones in failures[]; red blocking phase skips the rest
-node_modules/.bin/spec-sync gate --profile merge --preflight                # pre-run before every push, must list nothing
-node_modules/.bin/spec-sync doctor                                          # environment against the norm
-npm run gate:record                                           # merge gate; on green, record it for HEAD's tree
-npm run release:tag                                           # tag HEAD on main as v<version> and push, only with that record
+npm run format:check && npm run lint && npm run typecheck   # fast checks
+node_modules/.bin/vitest run <files you touched>              # unit tests of what you touched
+git push origin main                                          # the pre-push hook runs the secrets scan (gitleaks)
+npm run release:tag                                           # tag HEAD on main as v<version> (rule: SUI-FEATURE-076)
 ```
 
-stdout is **exactly one JSON object** (`--human` for the terminal), logs under `.spec-sync/logs/`.
-Exit codes: `0` ok · `1` substantively red · `2` unprovable (retry, don't count as green) ·
-`3` ambiguous · `4` precondition violated (config, branch, `owner-hold`, pause flag).
-
-**`spec-sync.config.json` is the only project-specific file** (versioned);
-`.spec-sync/` (logs, ledger) is not. `spec-pins.json` is versioned.
+- The toolkit runs only as `node_modules/.bin/spec-sync` from the checkout root, never through npx
+  (`GL-SEC-011`). Its gate (`gate --profile local|merge`) still works for a full local pass; stdout is
+  one JSON object, logs under `.spec-sync/logs/`.
+- Every checkout or worktree needs `mise trust <path>/mise.toml && mise install` once (the scanners
+  are pinned in `mise.toml`/`mise.lock`); untrusted, the shims fail and the push is refused.
+- `spec-sync.config.json` and `spec-pins.json` are versioned; `.spec-sync/` is not.
 
 ## Architecture
 
-_TODO: defined by the specs — just one orientation sentence here._
+`src/` holds one module per building block under `src/ui`, `src/list`, `src/settings`,
+`src/slides`, `src/shell` and `src/lib` (shared internals, `*-internal` modules are not API);
+`package.json` `exports` publishes them as subpaths (`@suite/ui/ui/*` and so on), each with a
+size-limit line in `size-limit-lines.json`. `src/styles.css` carries the design tokens. The specs
+define the behaviour; the vision sheet of project `suite-ui` is the root.
 
 ## Commands
 
 ```bash
-# TODO: Fill in
-# npm install / npm run dev / npm run build / npm test / npm run lint
+npm ci                    # install (then `mise trust && mise install` once per checkout)
+npm run build             # tsup → dist/
+npm test                  # vitest (unit)
+npm run lint              # eslint
+npm run typecheck         # tsc --noEmit
+npm run format:check      # prettier
+npm run gallery:dev       # gallery dev server (Vite)
+npm run gallery:image     # gallery Playwright suite in the pinned image (Linux baselines)
+npm run hygiene           # size limits, jscpd, semgrep, trivy, gitleaks, ratchet
 ```
 
 <!-- scaffolded by init-project.sh on 2026-10-06 -->
