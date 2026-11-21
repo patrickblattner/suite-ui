@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.256.0 — #981 R6 editor structure (MediaDetailShell shows errors at save start), #982 R7 gallery coverage, TagInput hover hint (minor)
+
 - **Changed (#981, finding #846):** the panels' region watch (`watchRegion` in `src/lib/panel-geometry.ts`) skips its observer work (region lookup, layout read, re-observe) for child changes after the region chain in its parents, such as a tooltip, toast or popover portal mounting at the end of `<body>`, except when such a change makes a different element the content region (a sidebar coming or going after the chain), which a DOM query detects without a layout read; a band before the region, or the region replaced, still re-runs it.
 - **Changed (#981, finding #845, GL-UI-038 §Absenden):** `MediaDetailShell` submits on the shared submit rule of `EditPanel` and `FieldForm` (`useFieldSubmits`) instead of its own: every invalid field shows its error and the first takes the focus as the save starts, not only once it fails; a success ends the state, an older save or one made before paging or Reset ends nothing. Behaviour change by intent: a pending save now shows the errors, as in `EditPanel`.
 - **Changed (#981, finding #619):** two needless guards in `leave-guard.tsx` are gone (`restarting?.discards?.has`, where `discards` is required, and a second `fieldDrafts?.` after the check proved it); no behaviour change.
