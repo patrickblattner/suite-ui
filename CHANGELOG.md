@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.255.0 — #970 R5 batch 3: selected entries hover visibly, tile grid ring room (minor)
+
 - **Fixed (#970, finding #819, GL-UI-013 rev 6):** the selected time step in the `TimeField`/`DateTimeField` picker keeps its light tint (`bg-accent`) and answers hover with `bg-secondary-hover`, as the selected day answers with `bg-primary-hover`. The other selections checked against the new rule: `MediaTile` in pick mode now turns its selection ring to `ring-primary-hover` on hover (it showed no change); Combobox, TimezoneCombobox, TagInput suggestions, Select, DropdownMenu and GlobalSearch carry no selection fill, ViewToggle and pressed toggles already follow it.
 - **Fixed (#970, finding #577, GL-UI-018 rev 11):** `TileGridShell` carries exactly the focus ring's 3 px as padding on the bar side, so a tile at the end of a row shows its whole ring; the ring's outer edge ends where FilterBar and pager end.
 - Gallery (#970): the `@scrollbars` ring test also focuses the tile at the end of a row and checks the ring's outer edge against the FilterBar's end. Changed baselines (tile grids 3 px narrower on the bar side; at the `media-tiles-step` width one column fewer, so the tiles widen): `gallery/__screenshots__/tiles-{de,en,es}-{light,dark}.png`, `tiles-de-{light,dark}-{390,1440}.png`, `media-tiles-step-de-light.png` (11 files).
