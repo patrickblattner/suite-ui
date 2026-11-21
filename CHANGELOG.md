@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.263.0 — R10 slide editor second pass, filter width cap 16rem with the sort exempt (GL-UI-024 rev 17) (minor)
+
 - **Fixed (#993, finding #881, SUI-FEATURE-411):** a turned group whose children's box lies within the 1/1000 px grain of its stored box shifts nothing on a refit, so an edit elsewhere on the page no longer moves its children by a rounding at any angle (it did at 135°; quarter turns were fixed by #511). A group's size range names its ends on that grain, inside the exact range (max rounded down, min up), so the limit the note shows is one the side can be stored at and typing it no longer brings the note back.
 - **Size (#993, finding #881, GL-CODE-021 rev 7, register #1998):** `./slides/text-follow` maximum 3097 → 3348 B (measured 3189 B + 5 %); cause: the steady-group check of `refitGroup` (finding #881), which text-follow bundles.
 - **Changed (#993, finding #880):** the slide Editor's property fields for the selected element move into `slide-editor-fields-internal.tsx`: the image flips, the icon stroke width, the shadow section and the box fields (X, Y, width, height, rotation, with the size-limit logic as the pure `typedSide`), each reading and changing through one `FieldContext`; Editor 3340 → 3173 lines. New size line `./slides/slide-editor-fields-internal` at measured 542848 B, maximum 553088 B (+ min(5 %, 10 kB)); no behaviour or look change.
