@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.259.0 — #985 R8 slides editor quality, #988 R9 tooling, size headroom min(5 %, 10 kB) (minor)
+
 - **Fixed (#985, SUI-FEATURE-360):** a carried row's ring stands at once: the row's colour transition no longer includes the outline colour, which a running colour transition (a theme switch) retargeted, so the ring could fade in from the text colour. The gallery's dark carry check caught it once the faster dev server (#561) let it run within that transition; it now also asserts that no outline-colour transition runs on the carried row.
 - Quality (#985): jscpd duplicated-lines baseline 7089 → 6266 (measured on this branch after merging main v0.258.0; R8's own measurement before the merge was 6221).
 - **Fixed (#985, finding #438, SUI-FEATURE-196 §1):** resizing with Shift at a corner refuses a snap whose ratio-derived side would fall under 1 px (a 10 : 1 box snapped at its width could get a 0.5 px height); the box keeps its Shift resize.
