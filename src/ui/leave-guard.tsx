@@ -118,7 +118,57 @@ type LeaveConfirmDialogProps = {
   // its `busy`): its working primary action, whatever opened the dialog (`SUI-FEATURE-171`); `null`
   // keeps the return of `GL-UI-050`.
   workingFocus?: (() => HTMLElement | null) | undefined;
+  // The surface's submit is locked (`SUI-FEATURE-250` rev 6): Save (or Apply) is locked too,
+  // `aria-disabled`, and the dialog opens on Cancel. The surface wraps the locked Save in its own
+  // carrier of the reason (`Hint` with `disabledText`: the reason as its description), so the guard
+  // bundles no tooltip. A press runs `onSave` as the surface's locked submit does (`GL-UI-038`
+  // §Absenden: the errors show, nothing saves); Discard and Cancel stay free.
+  saveLocked?: SaveLock | undefined;
 };
+
+// Wraps the locked Save in the surface's carrier of its reason.
+type SaveLock = (save: React.ReactElement) => React.ReactNode;
+
+// The dialog's Save (Apply where the surface only applies), free or locked in the surface's carrier
+// of its reason (`SaveLock`, `SUI-FEATURE-250` rev 6). Free, it takes the opening focus.
+function SaveAction({
+  saveRef,
+  onSave,
+  working,
+  discarding,
+  applies,
+  lock,
+  opening,
+}: {
+  saveRef: React.RefObject<HTMLButtonElement | null>;
+  onSave: () => void;
+  working: boolean;
+  discarding: boolean;
+  applies: boolean;
+  lock: SaveLock | undefined;
+  opening: React.ComponentProps<"button">;
+}) {
+  const { t } = useTranslation("suite");
+  const button = (
+    <Button
+      type="button"
+      variant="success"
+      size="default"
+      ref={saveRef}
+      busy={working && !discarding}
+      disabled={discarding}
+      {...(lock === undefined
+        ? { onClick: onSave, ...opening }
+        : // The lock holds the click; the capture runs the locked submit before it.
+          { "aria-disabled": true, onClickCapture: onSave })}
+      data-testid="leave-guard-save"
+    >
+      {applies ? null : <SaveIcon aria-hidden="true" />}
+      {applies ? t("actions.apply") : t("actions.save")}
+    </Button>
+  );
+  return lock === undefined ? button : lock(button);
+}
 
 // The compact "Save changes?" dialog (`GL-UI-007`): Cancel, Discard and Save as the primary action on
 // the right. It opens with the focus on Save, so `Enter` saves; `Esc` is Cancel. Without a save target
@@ -141,6 +191,7 @@ function LeaveConfirmDialog({
   onSave,
   applies = false,
   workingFocus,
+  saveLocked,
 }: LeaveConfirmDialogProps) {
   const { t } = useTranslation("suite");
   const save = React.useRef<HTMLButtonElement>(null);
@@ -171,6 +222,8 @@ function LeaveConfirmDialog({
   // not match `:focus-visible` for a focus set by script; it ends with the first blur.
   const [openingFocus, setOpeningFocus] = React.useState(false);
   const discardOnly = onSave === undefined;
+  // Locked, Save is no answer to `Enter`: the dialog opens on Cancel, as without a save target.
+  const opensOnCancel = discardOnly || saveLocked !== undefined;
   const opening = {
     onBlur: () => setOpeningFocus(false),
     "data-opening-focus": openingFocus || undefined,
@@ -194,7 +247,7 @@ function LeaveConfirmDialog({
           const active = document.activeElement;
           held.current = active === document.body ? null : active;
           stayed.current = false;
-          (discardOnly ? cancel : save).current?.focus();
+          (opensOnCancel ? cancel : save).current?.focus();
           setOpeningFocus(true);
         }}
         onCloseAutoFocus={(event) => {
@@ -246,7 +299,7 @@ function LeaveConfirmDialog({
             ref={cancel}
             disabled={working}
             onClick={stay}
-            {...(discardOnly ? opening : {})}
+            {...(opensOnCancel ? opening : {})}
             data-testid="leave-guard-cancel"
           >
             {t("actions.cancel")}
@@ -263,20 +316,15 @@ function LeaveConfirmDialog({
             {t("leaveGuard.discard")}
           </Button>
           {!discardOnly && (
-            <Button
-              type="button"
-              variant="success"
-              size="default"
-              ref={save}
-              busy={working && !discarding}
-              disabled={discarding}
-              onClick={onSave}
-              {...opening}
-              data-testid="leave-guard-save"
-            >
-              {applies ? null : <SaveIcon aria-hidden="true" />}
-              {applies ? t("actions.apply") : t("actions.save")}
-            </Button>
+            <SaveAction
+              saveRef={save}
+              onSave={onSave}
+              working={working}
+              discarding={discarding}
+              applies={applies}
+              lock={saveLocked}
+              opening={opening}
+            />
           )}
         </DialogFooter>
       </DialogContent>
@@ -1477,6 +1525,9 @@ type LeaveConfirmOptions = {
   onDiscard?: (() => unknown) | undefined;
   // `onSave` only applies the entries to an outer form: the dialog asks "Apply changes?".
   applies?: boolean | undefined;
+  // The surface's submit is locked: the dialog's Save is locked, wrapped in the surface's carrier of
+  // the reason, and the dialog opens on Cancel (`SUI-FEATURE-250` rev 6, `LeaveConfirmDialog`).
+  saveLocked?: SaveLock | undefined;
   // The surface is shown (an edit panel's `open`). Closing it closes its dialog and drops a held leave,
   // and work still running counts for nothing once it settles: no question comes after the surface is
   // gone (`SUI-FEATURE-150`).
@@ -1972,12 +2023,13 @@ function useLeaveDialog(
     applies: boolean | undefined;
     workingFocus: (() => HTMLElement | null) | undefined;
     onSave: LeaveSave | undefined;
+    saveLocked: SaveLock | undefined;
     way: ReturnType<typeof useWayOut>;
   },
 ) {
   const { latestRef, workRef, waitingRef } = refs;
   const { pending, ask, working, discarding, failed } = shown;
-  const { router, fieldDrafts, applies, workingFocus, onSave, way } = surface;
+  const { router, fieldDrafts, applies, workingFocus, onSave, saveLocked, way } = surface;
   const { resetsLater, release, conclude, settleWith, run } = way;
   const save = () => {
     try {
@@ -2037,6 +2089,7 @@ function useLeaveDialog(
         failed={failed}
         applies={applies}
         workingFocus={workingFocus}
+        saveLocked={saveLocked}
         onCancel={() => {
           if (workRef.current !== null) return;
           pending?.stay?.();
@@ -2085,6 +2138,7 @@ function useLeaveConfirm({
   onSave,
   onDiscard,
   applies,
+  saveLocked,
   open = true,
   workingFocus,
   ignoreSearchParams = false,
@@ -2159,7 +2213,7 @@ function useLeaveConfirm({
   const dialog = useLeaveDialog(
     refs,
     { pending, ask, working, discarding, failed },
-    { router, fieldDrafts, applies, workingFocus, onSave, way },
+    { router, fieldDrafts, applies, workingFocus, onSave, saveLocked, way },
   );
   // Shown while the guard's call runs: the call site locks its Save/Reset pair and sets its surface
   // `inert` with it (`SUI-FEATURE-064` rev 6). A deferred reset runs outside any render, so it is

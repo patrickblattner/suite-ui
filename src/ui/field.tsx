@@ -137,8 +137,10 @@ function Field({
   ...props
 }: FieldProps) {
   const ids = fieldIdsFor(htmlFor);
-  // An empty text is no error.
-  const current = error === "" ? undefined : error;
+  // An empty text is no error. A field locked with a reason is one the person cannot change here: it
+  // shows no error and so never counts as invalid for a submit (`GL-UI-038` rev 6 §Gesperrte Felder).
+  const current =
+    error === "" || (disabledReason !== undefined && disabledReason !== "") ? undefined : error;
   // When the error shows (`GL-UI-038`): late, once the person has typed and left the control typed in,
   // or the form is submitted; early gone, as soon as what is typed is valid. A different error typed
   // waits for the control to be left. Outside a form, an error that does not come from typing (a

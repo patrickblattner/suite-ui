@@ -2133,6 +2133,48 @@ describe("EditPanel field errors", () => {
     },
   );
 
+  // SUI-FEATURE-250 rev 6 AC 6 (#996): a locked submit locks the dialog's Save with the same reason;
+  // the dialog opens on Cancel; Discard closes without saving.
+  it.each([undefined, "apply"] as const)(
+    "a locked panel (%s): the leave dialog's primary action is locked with the reason, focus on Cancel",
+    async (submitKind) => {
+      const onSubmit = vi.fn(() => true);
+      render(
+        <MemoryRouter initialEntries={["/list"]}>
+          <Guarded
+            onSubmit={onSubmit}
+            locked
+            {...(submitKind === undefined ? {} : { submitKind })}
+          />
+        </MemoryRouter>,
+      );
+      changeNote();
+      fireEvent.keyDown(screen.getByLabelText("Note"), { key: "Escape" });
+      const save = await screen.findByTestId("leave-guard-save");
+      expect(save).toHaveAttribute("aria-disabled", "true");
+      expect(save).not.toBeDisabled();
+      expect(save).toHaveAccessibleDescription("Fill in every field.");
+      await waitFor(() => expect(screen.getByTestId("leave-guard-cancel")).toHaveFocus());
+      expect(screen.getByTestId("leave-guard-discard")).toBeEnabled();
+      fireEvent.click(screen.getByTestId("leave-guard-discard"));
+      await waitFor(() => expect(screen.queryByTestId("leave-guard")).toBeNull());
+      expect(onSubmit).not.toHaveBeenCalled();
+    },
+  );
+
+  it("a free panel: the leave dialog's Save is free and has the focus", async () => {
+    render(
+      <MemoryRouter initialEntries={["/list"]}>
+        <Guarded onSubmit={() => true} valid />
+      </MemoryRouter>,
+    );
+    changeNote();
+    fireEvent.keyDown(screen.getByLabelText("Note"), { key: "Escape" });
+    const save = await screen.findByTestId("leave-guard-save");
+    expect(save).not.toHaveAttribute("aria-disabled");
+    await waitFor(() => expect(save).toHaveFocus());
+  });
+
   it("a locked panel: Save in the leave dialog shows the errors and calls no onSubmit", async () => {
     const onSubmit = vi.fn(() => true);
     render(

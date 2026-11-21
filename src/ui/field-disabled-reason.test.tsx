@@ -6,6 +6,7 @@ import { SettingsField } from "../settings/settings-field.js";
 import { Checkbox } from "./checkbox.js";
 import { Combobox } from "./combobox.js";
 import { DateTimeField } from "./date-time-field.js";
+import { EditPanel } from "./edit-panel.js";
 import { Field } from "./field.js";
 import { Hint } from "./hint.js";
 import { Input } from "./input.js";
@@ -1078,5 +1079,31 @@ describe("Review round 4 (#958): a silent hint keeps no open state", () => {
     hoverFor(input, 1500);
     expect(bubble()).toBeNull();
     leaveThenClip(input, () => rerender(<Name value={LONG} />));
+  });
+});
+
+// GL-UI-038 rev 6 §Gesperrte Felder (#996): a field the person cannot change here never counts as
+// required: locked with a reason, it shows no error, is never `aria-invalid` and takes no submit's
+// focus, also when the app passes an error; the submit itself runs as the app decides.
+describe("A field locked with a reason and an error (GL-UI-038 rev 6)", () => {
+  it("shows no error, not even after a submit; the free invalid field takes the focus", () => {
+    const onSubmit = vi.fn(() => false);
+    render(
+      <EditPanel open onOpenChange={() => {}} title="Profile" onSubmit={onSubmit}>
+        <Field label="Email" htmlFor="email" error="Enter an email." disabledReason={REASON}>
+          <Input id="email" defaultValue="" />
+        </Field>
+        <Field label="Name" htmlFor="name" error="Enter a name.">
+          <Input id="name" defaultValue="" />
+        </Field>
+      </EditPanel>,
+    );
+    fireEvent.click(screen.getByTestId("edit-panel-submit"));
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    const email = screen.getByLabelText("Email");
+    expect(email).not.toHaveAttribute("aria-invalid", "true");
+    expect(screen.queryByText("Enter an email.")).toBeNull();
+    expect(screen.getByText("Enter a name.")).toBeInTheDocument();
+    expect(screen.getByLabelText("Name")).toHaveFocus();
   });
 });

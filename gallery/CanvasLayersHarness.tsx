@@ -1,10 +1,11 @@
-import { useLayoutEffect, useState } from "react";
+import { useState } from "react";
 
 import { CanvasOverlay } from "../src/ui/canvas.js";
 import { CanvasActions } from "./CanvasDemo.js";
 
 const params = new URLSearchParams(window.location.search);
-// `&width=1440` widens the blocks frame; `&theme=dark` switches the theme.
+// `&width=1440` widens the blocks frame; `&theme=dark` is applied by the gallery's entry before the
+// first render (finding #882).
 const BLOCKS_WIDTH = Number(params.get("width")) || 390;
 // The blocks of the page in the blocks frame, top to bottom: three 18 px ones between larger ones.
 const BLOCKS = [80, 18, 18, 18, 80];
@@ -22,9 +23,6 @@ const BLOCKS = [80, 18, 18, 18, 80];
 // and no page option.
 function CanvasLayersHarness() {
   const [inserted, setInserted] = useState("");
-  useLayoutEffect(() => {
-    document.documentElement.classList.toggle("dark", params.get("theme") === "dark");
-  }, []);
   const insert = (label: string, left: number, top: number, width: number) => ({
     rect: new DOMRectReadOnly(left, top, width, 0),
     label,

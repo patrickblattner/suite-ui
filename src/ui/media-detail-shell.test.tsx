@@ -1964,6 +1964,24 @@ describe("MediaDetailShell: visible lock reason (SUI-FEATURE-125, SUI-FEATURE-13
     expect(save).toHaveAccessibleDescription("Add a caption first");
   });
 
+  // SUI-FEATURE-250 rev 6 AC 6 via SUI-FEATURE-131 (#996): a locked Save locks the leave dialog's
+  // Save with the same reason; the dialog opens on Cancel; Discard carries the leave out unsaved.
+  it("app lock: the leave dialog's Save is locked with the app hint, focus on Cancel", async () => {
+    const { onNext, onSave } = renderShell({
+      dirty: true,
+      submitDisabled: true,
+      submitDisabledHint: "Add a caption first",
+    });
+    fireEvent.keyDown(panel(), { key: "ArrowRight" });
+    const save = await screen.findByTestId("leave-guard-save");
+    expect(save).toHaveAttribute("aria-disabled", "true");
+    expect(save).toHaveAccessibleDescription("Add a caption first");
+    await waitFor(() => expect(screen.getByTestId("leave-guard-cancel")).toHaveFocus());
+    fireEvent.click(screen.getByTestId("leave-guard-discard"));
+    expect(onNext).toHaveBeenCalledTimes(1);
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
   // SUI-FEATURE-131 AC 2
   it("submitDisabled without submitDisabledHint is a type error", () => {
     // @ts-expect-error -- a lock always names its reason (SUI-FEATURE-250)

@@ -92,6 +92,18 @@ const initialLng = (LANGUAGES as string[]).includes(params.get("lng") ?? "")
   ? (params.get("lng") as SuiteLanguage)
   : "en";
 const initialTheme: Theme = params.get("theme") === "dark" ? "dark" : "light";
+// Language and theme reach `<html>` here, before the first render and the first paint (finding
+// #882): set in an effect after the render, the `dark` class arrived with the page already drawn
+// light, so every `transition-colors` element faded light → dark for 150 ms and a dark check right
+// after load could read a colour in between. The same setters follow the switches below.
+const setDocumentLanguage = (lng: SuiteLanguage) => {
+  document.documentElement.lang = lng;
+};
+const setDocumentTheme = (theme: Theme) => {
+  document.documentElement.classList.toggle("dark", theme === "dark");
+};
+setDocumentLanguage(initialLng);
+setDocumentTheme(initialTheme);
 const initialPage: Page = (PAGES as readonly string[]).includes(params.get("page") ?? "")
   ? (params.get("page") as Page)
   : "strings";
@@ -152,11 +164,11 @@ function Gallery() {
 
   useEffect(() => {
     void i18n.changeLanguage(lng);
-    document.documentElement.lang = lng;
+    setDocumentLanguage(lng);
   }, [lng]);
 
   useEffect(() => {
-    document.documentElement.classList.toggle("dark", theme === "dark");
+    setDocumentTheme(theme);
   }, [theme]);
 
   return (

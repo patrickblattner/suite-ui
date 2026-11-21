@@ -22138,3 +22138,69 @@ test("data table: a click into a partly hidden text field does not scroll, a key
   await expect(owner).toBeFocused();
   await expect.poll(async () => (await placement()).hiddenAtStart).toBe(false);
 });
+
+// SUI-FEATURE-250 rev 6 AC 6 (#996): a panel whose submit is locked asks on leaving with its Save
+// locked by the same reason, `aria-disabled`, the reason as its description, the focus on Cancel.
+for (const lng of ["de", "en"] as const) {
+  for (const theme of THEMES) {
+    test(`edit panel: the leave dialog's Save is locked with the panel's reason (${lng}, ${theme})`, async ({
+      page,
+    }) => {
+      await page.goto(`/?page=edit-panel&lng=${lng}&theme=${theme}`);
+      await page.getByTestId("locked-panel-trigger").click();
+      const name = page.locator("#locked-name");
+      await name.fill("a/b");
+      await name.press("Escape");
+      const dialog = page.getByTestId("leave-guard");
+      await expect(dialog).toBeVisible();
+      const save = dialog.getByTestId("leave-guard-save");
+      await expect(save).toHaveAttribute("aria-disabled", "true");
+      await expect(save).toHaveAccessibleDescription(
+        lng === "de" ? de.form.invalid : en.form.invalid,
+      );
+      await expect(dialog.getByTestId("leave-guard-cancel")).toBeFocused();
+      await expect(dialog.getByTestId("leave-guard-discard")).toBeEnabled();
+      await parkPointer(page);
+      await expect(dialog).toHaveScreenshot(`edit-panel-leave-locked-${lng}-${theme}.png`);
+      await dialog.getByTestId("leave-guard-discard").click();
+      await expect(page.getByTestId("locked-panel")).toBeHidden();
+    });
+  }
+}
+
+// Finding #882: `?theme=dark` and `?lng=` reach `<html>` before the first render, so no
+// `transition-colors` element fades light → dark after load and a dark check reads the dark value at
+// once: right after load nothing transitions, and the page is dark and German from its first frame.
+for (const name of ["components", "reorder", "list"] as const) {
+  test(`gallery: ?theme=dark is applied before the first paint (${name})`, async ({ page }) => {
+    await page.addInitScript(() => {
+      // The first frame the page draws with content: is <html> dark and German there already?
+      const seen: { dark: boolean; lang: string }[] = [];
+      (window as unknown as { seen: typeof seen }).seen = seen;
+      const watch = () => {
+        if (document.getElementById("root")?.childElementCount) {
+          seen.push({
+            dark: document.documentElement.classList.contains("dark"),
+            lang: document.documentElement.lang,
+          });
+        } else requestAnimationFrame(watch);
+      };
+      requestAnimationFrame(watch);
+    });
+    await page.goto(`/?page=${name}&lng=de&theme=dark`);
+    await expect(page.locator("#root > *").first()).toBeVisible();
+    const running = await page.evaluate(() =>
+      document
+        .getAnimations()
+        .filter(
+          (animation) => animation instanceof CSSTransition && animation.playState === "running",
+        )
+        .map((animation) => (animation as CSSTransition).transitionProperty),
+    );
+    expect(running).toEqual([]);
+    expect(await page.evaluate(() => (window as unknown as { seen: unknown[] }).seen[0])).toEqual({
+      dark: true,
+      lang: "de",
+    });
+  });
+}

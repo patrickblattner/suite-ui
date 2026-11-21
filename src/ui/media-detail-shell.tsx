@@ -35,7 +35,7 @@ import {
   useFieldSubmits,
 } from "./field-error.js";
 import { DisabledReasonRow, type SubmitLock } from "../lib/disabled-reason-row.js";
-import { Hint } from "./hint.js";
+import { Hint, type HintProps } from "./hint.js";
 import { useLeaveConfirm } from "./leave-guard.js";
 import { Sheet, SheetTitle } from "./sheet.js";
 import { IconButtonTooltip, OverflowTooltip } from "./tooltip.js";
@@ -363,6 +363,13 @@ function PickButton({ onClick, locked }: { onClick: () => void; locked: boolean 
 
 const SLOTS = ["facts", "fields", "suggest", "actions"] as const;
 
+// The leave dialog's locked Save in a `Hint` with the lock's reason (`SUI-FEATURE-250` rev 6).
+const hintedSave = (reason: string | undefined) => (save: React.ReactElement) => (
+  <Hint text="" disabledText={reason}>
+    {save as HintProps["children"]}
+  </Hint>
+);
+
 // The media detail view (`GL-UI-002`, `SUI-FEATURE-061`): its own panel surface with the geometry of
 // `EditPanel`, never nested in one. Preview left with its head (position, ‹, ›, close, the optional
 // pick), details right in a fixed slot order; below the package's `panel-split` width the preview
@@ -470,6 +477,9 @@ function MediaDetailShell({
     dirty: open && dirty,
     busy: open && saving,
     onSave: view ? undefined : attempt,
+    // A locked Save locks the dialog's Save with the same reason, as on `EditPanel`
+    // (`SUI-FEATURE-250` rev 6 via `SUI-FEATURE-131`).
+    saveLocked: submitDisabled ? hintedSave(submitDisabledHint) : undefined,
     // A field's typed entry asks nothing in `view` either.
     fieldDrafts: view ? undefined : fieldDrafts,
   });
