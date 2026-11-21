@@ -41,6 +41,10 @@ const OPERATING_KEYS = new Set([
   "Enter",
 ]);
 
+// The types Enter never changes: on them it is the form's implicit submit in Chromium, Firefox and
+// WebKit alike, so a lock lets it through (finding #857).
+const ENTER_SUBMITS = new Set(["checkbox", "radio"]);
+
 // The visible lock of a non-text type, which ignores the border and text colours of
 // `FIELD_LOCKED_LOOK`: the checkbox, radio and range accent half-mixed with `--surface` as the locked
 // `Checkbox` fill, the colour swatch dimmed (the swatch only: the element and its focus ring keep full
@@ -127,7 +131,12 @@ function Input({
           setPointerFocus(false);
           // A composition's Tab changes no field (`GL-UI-039` rev 3, #760).
           if (holdCompositionTab(event)) return;
-          if (blocked && OPERATING_KEYS.has(event.key)) event.preventDefault();
+          if (
+            blocked &&
+            OPERATING_KEYS.has(event.key) &&
+            !(event.key === "Enter" && ENTER_SUBMITS.has(kind))
+          )
+            event.preventDefault();
           onKeyDown?.(event);
         }}
         // Locked, the caller's handlers stay out; React's change report of a prevented toggle is

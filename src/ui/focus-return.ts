@@ -447,7 +447,8 @@ function useFocusAfterRun(
  * opened. A modal menu that opened the panel pulls that focus back while it closes, so Radix's opening
  * focus finds none in the panel: the panel focuses the noted field instead of its container. Noted in
  * an insertion effect, so before React applies `autoFocus` in the layout phase (the portal mounts the
- * content one commit later); the first focus inside the slot while open counts — inside this panel
+ * content one commit later); the first focus inside the slot while open counts, or the first focus
+ * headed there that a menu's trap took back (the `relatedTarget` of a `focusout`) — inside this panel
  * only: a slot already in the document as it opens is another open panel (#812), unless it is the
  * panel's own node `self` (#817).
  */
@@ -464,13 +465,22 @@ function useAutoFocused(
     const others = new Set(
       [...document.querySelectorAll(slot)].filter((node) => node !== self.current),
     );
-    const note = (event: FocusEvent) => {
-      if (noted.current !== null || !(event.target instanceof HTMLElement)) return;
-      const own = event.target.closest(slot);
-      if (own !== null && !others.has(own)) noted.current = event.target;
+    const note = (target: EventTarget | null) => {
+      if (noted.current !== null || !(target instanceof HTMLElement)) return;
+      const own = target.closest(slot);
+      if (own !== null && !others.has(own)) noted.current = target;
     };
-    document.addEventListener("focusin", note, true);
-    return () => document.removeEventListener("focusin", note, true);
+    const noteIn = (event: FocusEvent) => note(event.target);
+    // A closing modal menu's focus trap takes the focus back on the `focusout` of its entry, inside the
+    // field's `focus()` call: the field never gets its `focusin`, but that `focusout` names it as
+    // `relatedTarget` (finding #844, Chromium).
+    const noteOut = (event: FocusEvent) => note(event.relatedTarget);
+    document.addEventListener("focusin", noteIn, true);
+    document.addEventListener("focusout", noteOut, true);
+    return () => {
+      document.removeEventListener("focusin", noteIn, true);
+      document.removeEventListener("focusout", noteOut, true);
+    };
   }, [open, slot, self]);
   return noted;
 }

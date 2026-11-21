@@ -54,6 +54,16 @@ describe("TileGridShell tabs", () => {
     expect(scroller).not.toHaveAttribute("role");
     expect(scroller).not.toHaveAttribute("tabindex");
   });
+
+  // Finding #577 (`GL-UI-013`, #850): 6 px of ring room on the top, start and bottom sides, taken back
+  // by an equal negative margin; the end side keeps the list frame's shared gutter alone (`GL-UI-018`).
+  // The gallery measures the ring against the scroller's visible rect.
+  it("the scroller carries ring room on the top, start and bottom sides, not on the end side", () => {
+    renderGrid({});
+    const classes = screen.getByTestId("tile-grid-scroll").className.split(" ");
+    expect(classes).toEqual(expect.arrayContaining(["-my-1.5", "py-1.5", "-ms-1.5", "ps-1.5"]));
+    expect(classes.some((name) => /^-?(pe|me|px|mx|p|m)-/.test(name))).toBe(false);
+  });
 });
 
 // `#162`, `SUI-FEATURE-046` AC 8 (Q#3643, Q#3645, Q#3646): each tile list has exactly one tab stop

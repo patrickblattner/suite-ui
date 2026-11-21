@@ -1,5 +1,6 @@
 import type * as React from "react";
 
+import { revealKeyboardFocus } from "../lib/list-focus.js";
 import { Skeleton } from "../ui/skeleton.js";
 import { GutterRow } from "./list-gutter.js";
 import { listState, ListStateContent, type ListStateProps, scrollTabIndex } from "./list-state.js";
@@ -8,7 +9,12 @@ import type { RowGrid } from "./use-row-grid.js";
 
 const SKELETON_TILE_COUNT = 6;
 
-const SCROLL_CLASS = "relative min-h-6 flex-1 scroll-py-2 overflow-auto [scrollbar-gutter:stable]";
+// The scroller clips at its padding box, so it carries 6 px of room for the 3 px focus ring of a tile on
+// the top, start and bottom sides, taken back by an equal negative margin: the tiles keep their place and
+// a tile at the edge shows its whole ring (`GL-UI-013` rev 5, #850, finding #577). The end side stays
+// without, as the list frame's shared gutter has it (`GL-UI-018`).
+const SCROLL_CLASS =
+  "relative -my-1.5 -ms-1.5 min-h-6 flex-1 scroll-py-2 overflow-auto py-1.5 ps-1.5 [scrollbar-gutter:stable]";
 
 const GRID_CLASS = "grid grid-cols-[repeat(auto-fill,minmax(12rem,1fr))] gap-4";
 
@@ -75,6 +81,7 @@ function TileGridShell({
           }
           data-testid={scrollTestId}
           ref={scrollRef}
+          onFocus={revealKeyboardFocus}
           {...(tabIndex !== undefined && { tabIndex })}
         >
           {state === "pending" ? (

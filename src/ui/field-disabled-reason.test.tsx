@@ -170,8 +170,13 @@ describe("Field disabledReason on a non-text Input (#967)", () => {
       const value = input.value;
       // `fireEvent` returns false when the default was prevented.
       expect(fireEvent.click(input)).toBe(false);
-      for (const key of [" ", "Enter", "ArrowRight", "ArrowUp", "Home", "End", "PageUp"])
+      for (const key of [" ", "ArrowRight", "ArrowUp", "Home", "End", "PageUp"])
         expect(fireEvent.keyDown(input, { key })).toBe(false);
+      // Enter changes no checkbox or radio; there it is the form's implicit submit and goes through
+      // (finding #857). On the other types it stays blocked.
+      expect(fireEvent.keyDown(input, { key: "Enter" })).toBe(
+        ["checkbox", "radio"].includes(type.toLowerCase()),
+      );
       expect(fireEvent.pointerDown(input)).toBe(false);
       // Tab still leaves it.
       expect(fireEvent.keyDown(input, { key: "Tab" })).toBe(true);

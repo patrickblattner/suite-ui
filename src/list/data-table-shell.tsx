@@ -1,5 +1,6 @@
 import * as React from "react";
 
+import { revealKeyboardFocus } from "../lib/list-focus.js";
 import { Skeleton } from "../ui/skeleton.js";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "../ui/table.js";
 import { type GutterInset, GutterRow } from "./list-gutter.js";
@@ -14,10 +15,12 @@ const SKELETON_ROW_COUNT = 5;
 // The scroller reserves the list frame's shared gutter (`GL-UI-018`), and the bar always shows:
 // Chromium sticks the actions column to the scrollport without an empty gutter, so without a bar the
 // column would slide into the gutter and be clipped there. The top scroll padding is the sticky
-// header's height, so a row reached by keyboard scrolls clear of it; the right one, while the actions
-// column is stuck, sets `useStickyActionsMarker`.
+// header's height, so a row reached by keyboard scrolls clear of it; the bottom and the start one (8 px)
+// keep the ring and the forced-colors outline of a control scrolled in at that edge whole (`GL-UI-013`,
+// finding #577); the right one, while the actions column is stuck, sets `useStickyActionsMarker`. A
+// keyboard focus scrolls in fully, also from partly hidden (`revealKeyboardFocus`).
 const SCROLL_CLASS =
-  "relative min-h-6 flex-1 scroll-pt-10 overflow-auto overflow-y-scroll [scrollbar-gutter:stable] [&_[data-slot=table-container]]:overflow-visible";
+  "relative min-h-6 flex-1 scroll-pt-10 scroll-pb-2 scroll-pl-2 overflow-auto overflow-y-scroll [scrollbar-gutter:stable] [&_[data-slot=table-container]]:overflow-visible";
 
 // The table's own inset in a drawer or a framed card (`SUI-FEATURE-059`, `GL-UI-018`): 16 px to the bar
 // on the scroller itself, together with the gutter, in a framed card on both sides; while the body
@@ -150,6 +153,7 @@ function DataTableShell({
           className={focusable ? `${scrollClass} ${SCROLL_FOCUS_CLASS}` : scrollClass}
           data-testid={scrollTestId}
           ref={scrollerRef}
+          onFocus={revealKeyboardFocus}
           // As a tab panel the scroller keeps the panel's role and its name from the tab
           // (`aria-labelledby` would beat `aria-label` anyway), so neither key overrides them.
           {...(label !== undefined &&

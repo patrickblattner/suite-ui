@@ -899,6 +899,46 @@ describe("useAutoFocused", () => {
     expect(onNoted).toHaveBeenCalledWith(screen.getByRole("textbox", { name: "Own" }));
   });
 
+  // Finding #844: in Chromium a closing modal menu's trap takes the focus back on its entry's `focusout`,
+  // inside the field's `focus()` call, so the field never gets a `focusin`; that `focusout` names it.
+  it("notes the field a menu's trap took the focus back from, by the focusout's relatedTarget", () => {
+    const seen: { noted: { current: HTMLElement | null } | null } = { noted: null };
+    // The content mounts one commit after the open, as a portal does.
+    function Own({ open, shown }: { open: boolean; shown: boolean }) {
+      const self = useRef<HTMLDivElement>(null);
+      const noted = useAutoFocused(open, "[data-slot=panel]", self);
+      useEffect(() => {
+        seen.noted = noted;
+      });
+      return shown ? (
+        <div ref={self} data-slot="panel">
+          <input aria-label="Own" />
+        </div>
+      ) : null;
+    }
+    render(
+      <>
+        <button type="button">Menu entry</button>
+        <div data-slot="panel">
+          <input aria-label="Other" />
+        </div>
+      </>,
+    );
+    const { rerender } = render(<Own open={false} shown={false} />);
+    rerender(<Own open shown={false} />);
+    rerender(<Own open shown />);
+    const own = screen.getByRole("textbox", { name: "Own" });
+    const entry = screen.getByRole("button", { name: "Menu entry" });
+    // The entry loses the focus toward the field, and the trap keeps it: no focusin on the field.
+    entry.dispatchEvent(new FocusEvent("focusout", { bubbles: true, relatedTarget: own }));
+    expect(seen.noted?.current).toBe(own);
+    // A focus headed into another panel is never this panel's.
+    const other = screen.getByRole("textbox", { name: "Other" });
+    seen.noted!.current = null;
+    entry.dispatchEvent(new FocusEvent("focusout", { bubbles: true, relatedTarget: other }));
+    expect(seen.noted?.current).toBeNull();
+  });
+
   // #817: reopened within the exit animation, the panel's own closed node is not another panel.
   it("notes the autoFocus in its own panel still closing from the last open", () => {
     const seen: { noted: { current: HTMLElement | null } | null } = { noted: null };

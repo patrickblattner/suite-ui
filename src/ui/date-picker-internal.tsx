@@ -170,8 +170,9 @@ function CalendarGrid({ selected, today, onPick, autoFocus = false, testId }: Ca
                         "size-8 rounded-md outline-none hover:bg-accent hover:text-accent-foreground focus-visible:focus-ring",
                         date.month !== active.month && "text-muted-foreground",
                         sameDate(date, today) && "font-semibold underline underline-offset-4",
+                        // Filled, it answers hover with the filled button's tint (`GL-UI-013`, #819).
                         isSelected &&
-                          "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground",
+                          "bg-primary text-primary-foreground hover:bg-primary-hover hover:text-primary-foreground",
                       )}
                     >
                       {date.day}

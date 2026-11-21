@@ -3623,18 +3623,25 @@ test("upload step: a long file name truncates at 390 px", async ({ page }) => {
   expect(await name.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
 });
 
-// SUI-FEATURE-143 AC 5: the failure action keeps the row height; at 320 px it wraps below the error,
-// end-aligned, nothing truncated.
+// SUI-FEATURE-143 rev 4 AC 5 (finding #816): where the failure action fits beside the error, the row
+// keeps its 40 px; at 320 px it wraps below the error, end-aligned, the row grows, nothing truncated.
 test("upload step: a failed row's action keeps the height and wraps at 320 px", async ({
   page,
 }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/?page=components");
   const frame = page.getByTestId("upload-frame-failure-action");
   const rows = frame.getByTestId("upload-row");
   const action = frame.getByTestId("upload-failure-action");
   await expect(action.getByRole("button", { name: "Choose another file" })).toBeVisible();
-  expect((await box(rows.nth(1))).height).toBe((await box(rows.first())).height);
+  expect((await box(rows.first())).height).toBe(40);
+  expect((await box(rows.nth(1))).height).toBe(40);
   await page.setViewportSize({ width: 320, height: 900 });
+  // The done row keeps its height; the failed one grows by the wrapped action.
+  await expect(async () => {
+    expect((await box(rows.nth(1))).height).toBeGreaterThan(40);
+  }).toPass();
+  expect((await box(rows.first())).height).toBe(40);
   const error = rows.nth(1).getByRole("img", { name: "File too large" });
   await expect(async () => {
     expect((await box(action)).y).toBeGreaterThanOrEqual(
@@ -21714,4 +21721,108 @@ test.describe("locked package fields (SUI-FEATURE-450)", () => {
       timeout: 5000,
     });
   });
+});
+
+// Finding #844 (#812): an edit panel opened from a ⋯ menu entry focuses its `autoFocus` field, by mouse
+// and by keyboard. The closing menu's trap takes the field's focus back inside its `focus()` call; the
+// panel hands it on. `band=1` mounts the shell as an app does, its `<main>` beside the sidebar, so the
+// panel holds that region `inert`. The package's panels play no exit animation (no keyframes behind
+// `animate-out`), so Radix unmounts at once and the #817 reopen into a closing node cannot occur here;
+// the unit test covers it.
+test("edit panel: opened from its menu, by mouse and by keyboard, the autoFocus field has the focus", async ({
+  page,
+}) => {
+  await page.goto("/?page=edit-panel&menuPanel=1&band=1");
+  await page.getByTestId("menu-panel-trigger").click();
+  await page.getByTestId("menu-panel-edit").click();
+  const name = page.getByTestId("menu-panel-name");
+  await expect(name).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("menu-panel-trigger")).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page.getByTestId("menu-panel-edit")).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(name).toBeFocused();
+  await expect(page.locator("[data-slot=edit-panel][data-state=open]")).toHaveCount(1);
+});
+
+// Finding #857: Enter on a focused checkbox or radio is the form's implicit submit in every browser
+// and changes neither; locked (`Field disabledReason`), the package Input lets it through and still
+// refuses Space.
+test("locked native checkbox and radio: Enter submits the form, Space changes nothing", async ({
+  page,
+}) => {
+  await page.goto("/?page=edit-panel&nativeLock=1");
+  const submits = page.getByTestId("native-lock-submits");
+  for (const [type, count] of [
+    ["checkbox", 1],
+    ["radio", 2],
+  ] as const) {
+    const input = page.getByTestId(`native-lock-${type}`);
+    await expect(input).toHaveAttribute("aria-disabled", "true");
+    await input.focus();
+    await page.keyboard.press("Space");
+    await expect(input).not.toBeChecked();
+    await page.keyboard.press("Enter");
+    await expect(submits).toHaveText(`submits ${count}`);
+    await expect(input).not.toBeChecked();
+  }
+});
+
+// Finding #577 (`GL-UI-013` "Fokus nie verdeckt"): a tab stop at a scroller's edge shows its whole
+// 3 px ring inside the scroller's visible rect — the data table's row actions scrolled in at the bottom
+// edge, the tile grid's tiles at its top, start and bottom edges. Real scrollbars, so the visible rect
+// is the one a person sees.
+test("scrollers keep the whole focus ring of an edge tab stop in view @scrollbars", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  // The ring's reach outside the element, against the scroller's visible (padding) box; > 0 is clipped.
+  const clipped = (el: Element, sel: string) => {
+    const spread = Math.max(
+      0,
+      ...[
+        ...getComputedStyle(el).boxShadow.matchAll(
+          /(-?[\d.]+)px\s+(-?[\d.]+)px\s+(-?[\d.]+)px\s+(-?[\d.]+)px/g,
+        ),
+      ].map((m) => Number(m[4])),
+    );
+    const r = el.getBoundingClientRect();
+    const box = el.closest<HTMLElement>(sel)!;
+    const s = box.getBoundingClientRect();
+    const top = s.top + box.clientTop;
+    const left = s.left + box.clientLeft;
+    return {
+      spread,
+      top: Math.max(0, Math.round(top - (r.top - spread))),
+      left: Math.max(0, Math.round(left - (r.left - spread))),
+      bottom: Math.max(0, Math.round(r.bottom + spread - (top + box.clientHeight))),
+    };
+  };
+  // Keyboard modality, so a focus call draws the ring; it fades in, so measure it at full spread.
+  const focusRing = async (target: Locator, scroller: string) => {
+    await page.keyboard.press("Shift");
+    await target.focus();
+    await expect.poll(() => target.evaluate(clipped, scroller).then((c) => c.spread)).toBe(3);
+    return target.evaluate(clipped, scroller);
+  };
+  const none = { spread: 3, top: 0, left: 0, bottom: 0 };
+
+  await page.goto("/?page=list&actions=1&band=1");
+  const table = "[data-testid=data-table-scroll]";
+  // Below the fold: the focus scrolls it in at the bottom edge.
+  expect(await focusRing(page.getByTestId("row-edit").nth(20), table)).toEqual(none);
+  // Scrolled to the end, a Status select in the first rows is partly hidden at the start edge; its focus
+  // brings it in fully (Chromium alone scrolls only a wholly hidden target).
+  await page.goto("/?page=list&actions=1&step=1&band=1");
+  await focusRing(page.getByTestId("row-delete").first(), table);
+  expect(
+    await focusRing(page.getByTestId("data-table-scroll").getByRole("combobox").first(), table),
+  ).toEqual(none);
+
+  await page.goto("/?page=tiles&band=1");
+  const grid = "[data-testid=media-tiles-scroll]";
+  const tiles = page.getByTestId("media-tiles-scroll").getByTestId("media-tile");
+  expect(await focusRing(tiles.first(), grid)).toEqual(none);
+  expect(await focusRing(tiles.last(), grid)).toEqual(none);
 });

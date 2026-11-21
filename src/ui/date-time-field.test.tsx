@@ -163,6 +163,19 @@ describe("the picker (SUI-FEATURE-145 §Picker)", () => {
     expect(headers).toHaveLength(7);
   });
 
+  // GL-UI-013, finding #819: the selected day, filled, still answers hover, with the filled button's
+  // tint; an unselected day keeps the accent tint. The gallery measures the colours.
+  it("the selected day answers hover with the filled tint, not its own fill", () => {
+    render(<DateField testId="field" aria-label="Day" value="2026-04-15" onChange={() => {}} />);
+    fireEvent.click(screen.getByTestId("field-picker"));
+    const calendar = screen.getByTestId("field-calendar");
+    const selected = calendar.querySelector<HTMLElement>("[data-date='2026-04-15']")!;
+    expect(selected.className.split(" ")).toContain("hover:bg-primary-hover");
+    expect(selected.className.split(" ")).not.toContain("hover:bg-primary");
+    const other = calendar.querySelector<HTMLElement>("[data-date='2026-04-16']")!;
+    expect(other.className.split(" ")).toContain("hover:bg-accent");
+  });
+
   it("AC4: arrows, PageDown and Enter pick a day; the focus returns to the input", () => {
     const onChange = vi.fn();
     render(<Controlled Field={DateField} initial="2026-04-15" onChange={onChange} />);
@@ -576,6 +589,26 @@ describe("Codex #964", () => {
     expect(screen.queryByTestId("field-popover")).toBeNull();
     expect(screen.getByTestId("field")).toBeDisabled();
     expect(document.activeElement).toBe(screen.getByTestId("next"));
+  });
+
+  // #977 (Codex CX1): locked with a reason the input keeps its focus, also inside a list row, whose
+  // entry the GL-UI-050 fallback would take instead.
+  it("locked by its field's reason while its picker holds the focus, in a list row: the focus returns to the input", () => {
+    const ui = (locked: boolean) => (
+      <div data-slot="list-frame">
+        <div data-grid-item="" tabIndex={-1} data-testid="row">
+          <Field label="At" htmlFor="at" disabledReason={locked ? "No." : undefined}>
+            <TimeField id="at" testId="field" value="09:00" onChange={() => {}} />
+          </Field>
+        </div>
+      </div>
+    );
+    const { rerender } = render(ui(false));
+    fireEvent.click(screen.getByTestId("field-picker"));
+    within(screen.getByTestId("field-times")).getByRole("option", { name: "10:00" }).focus();
+    rerender(ui(true));
+    expect(screen.queryByTestId("field-popover")).toBeNull();
+    expect(document.activeElement).toBe(screen.getByTestId("field"));
   });
 
   it.each([

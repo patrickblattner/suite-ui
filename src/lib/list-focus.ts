@@ -1,3 +1,5 @@
+import type { FocusEvent } from "react";
+
 // Where the focus goes when the focused entry of a list disappears (`SUI-FEATURE-056`): to the entry
 // that moves up into its place, otherwise the previous one, and on an empty list to the list frame —
 // never to `body`. Shared by `useRowGrid`, `TablePagination` and `ConfirmDeleteDialog`.
@@ -33,6 +35,19 @@ function focusListEntry(frame: HTMLElement, index: number): void {
   else target.focus();
 }
 
+/**
+ * The `onFocus` of a list's scroller (`GL-UI-013` "Fokus nie verdeckt"): a keyboard-focused control in
+ * it scrolls fully into view, its ring kept clear of the edges by the scroller's scroll padding.
+ * Chromium scrolls a focus target only while it is wholly out of view, so a partly hidden one (a cell
+ * under the horizontal edge, a row cut at the bottom) stayed cut (finding #577). Only keyboard focus:
+ * scrolling on a click would move the control from under the pointer.
+ */
+function revealKeyboardFocus(event: FocusEvent<HTMLElement>): void {
+  const target = event.target;
+  if (target === event.currentTarget || !target.matches(":focus-visible")) return;
+  target.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+}
+
 export {
   ENTRY_FRAME_ATTR,
   focusListEntry,
@@ -40,4 +55,5 @@ export {
   GRID_ITEM_ATTR,
   LIST_FRAME_SELECTOR,
   listEntries,
+  revealKeyboardFocus,
 };

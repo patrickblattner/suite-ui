@@ -8,6 +8,12 @@ import { PageScroll } from "../src/list/page-scroll.js";
 import { Button } from "../src/ui/button.js";
 import { Combobox, type ComboboxOption } from "../src/ui/combobox.js";
 import { CreateAndSelectDialog } from "../src/ui/create-and-select-dialog.js";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "../src/ui/dropdown-menu.js";
 import { EditPanel } from "../src/ui/edit-panel.js";
 import { Field } from "../src/ui/field.js";
 import { Input } from "../src/ui/input.js";
@@ -245,6 +251,77 @@ function ApplyPanelDemo() {
 // `submitKind="send"` (`SUI-FEATURE-152`): the reply goes out only from its own Send button; a dirty
 // leave asks "Discard changes?" and never sends.
 const SUBJECT = "Re: Your request";
+
+// `?menuPanel=1` (with `band=1`, so `<main>` stands beside the sidebar): a ⋯ menu entry opens an edit
+// panel whose Name field has `autoFocus` (#812, finding #844); a gallery test opens it by mouse and by
+// keyboard.
+const MENU_PANEL = new URLSearchParams(window.location.search).get("menuPanel") === "1";
+
+function MenuPanelDemo() {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" size="sm" data-testid="menu-panel-trigger">
+            Channel actions
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent>
+          <DropdownMenuItem data-testid="menu-panel-edit" onSelect={() => setOpen(true)}>
+            Edit channel
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <EditPanel
+        open={open}
+        onOpenChange={setOpen}
+        title="Channel"
+        mode="edit"
+        onSubmit={() => true}
+        testIdPrefix="menu-panel"
+      >
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="menu-panel-name">Name</Label>
+          <Input id="menu-panel-name" autoFocus data-testid="menu-panel-name" />
+        </div>
+      </EditPanel>
+    </>
+  );
+}
+
+// `?nativeLock=1`: a form with a locked native checkbox and radio (`Field disabledReason`, #967); Enter
+// on either submits the form as in every browser, Space changes nothing (finding #857).
+const NATIVE_LOCK = new URLSearchParams(window.location.search).get("nativeLock") === "1";
+
+function NativeLockDemo() {
+  const [submits, setSubmits] = useState(0);
+  return (
+    <form
+      className="flex items-center gap-4"
+      data-testid="native-lock-form"
+      onSubmit={(event) => {
+        event.preventDefault();
+        setSubmits((count) => count + 1);
+      }}
+    >
+      {(["checkbox", "radio"] as const).map((type) => (
+        <Field
+          key={type}
+          label={type}
+          htmlFor={`native-lock-${type}`}
+          disabledReason="Locked while the channel syncs."
+        >
+          <Input id={`native-lock-${type}`} type={type} data-testid={`native-lock-${type}`} />
+        </Field>
+      ))}
+      <Button type="submit" variant="outline" size="sm">
+        Submit
+      </Button>
+      <span data-testid="native-lock-submits">submits {submits}</span>
+    </form>
+  );
+}
 
 function SendPanelDemo() {
   const { i18n } = useTranslation("suite");
@@ -575,6 +652,8 @@ function Demo() {
         <ContactPanelDemo />
         <ApplyPanelDemo />
         <SendPanelDemo />
+        {MENU_PANEL && <MenuPanelDemo />}
+        {NATIVE_LOCK && <NativeLockDemo />}
         <span data-testid="edit-panel-check-counts">
           submits {submits} · backs {backs}
         </span>

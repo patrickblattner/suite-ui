@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import * as React from "react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -72,6 +72,34 @@ function slotIds(column: HTMLElement) {
   );
 }
 
+describe("DataTableShell keyboard focus in view (finding #577)", () => {
+  // Chromium scrolls a focus target only while it is wholly out of view; the scroller brings a partly
+  // hidden one in fully, its ring kept clear by the scroll padding. Only keyboard focus.
+  it.each([
+    [true, 1],
+    [false, 0],
+  ])("a control focused with :focus-visible=%s scrolls in %i time(s)", (keyboard, times) => {
+    const scrolled = vi.fn();
+    Element.prototype.scrollIntoView = scrolled;
+    try {
+      renderShell({});
+      const cell = screen.getByTestId("row").lastElementChild!;
+      const button = cell.appendChild(document.createElement("button"));
+      // jsdom's `:focus-visible` follows no input modality; the control answers as asked.
+      Object.defineProperty(button, "matches", { value: () => keyboard });
+      act(() => button.focus());
+      expect(scrolled).toHaveBeenCalledTimes(times);
+      if (keyboard) {
+        expect(scrolled).toHaveBeenCalledWith({ block: "nearest", inline: "nearest" });
+        expect(scrolled.mock.contexts[0]).toBe(button);
+      }
+    } finally {
+      // @ts-expect-error -- jsdom has no scrollIntoView; restore its absence.
+      delete Element.prototype.scrollIntoView;
+    }
+  });
+});
+
 describe("DataTableShell", () => {
   it("renders the rows under a sticky header, the pager below the scroll area", () => {
     renderShell({});
@@ -136,7 +164,7 @@ describe("DataTableShell", () => {
     expect(column.className).toBe("flex min-h-0 flex-1 flex-col gap-4");
     expect(slotIds(column)).toEqual(["data-table-scroll", "pager"]);
     expect(screen.getByTestId("data-table-scroll").className).toBe(
-      "relative min-h-6 flex-1 scroll-pt-10 overflow-auto overflow-y-scroll [scrollbar-gutter:stable] [&_[data-slot=table-container]]:overflow-visible",
+      "relative min-h-6 flex-1 scroll-pt-10 scroll-pb-2 scroll-pl-2 overflow-auto overflow-y-scroll [scrollbar-gutter:stable] [&_[data-slot=table-container]]:overflow-visible",
     );
   });
 
@@ -245,7 +273,7 @@ describe("DataTableShell", () => {
     const scroll = container.querySelector('[data-testid="data-table-scroll"]');
     expect(scroll?.getAttributeNames()).toEqual(["class", "data-testid"]);
     expect(scroll?.className).toBe(
-      "relative min-h-6 flex-1 scroll-pt-10 overflow-auto overflow-y-scroll [scrollbar-gutter:stable] [&_[data-slot=table-container]]:overflow-visible",
+      "relative min-h-6 flex-1 scroll-pt-10 scroll-pb-2 scroll-pl-2 overflow-auto overflow-y-scroll [scrollbar-gutter:stable] [&_[data-slot=table-container]]:overflow-visible",
     );
     expect(container.querySelector("[tabindex]")).toBeNull();
     expect(within(container).queryByRole("region")).toBeNull();
@@ -289,7 +317,7 @@ describe("DataTableShell", () => {
     const frame = container.querySelector('[data-testid="data-table"]');
     expect(frame?.getAttributeNames()).toEqual(["class", "data-testid", "data-slot"]);
     expect(container.querySelector('[data-testid="data-table-scroll"]')?.className).toBe(
-      "relative min-h-6 flex-1 scroll-pt-10 overflow-auto overflow-y-scroll [scrollbar-gutter:stable] [&_[data-slot=table-container]]:overflow-visible",
+      "relative min-h-6 flex-1 scroll-pt-10 scroll-pb-2 scroll-pl-2 overflow-auto overflow-y-scroll [scrollbar-gutter:stable] [&_[data-slot=table-container]]:overflow-visible",
     );
     for (const row of container.querySelectorAll('[data-slot="list-gutter-row"]')) {
       expect(row.className).toBe(
@@ -308,7 +336,8 @@ describe("DataTableShell", () => {
     expect(screen.getByTestId("data-table-scroll").className).not.toContain(
       "table-container]]:pb-",
     );
-    expect(scroll.className).not.toMatch(/\b(px|ps|pl)-/);
+    // A start inset is padding; the start scroll padding (finding #577) is no inset.
+    expect(scroll.className).not.toMatch(/(?<!scroll-)\b(px|ps|pl)-/);
     for (const id of ["toolbar", "pager"]) {
       expect(screen.getByTestId(id).parentElement).toHaveClass(
         "[scrollbar-gutter:stable]",
