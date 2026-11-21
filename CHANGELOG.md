@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Fixed (#991, Codex CX1):** the overrides removal trigger (`scripts/overrides.test.ts`) reads each alternative of a range by its comparators: an upper comparator (`<`, `<=`), a caret, tilde, x-range, bare version or hyphen range bounds it, so `>=10.2.2 <11.0.0` or `>=10 <12` against `^11.0.1` no longer fail falsely; only an alternative without an upper bound (`>=10`, `*`) counts as unbounded. Fixture cases pin bounded ranges below and above the override's major and the open forms. No semver library is a declared dependency, so the reading stays in the test.
+
 ## 0.260.0 — #990 useToastClearance counts a header only where a receipt would land (SUI-FEATURE-147 rev 3) (minor)
 
 - **Changed (#990, SUI-FEATURE-147 rev 3):** a list header contributes to `--toast-offset-top` through `useToastClearance` only while it intersects the area a receipt takes at the app shell's default offset: sonner's top-right column (356 px wide, 24 px from the right edge; at most 600 px wide the full width less 16 px each side) from `--toast-offset-shell` down by one receipt line (54 px). A header stacked mid-page below a breakpoint, or beside the toast column, contributes nothing. Every measuring checks again (resize of the header, its parent or the body, a window resize, a change before it in the DOM), so a width change that stacks or unstacks the lists updates the offset without a reload. Registry semantics unchanged: the lowest contributing edge wins, unmounting takes back only its own contribution; `useEditorShellToastOffset` is unaffected. Adoption: pages call `useToastClearance(ref)` once per list header at every width, with no media query of their own (cockpit `/series`: both list headers, stacked below `lg` too).

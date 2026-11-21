@@ -28,23 +28,43 @@ function compare(a: number[], b: number[]): number {
   return a[0]! - b[0]! || a[1]! - b[1]! || a[2]! - b[2]!;
 }
 
+/**
+ * One alternative of a range (`>=10 <12`, `^10.2.2`, `10 - 12`, `*`): the lowest version it admits and
+ * the highest major, Infinity when no comparator bounds it above (`>=10`, `>1`, `*`). A caret, tilde,
+ * x-range or bare version implies its own major as the bound; `<X.0.0` stops below X (#991).
+ */
+function alternative(text: string): { low: number[]; high: number } {
+  const trimmed = text.trim();
+  const hyphen = /^(\S+)\s+-\s+(\S+)$/.exec(trimmed);
+  if (hyphen) return { low: version(hyphen[1]!), high: version(hyphen[2]!)[0]! };
+  let low = [0, 0, 0];
+  let high = Infinity;
+  for (const comparator of trimmed.split(/\s+/).filter((c) => c !== "" && !/^[*xX]$/.test(c))) {
+    const [, operator = "", rest = ""] = /^(<=|>=|<|>|=|\^|~)?(.*)$/.exec(comparator)!;
+    const bound = version(rest);
+    if (operator === "<") {
+      high = Math.min(high, bound[1] === 0 && bound[2] === 0 ? bound[0]! - 1 : bound[0]!);
+    } else if (operator === "<=") {
+      high = Math.min(high, bound[0]!);
+    } else {
+      if (compare(bound, low) > 0) low = bound;
+      if (operator !== ">=" && operator !== ">") high = Math.min(high, bound[0]!);
+    }
+  }
+  return { low, high };
+}
+
 /** Lowest version a range admits (`6 || 10` → 6.0.0). */
 function lowest(range: string): number[] {
   return range
     .split("||")
-    .map(version)
+    .map((alt) => alternative(alt).low)
     .reduce((min, b) => (compare(b, min) < 0 ? b : min));
 }
 
-/** Highest major a range admits: Infinity for an open range (`>=10`, `*`), else each alternative's. */
+/** Highest major a range admits over its alternatives: Infinity for an unbounded one (`>=10`, `*`). */
 function highestMajor(range: string): number {
-  return Math.max(
-    ...range.split("||").map((alt) => {
-      const text = alt.trim();
-      if (text === "" || text === "*" || text === "x" || /^>/.test(text)) return Infinity;
-      return version(text)[0]!;
-    }),
-  );
+  return Math.max(...range.split("||").map((alt) => alternative(alt).high));
 }
 
 /** Why the override `range` is no longer needed against the parent's `declared` range, or null. */
@@ -71,6 +91,16 @@ describe("the removal trigger's range check (#988, findings #569, #570)", () => 
     ["^11.2.0", "^11.0.1", "redundant"],
     ["6 || 10 || 12", "^11.0.1", "pins an older major"],
     [">=10", "^11.0.1", "pins an older major"],
+    // #991 (Codex CX1): a comparator range is bounded by its upper comparator.
+    [">=10.2.2 <11.0.0", "^11.0.1", null],
+    [">=1.0.0 <2.0.0", "^11.0.1", null],
+    [">=10 <12", "^11.0.1", null],
+    ["<12", "^11.0.1", null],
+    [">=10 <13", "^11.0.1", "pins an older major"],
+    ["<=12.1", "^11.0.1", "pins an older major"],
+    ["10.0.0 - 12.0.0", "^11.0.1", "pins an older major"],
+    [">=12.0.0 <13", "^11.0.1", "redundant"],
+    ["*", "^11.0.1", "pins an older major"],
   ])("declared %s against the override %s → %s", (declared, range, reason) => {
     expect(dropReason(declared, range)).toBe(reason);
   });
