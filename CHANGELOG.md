@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.254.0 — #970 R5 batch 2 (menu-opened autoFocus, locked checkbox Enter, scroller focus rings), #977, #978 (minor)
+
 - **Fixed (#970, finding #819, GL-UI-013):** the selected day in the `DateField`/`DateTimeField` calendar answers hover with the filled button's tint (`bg-primary-hover`) instead of keeping its fill.
 - **Fixed (#970, finding #844, #812):** an `EditPanel` or `MediaDetailShell` opened from a ⋯ menu entry now focuses its `autoFocus` field in a real browser. Before, in Chromium, the closing menu's focus trap took the focus back inside the field's `focus()` call, the field never got a `focusin`, and the panel focused its container instead (by keyboard) or the menu trigger kept the focus; only jsdom passed. `useAutoFocused` now also notes the field named as `relatedTarget` of that `focusout`. The #817 reopen into a closing node cannot occur with the package's own CSS (no keyframes behind `animate-out`, so Radix unmounts at once); its unit test stays.
 - **Fixed (#970, finding #857, SUI-FEATURE-450):** a locked native checkbox or radio `Input` (`Field disabledReason`) lets Enter through: Enter changes neither, and in Chromium, Firefox and WebKit it is the form's implicit submit, which the lock blocked. Space and the other operating keys stay blocked.
