@@ -32,9 +32,11 @@ function compare(a: number[], b: number[]): number {
  * One alternative of a range (`>=10 <12`, `^10.2.2`, `10 - 12`, `*`): the lowest version it admits and
  * the highest major, Infinity when no comparator bounds it above (`>=10`, `>1`, `*`). A caret, tilde,
  * x-range or bare version implies its own major as the bound; `<X.0.0` stops below X (#991).
+ * Whitespace between an operator and its version is dropped first, as semver trims it (`>= 10` is
+ * `>=10`, `^ 11.2.0` is `^11.2.0`); a hyphen range keeps the spaces it needs (#999).
  */
 function alternative(text: string): { low: number[]; high: number } {
-  const trimmed = text.trim();
+  const trimmed = text.trim().replace(/(<=|>=|<|>|=|\^|~)\s+/g, "$1");
   const hyphen = /^(\S+)\s+-\s+(\S+)$/.exec(trimmed);
   if (hyphen) return { low: version(hyphen[1]!), high: version(hyphen[2]!)[0]! };
   let low = [0, 0, 0];
@@ -101,6 +103,16 @@ describe("the removal trigger's range check (#988, findings #569, #570)", () => 
     ["10.0.0 - 12.0.0", "^11.0.1", "pins an older major"],
     [">=12.0.0 <13", "^11.0.1", "redundant"],
     ["*", "^11.0.1", "pins an older major"],
+    // #999 (Codex CX1): spacing semver accepts between an operator and its version.
+    [">= 10", "^11.0.1", "pins an older major"],
+    ["> 10.0.0", "^11.0.1", "pins an older major"],
+    [">=  10   <13", "^11.0.1", "pins an older major"],
+    [">= 10 < 12", "^11.0.1", null],
+    [">= 10.2.2  <  11.0.0", "^11.0.1", null],
+    ["<= 10.5", "^11.0.1", null],
+    ["^ 11.2.0", "^11.0.1", "redundant"],
+    ["~ 10.2.2", "^11.0.1", null],
+    ["10.0.0  -  12.0.0", "^11.0.1", "pins an older major"],
   ])("declared %s against the override %s → %s", (declared, range, reason) => {
     expect(dropReason(declared, range)).toBe(reason);
   });

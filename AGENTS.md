@@ -24,6 +24,10 @@ repository; the lead's charter (`~/.claude/roles/lead.md`) and `CLAUDE.md` carry
   `npm run release:tag` on a recorded commit.
 - `.spec-sync-pause` in the root means the owner paused the project: finish what is in flight, start
   nothing new.
+- The gate's scanner trivy comes from `mise.toml` (exact version, checksums in `mise.lock`), not from
+  Homebrew; a new checkout or worktree needs `mise trust` and `mise install` once. Changing the
+  scanner is a reviewed commit of both files plus `TOOL_VERSIONS.trivy` in `scripts/hygiene.ts`,
+  which checks the same version a second time.
 
 ## Gallery
 

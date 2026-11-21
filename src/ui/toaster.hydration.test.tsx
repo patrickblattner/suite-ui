@@ -20,9 +20,16 @@ function App() {
 
 let root: Root | undefined;
 
-afterEach(() => {
+// Teardown-clean (#998, finding #885): the toasts are dismissed while the Toaster is still mounted
+// and the test waits until they are gone, so sonner's removal timer and the package's close timer of
+// a toast with an action have run or been cleared before the root unmounts; unmounted first, they
+// stayed pending and could fire after the environment was torn down ("window is not defined").
+afterEach(async () => {
   act(() => {
     toast.dismiss();
+  });
+  await vi.waitFor(() => expect(document.querySelector("[data-sonner-toast]")).toBeNull());
+  act(() => {
     root?.unmount();
   });
   root = undefined;

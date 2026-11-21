@@ -1,0 +1,8 @@
+# The hygiene gate's scanner, pinned per repo (#1000): a scanner change is a reviewed commit of this
+# pin and mise.lock (aqua verifies the release checksum). scripts/hygiene.ts TOOL_VERSIONS.trivy
+# checks the same version a second time.
+[tools]
+"aqua:aquasecurity/trivy" = "0.76.2"
+
+[settings]
+lockfile = true
