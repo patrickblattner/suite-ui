@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.264.1 — #1004 Enter in the leave dialog respects the save lock (patch)
+
 - **Fixed (#1004, Codex CX1, SUI-FEATURE-250 rev 9):** `Enter` in a settings page's leave dialog no longer saves past `saveLocked`. The dialog's own `Enter` (focus on the dialog itself or anything in it that is no button) called the page's `onSave` even while Save was locked; it now answers as Save does: locked on a page's guard it runs nothing, locked on an `EditPanel` or `MediaDetailShell` it runs the surface's locked submit as before (the errors show, nothing saves). Buttons keep their own answer (Cancel, Discard, the locked Save). Adoption: none; take the patch before relying on the settings lock.
 
 ## 0.264.0 — #1001 settings leave dialog Save locked (SUI-FEATURE-250 rev 9), #1002 Save keeps focus across lock changes (minor)
