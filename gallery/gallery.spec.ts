@@ -1503,6 +1503,77 @@ for (const [width, height] of [
   });
 }
 
+// `SUI-FEATURE-147` rev 3 AC 4: below `lg` the two lists stack and the second header sits mid-page,
+// outside the area a receipt takes at the shell's default offset, so only the upper header counts;
+// the toast after Add in the lower list covers no header action. A width change that unstacks or
+// stacks the lists moves the offset without a reload.
+test("list headers: stacked below lg, only the upper header counts, and a width change follows", async ({
+  page,
+}) => {
+  const px = (expression: string) =>
+    page.evaluate((value) => {
+      const probe = document.createElement("div");
+      probe.style.height = value;
+      document.body.append(probe);
+      const height = probe.getBoundingClientRect().height;
+      probe.remove();
+      return height;
+    }, expression);
+  const upper = page.getByTestId("series-header");
+  const lower = page.getByTestId("seasons-header");
+  const bottom = async (header: Locator) => {
+    const { y, height } = await box(header);
+    return y + height;
+  };
+
+  await page.setViewportSize({ width: 900, height: 900 });
+  await page.goto("/?page=two-lists");
+  await expect(lower).toBeVisible();
+  const shellDefault = await px("var(--toast-offset-shell)");
+  const gap = await px("var(--toast-gap)");
+  const stacked = Math.max(shellDefault, (await bottom(upper)) + gap);
+  // Stacked: the lower header lies below a receipt at the shell's default offset.
+  expect((await box(lower)).y).toBeGreaterThan(shellDefault + 60);
+  await expect.poll(() => px("var(--toast-offset-top)")).toBeCloseTo(stacked, 0);
+
+  await page.getByTestId("seasons-add").click();
+  const added = page.locator("[data-sonner-toast][data-type=success]");
+  await expect(added).toBeVisible();
+  await expect.poll(async () => (await box(added)).y).toBeCloseTo(stacked, 0);
+  // The receipt area the hook assumes is one 54 px receipt line tall (`RECEIPT_HEIGHT_PX`).
+  expect((await box(added)).height).toBeLessThanOrEqual(54);
+  const actions = page.locator("[data-testid=list-clearance] section > div button");
+  expect(await actions.count()).toBe(2);
+  const covered = async () => {
+    const toastBox = await box(added);
+    const boxes = await Promise.all((await actions.all()).map(box));
+    return boxes.filter(
+      (control) =>
+        control.x < toastBox.x + toastBox.width &&
+        toastBox.x < control.x + control.width &&
+        control.y < toastBox.y + toastBox.height &&
+        toastBox.y < control.y + control.height,
+    ).length;
+  };
+  await expect.poll(covered).toBe(0);
+
+  // Wider, without a reload: side by side, the right header counts as well.
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await expect.poll(async () => (await box(lower)).y).toBeLessThan(shellDefault + 60);
+  const sideBySide = Math.max(
+    shellDefault,
+    (await bottom(lower)) + gap,
+    (await bottom(upper)) + gap,
+  );
+  await expect.poll(() => px("var(--toast-offset-top)")).toBeCloseTo(sideBySide, 0);
+
+  // Narrower again: stacked, back to the upper header alone.
+  await page.setViewportSize({ width: 900, height: 900 });
+  await expect.poll(async () => (await box(lower)).y).toBeGreaterThan(shellDefault + 60);
+  const restacked = Math.max(shellDefault, (await bottom(upper)) + gap);
+  await expect.poll(() => px("var(--toast-offset-top)")).toBeCloseTo(restacked, 0);
+});
+
 test("full-screen editor: leaving the editor restores the app shell's toast offset", async ({
   page,
 }) => {

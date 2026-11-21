@@ -6,7 +6,9 @@ import { toast, Toaster, useToastClearance } from "../src/ui/toaster.js";
 
 // A page with two lists side by side whose headers sit at the top of the content (`GL-UI-028`,
 // `SUI-FEATURE-147`): the page calls `useToastClearance` once per list header, so the toast after
-// Add starts below the lowest header and covers neither header's add action.
+// Add starts below the lowest header and covers neither header's add action. Below `lg` the lists
+// stack and the second header sits mid-page, outside the receipt area, so only the first counts
+// (rev 3).
 function ListColumn({ id, title, items }: { id: string; title: string; items: string[] }) {
   const header = useRef<HTMLDivElement>(null);
   useToastClearance(header);
@@ -45,7 +47,7 @@ function ListColumn({ id, title, items }: { id: string; title: string; items: st
 
 export function ListClearancePage({ theme }: { theme: "light" | "dark" }) {
   return (
-    <div className="flex gap-6" data-testid="list-clearance">
+    <div className="flex flex-col gap-6 lg:flex-row" data-testid="list-clearance">
       <ListColumn
         id="series"
         title="Series"

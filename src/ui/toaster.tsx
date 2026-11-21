@@ -776,6 +776,40 @@ function writeToastOffset(): void {
   root.setProperty("--toast-offset-top", value);
 }
 
+// The area a receipt takes at the app shell's default offset (`SUI-FEATURE-147` rev 3), in document
+// coordinates at rest: sonner's top-right column, 356 px wide and 24 px from the right edge (in a
+// viewport at most 600 px wide the full width less 16 px each side), from `--toast-offset-shell`
+// down by one receipt line (16 px padding each side, a 13 px line at 1.5, the 1 px border).
+const RECEIPT_WIDTH_PX = 356;
+const RECEIPT_EDGE_PX = 24;
+const RECEIPT_MOBILE_EDGE_PX = 16;
+const RECEIPT_MOBILE_MAX_PX = 600;
+const RECEIPT_HEIGHT_PX = 54;
+
+// `--toast-offset-shell` in px. The probe hangs off `<html>`, outside the body the offset hooks
+// watch for changes, so measuring never wakes them.
+function shellOffsetPx(): number {
+  const probe = document.createElement("div");
+  probe.style.cssText =
+    "position:absolute;top:0;visibility:hidden;pointer-events:none;height:var(--toast-offset-shell)";
+  document.documentElement.append(probe);
+  const height = probe.getBoundingClientRect().height;
+  probe.remove();
+  return height;
+}
+
+// Whether the element, at rest (`top` and `bottom` document-relative), intersects the receipt area.
+function inReceiptArea(box: DOMRect, top: number, bottom: number): boolean {
+  const mobile = window.innerWidth <= RECEIPT_MOBILE_MAX_PX;
+  const right =
+    document.documentElement.clientWidth - (mobile ? RECEIPT_MOBILE_EDGE_PX : RECEIPT_EDGE_PX);
+  const left = mobile ? RECEIPT_MOBILE_EDGE_PX : right - RECEIPT_WIDTH_PX;
+  const areaTop = shellOffsetPx();
+  return (
+    box.left < right && left < box.right && top < areaTop + RECEIPT_HEIGHT_PX && areaTop < bottom
+  );
+}
+
 // Measures the bottom edge of `ref`'s element while it is mounted and contributes it to
 // `--toast-offset-top`. It measures again whenever the element resizes (a header that wraps grows),
 // its parent or the body resizes (a band inserted above moves it down), the window resizes, and,
@@ -784,7 +818,9 @@ function writeToastOffset(): void {
 // header shrinks only the canvas, so no size the observers watch changes. Changes after the element
 // (the canvas, the toasts) cannot move it and are ignored; an unchanged value is not written again.
 // An element that renders only later (after a loading state) is picked up when the calling
-// component re-renders with it mounted. Unmounting takes back only this contribution.
+// component re-renders with it mounted. Unmounting takes back only this contribution. Unless it is
+// a shell (`shell`), the element contributes only while it intersects the receipt area; each
+// measuring checks again, so a width change that stacks or unstacks the lists updates it.
 //
 // The edge is document-relative (`bottom + scrollY`): the toast stack is `position: fixed`, and the
 // element rests at the top of the document while the content below it scrolls. A viewport-relative
@@ -808,8 +844,14 @@ function useToastOffsetContribution(
     if (element === null) return;
     const contribution: ToastOffsetContribution = { shell, edge: 0 };
     const apply = () => {
-      contribution.edge = element.getBoundingClientRect().bottom + window.scrollY;
-      toastOffsetContributions.add(contribution);
+      const box = element.getBoundingClientRect();
+      const bottom = box.bottom + window.scrollY;
+      if (shell || inReceiptArea(box, box.top + window.scrollY, bottom)) {
+        contribution.edge = bottom;
+        toastOffsetContributions.add(contribution);
+      } else {
+        toastOffsetContributions.delete(contribution);
+      }
       writeToastOffset();
     };
     apply();
@@ -873,10 +915,13 @@ function useEditorShellToastOffset(headerRef: React.RefObject<HTMLElement | null
  * on a page with several lists, a list header's actions lie in the band the app shell's default
  * offset leaves free. While the header is mounted the hook measures its bottom edge (again after a
  * resize or a wrap, as described at `useToastOffsetContribution`) and lowers `--toast-offset-top` to
- * that edge plus `--toast-gap` whenever that is below the app shell's default. With several calls
- * (one per header, and `useEditorShellToastOffset`) the lowest edge wins; unmounting takes back
- * only its own contribution.
- * The page calls it once per list header at the top of its content, with a ref to the header.
+ * that edge plus `--toast-gap` whenever that is below the app shell's default. A header contributes
+ * only while it intersects the area a receipt takes at the app shell's default offset (rev 3): one
+ * stacked mid-page below a breakpoint contributes nothing, and a width change updates it without a
+ * reload. With several calls (one per header, and `useEditorShellToastOffset`) the lowest
+ * contributing edge wins; unmounting takes back only its own contribution.
+ * The page calls it once per list header at the top of its content, at every width, with a ref to
+ * the header.
  */
 function useToastClearance(ref: React.RefObject<HTMLElement | null>): void {
   useToastOffsetContribution(ref, false);

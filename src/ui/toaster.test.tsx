@@ -2600,11 +2600,22 @@ describe("useEditorShellToastOffset", () => {
   });
 });
 
-describe("useToastClearance", () => {
-  // Each element's bottom edge by test id, and the observer callback registered for each element.
-  const bottoms = new Map<string, number>();
-  const resizedBy = new Map<Element, () => void>();
+// Shared by the `useToastClearance` blocks below.
+// Each element's box by test id, and the observer callback registered for each element. The
+// viewport is 1280 px wide and the shell's default offset 92 px, so the receipt area is
+// x 900–1256, y 92–146.
+const boxes = new Map<string, { top: number; bottom: number; left: number; right: number }>();
+const resizedBy = new Map<Element, () => void>();
+const SHELL_PX = 92;
 
+// A header in the right half of the content by default, from 100 px down to `bottom`.
+function at(id: string, bottom: number, top = 100, left = 640, right = 1280) {
+  boxes.set(id, { top, bottom, left, right });
+}
+
+// The page under test: list headers that call the hook and an optional full-screen editor header.
+// Built in a function, as the components of the other blocks are built in theirs.
+function clearancePage() {
   function Header({ id }: { id: string }) {
     const header = React.useRef<HTMLDivElement>(null);
     useToastClearance(header);
@@ -2629,57 +2640,82 @@ describe("useToastClearance", () => {
     );
   }
 
-  function stub() {
-    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (
-      this: HTMLElement,
-    ) {
-      return { bottom: bottoms.get(this.dataset.testid ?? "") ?? 0 } as DOMRect;
-    });
-    vi.stubGlobal(
-      "ResizeObserver",
-      class {
-        constructor(private readonly callback: () => void) {}
-        observe(node: Element) {
-          if (!resizedBy.has(node)) resizedBy.set(node, this.callback);
-        }
-        disconnect() {
-          for (const [node, callback] of resizedBy) {
-            if (callback === this.callback) resizedBy.delete(node);
-          }
-        }
-      },
-    );
-  }
+  return Page;
+}
+const Page = clearancePage();
 
-  const offset = () => document.documentElement.style.getPropertyValue("--toast-offset-top");
-  const below = (edge: number) =>
-    `max(var(--toast-offset-shell), calc(${String(edge)}px + var(--toast-gap)))`;
+function viewport(width: number) {
+  window.innerWidth = width;
+  vi.spyOn(document.documentElement, "clientWidth", "get").mockReturnValue(width);
+}
 
-  afterEach(() => {
-    vi.unstubAllGlobals();
-    bottoms.clear();
-    resizedBy.clear();
-    document.documentElement.style.removeProperty("--toast-offset-top");
+function stub(width = 1280) {
+  viewport(width);
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (
+    this: HTMLElement,
+  ) {
+    const box = boxes.get(this.dataset.testid ?? "");
+    // The probe that resolves `--toast-offset-shell` has no test id.
+    if (box === undefined) return { height: SHELL_PX } as DOMRect;
+    return box as DOMRect;
+  });
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      constructor(private readonly callback: () => void) {}
+      observe(node: Element) {
+        if (!resizedBy.has(node)) resizedBy.set(node, this.callback);
+      }
+      disconnect() {
+        for (const [node, callback] of resizedBy) {
+          if (callback === this.callback) resizedBy.delete(node);
+        }
+      }
+    },
+  );
+}
+
+const offset = () => document.documentElement.style.getPropertyValue("--toast-offset-top");
+const below = (edge: number) =>
+  `max(var(--toast-offset-shell), calc(${String(edge)}px + var(--toast-gap)))`;
+const resize = () =>
+  act(() => {
+    window.dispatchEvent(new Event("resize"));
   });
 
+function cleanUp() {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+  window.innerWidth = 1024;
+  boxes.clear();
+  resizedBy.clear();
+  document.documentElement.style.removeProperty("--toast-offset-top");
+}
+
+describe("useToastClearance", () => {
+  afterEach(cleanUp);
+
   it("lowers the offset to the lowest header's edge plus the gap, never above the shell's default", () => {
-    bottoms.set("left", 120).set("right", 140);
+    at("left", 120);
+    at("right", 140);
     stub();
     render(<Page ids={["left", "right"]} />);
     expect(offset()).toBe(below(140));
   });
 
   it("moves the offset with a header that wraps and grows (AC 2)", () => {
-    bottoms.set("left", 120).set("right", 140);
+    at("left", 120);
+    at("right", 140);
     stub();
     render(<Page ids={["left", "right"]} />);
-    bottoms.set("left", 188);
+    at("left", 188);
     act(() => resizedBy.get(screen.getByTestId("left"))?.());
     expect(offset()).toBe(below(188));
   });
 
   it("follows the remaining lowest header once one unmounts, then the shell's default (AC 3)", () => {
-    bottoms.set("left", 120).set("right", 140);
+    at("left", 120);
+    at("right", 140);
     stub();
     const { rerender, unmount } = render(<Page ids={["left", "right"]} />);
     rerender(<Page ids={["left"]} />);
@@ -2688,18 +2724,62 @@ describe("useToastClearance", () => {
     expect(offset()).toBe("");
   });
 
-  it("takes the lower edge together with a full-screen editor's header (AC 4)", () => {
-    bottoms.set("editor", 61).set("list", 140);
+  it("takes the lower edge together with a full-screen editor's header (AC 5)", () => {
+    at("editor", 61, 0, 0, 1280);
+    at("list", 140);
     stub();
     const { rerender } = render(<Page editor="editor" ids={["list"]} />);
     // The editor replaces the shell's default, so no `max` against it.
     expect(offset()).toBe("calc(140px + var(--toast-gap))");
     rerender(<Page editor="editor" ids={[]} />);
     expect(offset()).toBe("calc(61px + var(--toast-gap))");
-    bottoms.set("list", 40);
+    // A list header outside the receipt area adds nothing to the editor's offset.
+    at("list", 440, 400);
     rerender(<Page editor="editor" ids={["list"]} />);
     expect(offset()).toBe("calc(61px + var(--toast-gap))");
     rerender(<Page ids={["list"]} />);
-    expect(offset()).toBe(below(40));
+    expect(offset()).toBe("");
+  });
+});
+
+describe("useToastClearance: only a header in the receipt area counts (rev 3)", () => {
+  afterEach(cleanUp);
+
+  it("contributes nothing from a header that does not intersect the receipt area (rev 3)", () => {
+    // Below the area, mid-page.
+    at("stacked", 340, 300);
+    // Beside the toast column, in the left half.
+    at("beside", 160, 100, 0, 620);
+    // Above the area: its edge lies above the shell's default anyway.
+    at("above", 80, 40);
+    stub();
+    render(<Page ids={["stacked", "beside", "above"]} />);
+    expect(offset()).toBe("");
+  });
+
+  it("counts a header over the full width of a phone viewport, whose receipts span it", () => {
+    at("top", 150, 100, 0, 500);
+    stub(500);
+    render(<Page ids={["top"]} />);
+    expect(offset()).toBe(below(150));
+  });
+
+  it("stacked, only the upper header counts; a width change follows without a reload (AC 4)", () => {
+    // Below `lg`: the lists stack, the second header mid-page.
+    at("first", 140, 100, 0, 1280);
+    at("second", 440, 400, 0, 1280);
+    stub();
+    render(<Page ids={["first", "second"]} />);
+    expect(offset()).toBe(below(140));
+    // Wider: side by side, the second header beside the first and taller.
+    at("first", 140, 100, 0, 620);
+    at("second", 150, 100, 640, 1280);
+    resize();
+    expect(offset()).toBe(below(150));
+    // Narrower again: stacked.
+    at("first", 140, 100, 0, 1280);
+    at("second", 440, 400, 0, 1280);
+    resize();
+    expect(offset()).toBe(below(140));
   });
 });
