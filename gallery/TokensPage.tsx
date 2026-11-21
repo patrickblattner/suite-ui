@@ -3,7 +3,16 @@ import styles from "../src/styles.css?raw";
 
 // The token names come straight from `:root` in styles.css, so a new token shows up here unasked.
 const root = /\n:root \{([\s\S]*?)\n\}/.exec(styles)?.[1] ?? "";
-const colors = [...root.matchAll(/--([a-z0-9-]+):\s*(?:oklch|var)\(/g)].map((m) => m[1] as string);
+// A colour is an `oklch(…)` value or an alias (`var(--x)`) of a colour; an alias of a length (the
+// toast offset) is no swatch.
+const declared = new Map(
+  [...root.matchAll(/--([a-z0-9-]+):\s*(oklch\(|var\(--([a-z0-9-]+)\))/g)].map(
+    (m) => [m[1] as string, m[3]] as const,
+  ),
+);
+const isColor = (name: string): boolean =>
+  declared.has(name) && (declared.get(name) === undefined || isColor(declared.get(name)!));
+const colors = [...declared.keys()].filter(isColor);
 const textTokens = colors.filter((name) => name.endsWith("-text"));
 
 // A fill shows a sample of the text that sits on it: its own `-foreground`, which for a hover step

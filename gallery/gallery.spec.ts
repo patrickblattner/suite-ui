@@ -896,6 +896,7 @@ const AXE_PAGES: [
   ["edit-panel", (page) => page.getByTestId("media-panel-trigger")],
   ["editor-shell", (page) => page.getByTestId("editor-save")],
   ["editor-shell", (page) => page.getByTestId("editor-save"), "&layout=screen"],
+  ["two-lists", (page) => page.getByTestId("seasons-add")],
   // SUI-FEATURE-390: the draft head beside the record head.
   ["record-bar", (page) => page.getByTestId("editor-record-record")],
   // SUI-FEATURE-132: the shared tab surface after a switch to its third tab.
@@ -1447,6 +1448,60 @@ test("full-screen editor: a band above a full-height editor keeps the toast off 
     .toBeGreaterThanOrEqual(0);
   await expect.poll(covered).toBe(0);
 });
+
+// `GL-UI-028`, `SUI-FEATURE-147` AC 1: on a page with two lists side by side whose headers sit at
+// the top of the content, each header calling `useToastClearance`, the toast after Add starts below
+// the lowest header plus the shell gap and covers no header action, on both desktop viewports.
+for (const [width, height] of [
+  [1920, 1080],
+  [1440, 900],
+] as const) {
+  test(`list headers: the toast after Add covers no header action at ${width}x${height}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height });
+    await page.goto("/?page=two-lists");
+    const headers = [page.getByTestId("series-header"), page.getByTestId("seasons-header")];
+    const actions = page.locator("[data-testid=list-clearance] section > div button");
+    // Without the hook the shell's default would start the toast above the headers' bottom edge.
+    const shellDefault = await page.evaluate(() => {
+      const probe = document.createElement("div");
+      probe.style.height = "var(--toast-offset-shell)";
+      document.body.append(probe);
+      const value = probe.getBoundingClientRect().height;
+      probe.remove();
+      return value;
+    });
+    const lowest = Math.max(...(await Promise.all(headers.map(box))).map((b) => b.y + b.height));
+    expect(lowest).toBeGreaterThan(shellDefault);
+
+    await page.getByTestId("seasons-add").click();
+    const added = page.locator("[data-sonner-toast][data-type=success]");
+    await expect(added).toBeVisible();
+    const gap = await page.evaluate(() => {
+      const probe = document.createElement("div");
+      probe.style.height = "var(--toast-gap)";
+      document.body.append(probe);
+      const value = probe.getBoundingClientRect().height;
+      probe.remove();
+      return value;
+    });
+    await expect.poll(async () => (await box(added)).y).toBeGreaterThanOrEqual(lowest + gap - 0.5);
+    expect(await actions.count()).toBe(2);
+    const covered = async () => {
+      const toastBox = await box(added);
+      const boxes = await Promise.all((await actions.all()).map(box));
+      return boxes.filter(
+        (control) =>
+          control.x < toastBox.x + toastBox.width &&
+          toastBox.x < control.x + control.width &&
+          control.y < toastBox.y + toastBox.height &&
+          toastBox.y < control.y + control.height,
+      ).length;
+    };
+    await expect.poll(covered).toBe(0);
+  });
+}
 
 test("full-screen editor: leaving the editor restores the app shell's toast offset", async ({
   page,

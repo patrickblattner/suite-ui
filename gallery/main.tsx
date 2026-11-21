@@ -21,6 +21,7 @@ import { HelpPage } from "./HelpPage.js";
 import { InsetPage } from "./InsetPage.js";
 import { KeysPage } from "./KeysPage.js";
 import { LeaveGuardHarness } from "./LeaveGuardHarness.js";
+import { ListClearancePage } from "./ListClearancePage.js";
 import { ListPage } from "./ListPage.js";
 import {
   ConfirmPage,
@@ -74,6 +75,7 @@ const PAGES = [
   "pressed",
   "help",
   "toast",
+  "two-lists",
   "preview",
   "split",
   "slides",
@@ -127,6 +129,7 @@ const PAGE_CONTENT: Record<Exclude<Page, "strings">, (theme: Theme) => ReactNode
   pressed: () => <PressedPage />,
   help: () => <HelpPage />,
   toast: (theme) => <ToastPage theme={theme} />,
+  "two-lists": (theme) => <ListClearancePage theme={theme} />,
   preview: (theme) => <PreviewPage theme={theme} />,
   split: () => <SplitPage />,
   slides: () => <SlidesPage />,

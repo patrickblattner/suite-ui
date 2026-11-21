@@ -204,7 +204,8 @@ describe("styles.css tokens", () => {
       "tooltip-hint-delay": "1500ms",
       "checker-size": "12px",
     });
-    expect(root.get("toast-offset-top")?.replace(/\s+/g, " ")).toBe(
+    expect(root.get("toast-offset-top")).toBe("var(--toast-offset-shell)");
+    expect(root.get("toast-offset-shell")?.replace(/\s+/g, " ")).toBe(
       "calc( var(--app-bar-height) + var(--shell-chrome-height) + var(--page-inset-top) + var(--page-header-height) + var(--toast-gap) )",
     );
   });

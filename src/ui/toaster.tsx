@@ -750,53 +750,71 @@ function withToastClassNames(own: ToastClassnames = {}): ToastClassnames {
 export const TOAST_POSITION = "top-right" as const;
 export const TOAST_OFFSET = { top: "var(--toast-offset-top)" } as const;
 
-/**
- * The toast offset of a full-screen editor (`GL-UI-028`, `SUI-FEATURE-086`): a full-screen editor
- * is its own shell, so while it is mounted the toast column starts below its `EditorHeader`. The
- * hook measures the header's bottom edge and sets `--toast-offset-top` on the document root to that
- * edge plus the shell's `--toast-gap` (styles.css). It measures again whenever the header resizes
- * (a header that wraps grows), the header's parent or the body resizes (a band inserted above moves
- * the header down), the window resizes, and, once per animation frame, after a change to the
- * body's tree or to a `class`, `style` or `hidden` in it before the header in document order: in a
- * full-height editor a band inserted above the header shrinks only the canvas, so no size the
- * observers watch changes. Changes after the header (the canvas, the toasts) cannot move it and
- * are ignored; an unchanged value is not written again. Unmounted, the app shell's default applies
- * again.
- * Call it once in the full-screen editor route with a ref to the element that wraps the
- * `EditorHeader`; the header itself measures nothing. A wrapper that renders only later (after a
- * loading state) is picked up when the calling component re-renders with it mounted.
- * The hook is meant for exactly one mounted editor shell at a time (`SUI-FEATURE-086`).
- *
- * The edge is document-relative (`bottom + scrollY`): the toast stack is `position: fixed`, and the
- * header of a full-screen editor rests at the top of the document while its canvas scrolls. A
- * viewport-relative edge taken while the window happens to be scrolled would lift the stack into
- * the header once the window scrolls back; the document-relative edge clears the header in its
- * resting place whatever the scroll at measuring time. This holds for a header in normal flow; a
- * sticky or fixed header would be measured too low by the scroll term.
- */
-function useEditorShellToastOffset(headerRef: React.RefObject<HTMLElement | null>): void {
-  const [header, setHeader] = React.useState<HTMLElement | null>(null);
+// The mounted contributions to `--toast-offset-top` (`useEditorShellToastOffset`,
+// `useToastClearance`), each with its element's last measured bottom edge. The lowest edge wins. A
+// full-screen editor is its own shell and replaces the app shell's default; list headers only ever
+// lower it (`max` against `--toast-offset-shell`, styles.css), so the shell's own terms (a banner
+// band) keep counting. Without a contribution the property is removed and the default applies.
+type ToastOffsetContribution = { shell: boolean; edge: number };
+const toastOffsetContributions = new Set<ToastOffsetContribution>();
+
+function writeToastOffset(): void {
+  const root = document.documentElement.style;
+  if (toastOffsetContributions.size === 0) {
+    root.removeProperty("--toast-offset-top");
+    return;
+  }
+  let edge = -Infinity;
+  let shell = false;
+  for (const contribution of toastOffsetContributions) {
+    edge = Math.max(edge, contribution.edge);
+    shell ||= contribution.shell;
+  }
+  const below = `calc(${String(edge)}px + var(--toast-gap))`;
+  const value = shell ? below : `max(var(--toast-offset-shell), ${below})`;
+  if (root.getPropertyValue("--toast-offset-top") === value) return;
+  root.setProperty("--toast-offset-top", value);
+}
+
+// Measures the bottom edge of `ref`'s element while it is mounted and contributes it to
+// `--toast-offset-top`. It measures again whenever the element resizes (a header that wraps grows),
+// its parent or the body resizes (a band inserted above moves it down), the window resizes, and,
+// once per animation frame, after a change to the body's tree or to a `class`, `style` or `hidden`
+// in it before the element in document order: in a full-height editor a band inserted above the
+// header shrinks only the canvas, so no size the observers watch changes. Changes after the element
+// (the canvas, the toasts) cannot move it and are ignored; an unchanged value is not written again.
+// An element that renders only later (after a loading state) is picked up when the calling
+// component re-renders with it mounted. Unmounting takes back only this contribution.
+//
+// The edge is document-relative (`bottom + scrollY`): the toast stack is `position: fixed`, and the
+// element rests at the top of the document while the content below it scrolls. A viewport-relative
+// edge taken while the window happens to be scrolled would lift the stack into the element once the
+// window scrolls back; the document-relative edge clears it in its resting place whatever the scroll
+// at measuring time. This holds for an element in normal flow; a sticky or fixed one would be
+// measured too low by the scroll term.
+function useToastOffsetContribution(
+  ref: React.RefObject<HTMLElement | null>,
+  shell: boolean,
+): void {
+  const [element, setElement] = React.useState<HTMLElement | null>(null);
   // No dependency array: the ref's element is checked after every render of the calling component,
-  // which is how a late-mounted header is found; `[headerRef, header]` would miss it, since the ref
+  // which is how a late-mounted element is found; `[ref, element]` would miss it, since the ref
   // object never changes. The guarded setState bails out once the element is current.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   React.useLayoutEffect(() => {
-    if (headerRef.current !== header) setHeader(headerRef.current);
+    if (ref.current !== element) setElement(ref.current);
   });
   React.useLayoutEffect(() => {
-    if (header === null) return;
-    const root = document.documentElement.style;
-    let last = "";
+    if (element === null) return;
+    const contribution: ToastOffsetContribution = { shell, edge: 0 };
     const apply = () => {
-      const bottom = header.getBoundingClientRect().bottom + window.scrollY;
-      const value = `calc(${String(bottom)}px + var(--toast-gap))`;
-      if (value === last) return;
-      last = value;
-      root.setProperty("--toast-offset-top", value);
+      contribution.edge = element.getBoundingClientRect().bottom + window.scrollY;
+      toastOffsetContributions.add(contribution);
+      writeToastOffset();
     };
     apply();
     const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(apply);
-    for (const node of [header, header.parentElement, document.body]) {
+    for (const node of [element, element.parentElement, document.body]) {
       if (node !== null) observer?.observe(node);
     }
     window.addEventListener("resize", apply);
@@ -808,7 +826,9 @@ function useEditorShellToastOffset(headerRef: React.RefObject<HTMLElement | null
             if (frame !== null) return;
             const before = records.some(
               (record) =>
-                !(header.compareDocumentPosition(record.target) & Node.DOCUMENT_POSITION_FOLLOWING),
+                !(
+                  element.compareDocumentPosition(record.target) & Node.DOCUMENT_POSITION_FOLLOWING
+                ),
             );
             if (!before) return;
             frame = requestAnimationFrame(() => {
@@ -827,9 +847,39 @@ function useEditorShellToastOffset(headerRef: React.RefObject<HTMLElement | null
       mutations?.disconnect();
       if (frame !== null) cancelAnimationFrame(frame);
       window.removeEventListener("resize", apply);
-      root.removeProperty("--toast-offset-top");
+      toastOffsetContributions.delete(contribution);
+      writeToastOffset();
     };
-  }, [header]);
+  }, [element, shell]);
+}
+
+/**
+ * The toast offset of a full-screen editor (`GL-UI-028`, `SUI-FEATURE-086`): a full-screen editor
+ * is its own shell, so while it is mounted the toast column starts below its `EditorHeader`. The
+ * hook measures the header's bottom edge and sets `--toast-offset-top` on the document root to that
+ * edge plus the shell's `--toast-gap` (styles.css), replacing the app shell's default; it measures
+ * again as described at `useToastOffsetContribution`. Together with `useToastClearance` the lower
+ * edge wins. Unmounted, the app shell's default applies again.
+ * Call it once in the full-screen editor route with a ref to the element that wraps the
+ * `EditorHeader`; the header itself measures nothing.
+ * The hook is meant for exactly one mounted editor shell at a time (`SUI-FEATURE-086`).
+ */
+function useEditorShellToastOffset(headerRef: React.RefObject<HTMLElement | null>): void {
+  useToastOffsetContribution(headerRef, true);
+}
+
+/**
+ * The toast offset below a list header at the top of the content (`GL-UI-028`, `SUI-FEATURE-147`):
+ * on a page with several lists, a list header's actions lie in the band the app shell's default
+ * offset leaves free. While the header is mounted the hook measures its bottom edge (again after a
+ * resize or a wrap, as described at `useToastOffsetContribution`) and lowers `--toast-offset-top` to
+ * that edge plus `--toast-gap` whenever that is below the app shell's default. With several calls
+ * (one per header, and `useEditorShellToastOffset`) the lowest edge wins; unmounting takes back
+ * only its own contribution.
+ * The page calls it once per list header at the top of its content, with a ref to the header.
+ */
+function useToastClearance(ref: React.RefObject<HTMLElement | null>): void {
+  useToastOffsetContribution(ref, false);
 }
 
 // A click on any toast dismisses all visible toasts; clicks on a toast's own buttons keep their
@@ -1291,4 +1341,5 @@ export {
   TOAST_DURATION_PER_WORD_MS,
   type ToastVariant,
   useEditorShellToastOffset,
+  useToastClearance,
 };

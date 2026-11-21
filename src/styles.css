@@ -42,13 +42,15 @@
   --app-bar-height: 0rem;
   --shell-chrome-height: 0rem;
   --page-inset-top: 1.5rem;
-  /* The gap below the title row; a full-screen editor's offset (`useEditorShellToastOffset`) adds
-     the same gap below its header. */
+  /* The gap below the title row; a full-screen editor's offset (`useEditorShellToastOffset`) and a
+     list header's (`useToastClearance`) add the same gap below their header. */
   --toast-gap: 0.5rem;
-  --toast-offset-top: calc(
+  /* The app shell's default; `useToastClearance` only ever moves the column further down from it. */
+  --toast-offset-shell: calc(
     var(--app-bar-height) + var(--shell-chrome-height) + var(--page-inset-top) +
       var(--page-header-height) + var(--toast-gap)
   );
+  --toast-offset-top: var(--toast-offset-shell);
 
   /* Tooltip delay (`GL-UI-016`/`GL-UI-017`): every tooltip, the overflow tooltip included, opens after
      the one hint delay. `tooltip.tsx` keeps the number radix needs in step with this. */

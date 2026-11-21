@@ -12,7 +12,13 @@ vi.mock("react-i18next", async (importOriginal) => {
 });
 
 import { Popover, PopoverContent, PopoverTrigger } from "./popover.js";
-import { toast, Toaster, toastDurationFor, useEditorShellToastOffset } from "./toaster.js";
+import {
+  toast,
+  Toaster,
+  toastDurationFor,
+  useEditorShellToastOffset,
+  useToastClearance,
+} from "./toaster.js";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -2591,5 +2597,109 @@ describe("useEditorShellToastOffset", () => {
     document.body.append(document.createElement("div"));
     await new Promise((done) => requestAnimationFrame(done));
     expect(offset()).toBe("");
+  });
+});
+
+describe("useToastClearance", () => {
+  // Each element's bottom edge by test id, and the observer callback registered for each element.
+  const bottoms = new Map<string, number>();
+  const resizedBy = new Map<Element, () => void>();
+
+  function Header({ id }: { id: string }) {
+    const header = React.useRef<HTMLDivElement>(null);
+    useToastClearance(header);
+    return <div ref={header} data-testid={id} />;
+  }
+
+  // Stands in for a full-screen editor's header.
+  function EditorShell({ id }: { id: string }) {
+    const header = React.useRef<HTMLDivElement>(null);
+    useEditorShellToastOffset(header);
+    return <div ref={header} data-testid={id} />;
+  }
+
+  function Page({ ids, editor }: { ids: string[]; editor?: string }) {
+    return (
+      <main>
+        {editor === undefined ? null : <EditorShell key={editor} id={editor} />}
+        {ids.map((id) => (
+          <Header key={id} id={id} />
+        ))}
+      </main>
+    );
+  }
+
+  function stub() {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      return { bottom: bottoms.get(this.dataset.testid ?? "") ?? 0 } as DOMRect;
+    });
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(private readonly callback: () => void) {}
+        observe(node: Element) {
+          if (!resizedBy.has(node)) resizedBy.set(node, this.callback);
+        }
+        disconnect() {
+          for (const [node, callback] of resizedBy) {
+            if (callback === this.callback) resizedBy.delete(node);
+          }
+        }
+      },
+    );
+  }
+
+  const offset = () => document.documentElement.style.getPropertyValue("--toast-offset-top");
+  const below = (edge: number) =>
+    `max(var(--toast-offset-shell), calc(${String(edge)}px + var(--toast-gap)))`;
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    bottoms.clear();
+    resizedBy.clear();
+    document.documentElement.style.removeProperty("--toast-offset-top");
+  });
+
+  it("lowers the offset to the lowest header's edge plus the gap, never above the shell's default", () => {
+    bottoms.set("left", 120).set("right", 140);
+    stub();
+    render(<Page ids={["left", "right"]} />);
+    expect(offset()).toBe(below(140));
+  });
+
+  it("moves the offset with a header that wraps and grows (AC 2)", () => {
+    bottoms.set("left", 120).set("right", 140);
+    stub();
+    render(<Page ids={["left", "right"]} />);
+    bottoms.set("left", 188);
+    act(() => resizedBy.get(screen.getByTestId("left"))?.());
+    expect(offset()).toBe(below(188));
+  });
+
+  it("follows the remaining lowest header once one unmounts, then the shell's default (AC 3)", () => {
+    bottoms.set("left", 120).set("right", 140);
+    stub();
+    const { rerender, unmount } = render(<Page ids={["left", "right"]} />);
+    rerender(<Page ids={["left"]} />);
+    expect(offset()).toBe(below(120));
+    unmount();
+    expect(offset()).toBe("");
+  });
+
+  it("takes the lower edge together with a full-screen editor's header (AC 4)", () => {
+    bottoms.set("editor", 61).set("list", 140);
+    stub();
+    const { rerender } = render(<Page editor="editor" ids={["list"]} />);
+    // The editor replaces the shell's default, so no `max` against it.
+    expect(offset()).toBe("calc(140px + var(--toast-gap))");
+    rerender(<Page editor="editor" ids={[]} />);
+    expect(offset()).toBe("calc(61px + var(--toast-gap))");
+    bottoms.set("list", 40);
+    rerender(<Page editor="editor" ids={["list"]} />);
+    expect(offset()).toBe("calc(61px + var(--toast-gap))");
+    rerender(<Page ids={["list"]} />);
+    expect(offset()).toBe(below(40));
   });
 });
