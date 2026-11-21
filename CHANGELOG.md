@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.262.0 — #996 leave dialog Save locked with a locked submit, GL-UI-038 locked Field, R11 gallery theme before paint, tooling (trivy via mise, overrides, toaster test) (minor)
+
 - **Changed (#996, SUI-FEATURE-250 rev 6) — minor:** while an `EditPanel`'s submit is locked (`submitDisabled`), the leave dialog's primary action (Save, or Apply for `submitKind="apply"`) is locked with the same `submitDisabledHint`: `aria-disabled`, focusable, the reason as its description, and the dialog opens on Cancel; Discard and Cancel stay free. Before, the dialog offered a Save that did nothing. A press on the locked action runs the locked submit as the panel's own Save does (the errors show, nothing saves). `MediaDetailShell` follows the same rule for its `submitDisabled` (`SUI-FEATURE-131` uses the `SUI-FEATURE-250` pair). `useLeaveConfirm` takes an internal `saveLocked` slot: the surface wraps the locked Save in its own carrier of the reason (`Hint`), so `useLeaveGuard` alone bundles no tooltip (`./ui/leave-guard` 40455 B, under its maximum).
 - **Fixed (#996, GL-UI-038 rev 6 §Gesperrte Felder):** a `Field` locked with a `disabledReason` shows no error and is never `aria-invalid`, also when the app passes `error`, so a submit never shows it nor gives it the focus. The package never blocks a submit on field errors itself; that stays the app's `submitDisabled`.
 - Gallery (#996): a test opens the leave dialog of `?page=edit-panel`'s locked panel (a name with a slash) in de/en, light/dark: Save `aria-disabled` with the panel's reason as its description, the focus on Cancel, Discard closes. New baselines: `gallery/__screenshots__/edit-panel-leave-locked-{de,en}-{light,dark}.png`.
