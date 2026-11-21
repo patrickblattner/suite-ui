@@ -1,7 +1,13 @@
 import type * as React from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { decimalSign, formatDecimal, numpadDecimal, parseDecimal } from "./decimal-number.js";
+import {
+  decimalSign,
+  formatDecimal,
+  numpadDecimal,
+  parseDecimal,
+  storedNumber,
+} from "./decimal-number.js";
 import * as ui from "./index.js";
 
 // #451 (GL-UI-037): the package's one parser for number entry, for its fields and the apps' own.
@@ -89,6 +95,22 @@ describe("parseDecimal", () => {
     expect(ui.parseDecimal).toBe(parseDecimal);
     expect(ui.formatDecimal).toBe(formatDecimal);
     expect(typeof ui.numpadDecimal).toBe("function");
+  });
+});
+
+// SUI-FEATURE-411 rev 4: the one float-noise normalisation.
+describe("storedNumber", () => {
+  it("drops float noise and keeps every stored digit", () => {
+    expect(storedNumber(0.1 + 0.2)).toBe(0.3);
+    expect(storedNumber(0.123456789)).toBe(0.123456789);
+    expect(storedNumber(0.0000001)).toBe(0.0000001);
+  });
+
+  // Finding #519: near Number.MAX_VALUE the 15-digit rounding overflows to Infinity; the value stays.
+  it("keeps a value whose 15-digit form is not finite", () => {
+    expect(storedNumber(Number.MAX_VALUE)).toBe(Number.MAX_VALUE);
+    expect(storedNumber(-Number.MAX_VALUE)).toBe(-Number.MAX_VALUE);
+    expect(storedNumber(Infinity)).toBe(Infinity);
   });
 });
 

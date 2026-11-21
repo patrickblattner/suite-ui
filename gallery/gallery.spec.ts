@@ -8365,6 +8365,18 @@ for (const theme of THEMES) {
       outlineWidth: "2px",
       outlineColor: ring,
     });
+    // The ring stands at once: no outline-colour transition fades it in from the text colour (#985).
+    expect(
+      await carried.evaluate((row) =>
+        row
+          .getAnimations()
+          .some(
+            (animation) =>
+              animation instanceof CSSTransition &&
+              animation.transitionProperty === "outline-color",
+          ),
+      ),
+    ).toBe(false);
     expect(await contrastOf(page, ring, surface)).toBeGreaterThanOrEqual(3);
     const cellBorders = await carried.getByRole("gridcell").evaluateAll((cells) =>
       cells.flatMap((cell) => {
@@ -19228,14 +19240,15 @@ test("slide editor: a group's width beyond what its turned child allows takes th
   await expect(field("height")).toHaveValue(height);
   await typeInto(page, field("width"), "400");
   await page.keyboard.press("Tab");
-  await expect(field("width")).toHaveValue("304.33");
-  await expect(editor.getByTestId("slide-editor-width-limit")).toContainText("at most 304.33 px");
+  // The limit as stored, to the 1/1000 px grain (finding #511: no refit trims it to 304.33).
+  await expect(field("width")).toHaveValue("304.331");
+  await expect(editor.getByTestId("slide-editor-width-limit")).toContainText("at most 304.331 px");
   await expect(field("height")).toHaveValue(height);
   // A width it reaches clears the note.
   await typeInto(page, field("width"), "200");
   await page.keyboard.press("Tab");
-  // The stored width with all its digits (SUI-FEATURE-411 rev 3): the children's fit lands at 199.999.
-  await expect(field("width")).toHaveValue("199.999");
+  // A width it reaches is stored as typed (finding #511), not as the refit around rounded children.
+  await expect(field("width")).toHaveValue("200");
   await expect(editor.getByTestId("slide-editor-width-limit")).toHaveCount(0);
 });
 

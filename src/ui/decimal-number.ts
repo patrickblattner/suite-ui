@@ -50,9 +50,11 @@ export function takesDecimal(text: string): boolean {
 
 // The stored number without the noise of float arithmetic (15 significant digits: 0.1 + 0.2 is 0.3;
 // no limit on decimals, 0.0000001 stays), as a field shows it, as its `aria-valuenow` and as an
-// arrow-key step stores it. The package's one float-noise normalisation (SUI-FEATURE-411 rev 4).
+// arrow-key step stores it. The package's one float-noise normalisation (SUI-FEATURE-411 rev 4). Near
+// `Number.MAX_VALUE` the rounding overflows to Infinity; the value then stays as it is (#519).
 export function storedNumber(value: number): number {
-  return Number(value.toPrecision(15));
+  const normal = Number(value.toPrecision(15));
+  return Number.isFinite(normal) ? normal : value;
 }
 
 // A number as a field shows it: written out with the UI language's decimal sign, never in exponent

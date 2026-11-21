@@ -32,6 +32,15 @@ Switching to a new tag always needs this explicit `npm install` (lockfile). Then
 
 Peer dependencies (never bundled): `react` and `react-dom` ^19.2, `react-router-dom` ^7, `radix-ui` ^1.5, `lucide-react` >=1.17, `class-variance-authority` ^0.7, `tailwind-merge` ^3, `clsx` ^2, `react-i18next` >=15 <18.
 
+In a Vite app, keep lucide's lazy icon map out of the dev pre-bundle: bundled beside `lucide-react`, it makes every page load all ~1870 icon chunks; left out, an icon loads only when a slide shows it.
+
+```ts
+// vite.config.ts
+export default defineConfig({
+  optimizeDeps: { exclude: ["lucide-react/dynamicIconImports"] },
+});
+```
+
 ### Parity check
 
 ```bash

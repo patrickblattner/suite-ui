@@ -3,7 +3,7 @@
   "recordedAt": "2026-11-02",
   "recordedFrom": "npm run hygiene:inventory on main 0eaedc7e (code identical to main; run in the #752 worktree, rebased, that introduces the tools)",
   "counts": {
-    "jscpd.duplicated-lines": 7089,
+    "jscpd.duplicated-lines": 6266,
     "dependency-cruiser.cycles": 0,
     "dependency-cruiser.forbidden-imports": 0,
     "semgrep.error-or-warning": 0,
@@ -12,11 +12,11 @@
     "licence-inventory.outside-allowlist": 0,
     "knip.findings": 3,
     "eslint.security": 0,
-    "eslint.complexity": 47,
+    "eslint.complexity": 45,
     "eslint.max-depth": 4,
-    "eslint.max-lines-per-function": 172,
-    "eslint.max-params": 11,
-    "eslint.cognitive-complexity": 21
+    "eslint.max-lines-per-function": 171,
+    "eslint.max-params": 10,
+    "eslint.cognitive-complexity": 20
   },
   "inventoryOnly": {
     "gitleaks.history": {

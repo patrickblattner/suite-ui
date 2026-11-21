@@ -120,6 +120,9 @@ function refitGroups(elements: readonly SlideElement[]): SlideElement[] {
   );
 }
 
+// One step of the 1/1000 px grain, with room for the float error of the comparison.
+const ROUNDING_GRAIN = 0.001 + 1e-9;
+
 // The group with `next` as its children and its box made the box around them, one level of
 // `refitGroups`; the same object when nothing changed.
 export function refitGroup(element: Group, next: SlideElement[]): Group {
@@ -143,11 +146,15 @@ export function refitGroup(element: Group, next: SlideElement[]): Group {
     });
     children = children.map((child) => withDescendants(child, moved));
   }
+  // Within the 1/1000 px grain every stored value is rounded to, the stored box stays: a typed size the
+  // children reach is kept exactly, not as the box around children rounded to that grain (#511).
+  const kept = (value: number, stored: number) =>
+    Math.abs(value - stored) <= ROUNDING_GRAIN ? stored : value;
   const fitted = {
-    x: round(bounds.x + offset.x),
-    y: round(bounds.y + offset.y),
-    width: round(bounds.width),
-    height: round(bounds.height),
+    x: kept(round(bounds.x + offset.x), element.x),
+    y: kept(round(bounds.y + offset.y), element.y),
+    width: kept(round(bounds.width), element.width),
+    height: kept(round(bounds.height), element.height),
   };
   const same =
     fitted.x === element.x &&

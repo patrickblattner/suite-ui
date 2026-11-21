@@ -57,6 +57,7 @@ import {
   type SlideElementInput,
   type SlideFormat,
   type TextRun,
+  type Background,
 } from "./schema.js";
 import { changedBoxes, followKey, followLayout, type Measured } from "./text-follow.js";
 import { useReducedMotion } from "./use-reduced-motion.js";
@@ -1716,6 +1717,644 @@ function assetsOf(
 
 // One page of a slide document, drawn in the DOM (`SUI-FEATURE-160`): every element absolutely in the
 // coordinates of the format, the whole page under one scale. Editor, player and export draw with it.
+type NoticeTarget = {
+  id: string;
+  kind: NoticeKind;
+  name: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+type PlacedNotice = {
+  id: string;
+  name: string;
+  kind: NoticeKind;
+  place: React.CSSProperties;
+  indent?: number;
+};
+type UnplacedNotice = { id: string; name: string; kind: NoticeKind };
+
+// The view's draw state, kept across renders (#620): what each text whose size follows it measured,
+// the texts that do not fit, the media that failed and the natural sizes of those that loaded.
+function useDrawState() {
+  const [textSizes, setTextSizes] = React.useState<ReadonlyMap<string, Measured>>(() => new Map());
+  const onMeasure = React.useCallback((id: string, size: Measured) => {
+    setTextSizes((current) => {
+      const old = current.get(id);
+      if (
+        old !== undefined &&
+        old.width === size.width &&
+        old.height === size.height &&
+        old.key === size.key
+      ) {
+        return current;
+      }
+      return new Map(current).set(id, size);
+    });
+  }, []);
+  const [overflow, setOverflow] = React.useState<ReadonlySet<string>>(() => new Set());
+  const onFit = React.useCallback((id: string, fits: boolean) => {
+    setOverflow((current) => {
+      if (current.has(id) !== fits) return current;
+      const next = new Set(current);
+      if (fits) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+  const [broken, setBroken] = React.useState<ReadonlySet<string>>(() => new Set());
+  const onBroken = React.useCallback((src: string) => {
+    setBroken((current) => (current.has(src) ? current : new Set([...current, src])));
+  }, []);
+  const [loaded, setLoaded] = React.useState<ReadonlyMap<string, ImageSize>>(() => new Map());
+  const onLoaded = React.useCallback((src: string, size: ImageSize) => {
+    setLoaded((current) => {
+      const known = current.get(src);
+      if (known?.width === size.width && known.height === size.height) return current;
+      return new Map([...current, [src, size]]);
+    });
+  }, []);
+  return { textSizes, onMeasure, overflow, onFit, broken, onBroken, loaded, onLoaded };
+}
+
+// The size of `root`'s content box while the view fits its page into it; `null` until measured.
+function useFitBox(
+  scale: number | "fit",
+  root: HTMLElement | null,
+): { width: number; height: number } | null {
+  const [box, setBox] = React.useState<{ width: number; height: number } | null>(null);
+  React.useLayoutEffect(() => {
+    const element = root;
+    if (scale !== "fit" || element === null || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry !== undefined) {
+        setBox({ width: entry.contentRect.width, height: entry.contentRect.height });
+      }
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [scale, root]);
+  return box;
+}
+
+// Hands `value` to `report` once per change of `key`, with the latest handler.
+function useReported<T>(value: T, key: string, report: ((value: T) => void) | undefined) {
+  const latest = React.useRef({ value, report });
+  React.useEffect(() => {
+    latest.current = { value, report };
+  });
+  React.useEffect(() => {
+    latest.current.report?.(latest.current.value);
+  }, [key]);
+}
+
+// A background image's crop is an image element's over the page's cover fill (`SUI-DESIGN-002`
+// rev 10), drawn within its reach once the image has loaded (`natural`), as an image's is; cropped
+// first, then flipped about the page's centre, either way, so the flipped page shows the same
+// section, mirrored (`GL-UI-035`, `SUI-FEATURE-135`).
+function placeBackground(
+  background: Extract<Background, { type: "image" }>,
+  { width, height }: { width: number; height: number },
+  natural: ImageSize | undefined,
+) {
+  const { zoom, offsetX, offsetY } =
+    natural === undefined ? background.crop : clampCrop(width, height, background.crop, natural);
+  const size = croppedImageSize(width, height, zoom, natural);
+  const left = (width - size.width) / 2 + offsetX;
+  const top = (height - size.height) / 2 + offsetY;
+  return {
+    natural,
+    flipped: background.flipped,
+    flippedVertical: background.flippedVertical,
+    left,
+    top,
+    width: size.width,
+    height: size.height,
+    originX: width / 2 - left,
+    originY: height / 2 - top,
+  };
+}
+
+// What a notice names: each text that does not fit (`overflow`, those the view names), and each
+// element past the page edge (`pastPage`) — one notice for an element that is both.
+function noticeTargets(
+  overflow: ReadonlySet<string>,
+  texts: Draw["texts"],
+  pastIds: ReadonlySet<string>,
+  pastPage: readonly SlideElement[],
+): NoticeTarget[] {
+  return [
+    ...[...overflow].flatMap((id) => {
+      const text = texts.get(id);
+      if (text === undefined) return [];
+      return [{ id, kind: pastIds.has(id) ? ("both" as const) : ("text" as const), ...text }];
+    }),
+    ...pastPage
+      .filter((element) => !(overflow.has(element.id) && texts.has(element.id)))
+      .map((element) => ({
+        id: element.id,
+        kind: "page" as const,
+        name: element.name || element.id,
+        ...drawnBox(element),
+      })),
+  ];
+}
+
+// The page's place in the view, with or without the strip of notices below it: `strip` is the room
+// the page's size leaves for it, `centred` the room it is centred above. A text that does not fit is
+// named outside its box and outside where its text spills (down from the box, wrapped): above the
+// box, else beside it, right or left, never over the text it names (`SUI-FEATURE-180`); with no room
+// for any of them, in the strip below the page (#305). Above the box the notice starts at the box's
+// left edge, as far as it fits: a spacer of that width before it gives way at the view's right edge
+// (#321), so the notice stays on the canvas. An element past the page edge is named the same way,
+// outside its drawn box.
+function noticeLayout({
+  scale,
+  box,
+  size: { width, height },
+  strip,
+  centred,
+  targets,
+}: {
+  scale: number | "fit";
+  box: { width: number; height: number } | null;
+  size: { width: number; height: number };
+  strip: number;
+  centred: number;
+  targets: readonly NoticeTarget[];
+}) {
+  const factor =
+    scale === "fit"
+      ? box === null
+        ? 0
+        : Math.min(box.width / width, Math.max(0, box.height - strip) / height)
+      : scale;
+  const pageLeft = scale === "fit" && box !== null ? (box.width - width * factor) / 2 : 0;
+  const pageTop =
+    scale === "fit" && box !== null ? (box.height - centred - height * factor) / 2 : 0;
+  const viewWidth = scale === "fit" ? (box?.width ?? 0) : width * factor;
+  const placed: PlacedNotice[] = [];
+  const unplaced: UnplacedNotice[] = [];
+  for (const { id, kind, ...text } of targets) {
+    const top = pageTop + text.y * factor;
+    const left = pageLeft + text.x * factor;
+    const right = pageLeft + (text.x + text.width) * factor;
+    if (top - NOTICE_ROOM >= 0) {
+      placed.push({
+        id,
+        kind,
+        name: text.name,
+        place: { left: px(4), right: px(4), top: px(top - 4), transform: "translateY(-100%)" },
+        indent: Math.max(0, left - 4),
+      });
+    } else if (viewWidth - right - 8 >= NOTICE_WIDTH) {
+      placed.push({
+        id,
+        kind,
+        name: text.name,
+        place: {
+          left: px(right + 4),
+          top: px(Math.max(4, top)),
+          maxWidth: px(viewWidth - right - 8),
+        },
+      });
+    } else if (left - 8 >= NOTICE_WIDTH) {
+      placed.push({
+        id,
+        kind,
+        name: text.name,
+        place: {
+          right: px(viewWidth - left + 4),
+          top: px(Math.max(4, top)),
+          maxWidth: px(left - 8),
+        },
+      });
+    } else {
+      unplaced.push({ id, kind, name: text.name });
+    }
+  }
+  return { factor, pageLeft, pageTop, placed, unplaced };
+}
+
+function noticeText(
+  t: (key: string, options?: Record<string, unknown>) => string,
+  kind: NoticeKind,
+  names: string,
+): string {
+  const values = { names, interpolation: { escapeValue: false } };
+  if (kind === "text") return t("slides.overflowing", values);
+  if (kind === "page") return t("slides.pastPage", values);
+  return t("slides.overflowingAndPastPage", values);
+}
+
+// A notice beside the element it names, placed by `noticeLayout`.
+function BesideNotice({ id, kind, name, place, indent }: PlacedNotice) {
+  const { t } = useTranslation("suite");
+  const notice = (
+    <div
+      role="alert"
+      data-slot="slide-notice"
+      data-slide-notice-for={id}
+      data-slide-notice-kind={kind}
+      className={cn(
+        "rounded-md bg-destructive px-2 py-0.5 text-xs text-destructive-foreground",
+        indent === undefined
+          ? "absolute z-10 max-w-[calc(100%-1rem)]"
+          : "pointer-events-auto max-w-full flex-none",
+      )}
+      style={indent === undefined ? place : undefined}
+    >
+      {noticeText(t, kind, name)}
+    </div>
+  );
+  return indent === undefined ? (
+    notice
+  ) : (
+    <div className="pointer-events-none absolute z-10 flex" style={place}>
+      <div className="min-w-0 shrink" style={{ flexBasis: px(indent) }} />
+      {notice}
+    </div>
+  );
+}
+
+// The strip below the page (`SUI-FEATURE-180`): missing fonts and brand colours, and the notices with
+// no room beside their box. Each message ends in "…" where the strip is too narrow, never cut off
+// silently; the texts with no room beside them form one message naming them all (#321). A cut
+// message shows its full text in the overflow tooltip (`GL-UI-016`); so do the elements past the
+// page edge with no room beside them.
+function NoticeStrip({
+  missingFaces,
+  missingBrand,
+  unplaced,
+}: {
+  missingFaces: readonly SlideMissingFace[];
+  missingBrand: readonly string[];
+  unplaced: readonly UnplacedNotice[];
+}) {
+  const { t } = useTranslation("suite");
+  const messages = [
+    missingFaces.length > 0
+      ? {
+          key: "fonts",
+          text: t("slides.missingFonts", {
+            fonts: missingFontsText(t, missingFaces),
+            interpolation: { escapeValue: false },
+          }),
+        }
+      : null,
+    missingBrand.length > 0
+      ? {
+          key: "brand",
+          text: t("slides.missingBrand", {
+            keys: missingBrand.join(", "),
+            interpolation: { escapeValue: false },
+          }),
+        }
+      : null,
+    ...(["text", "both", "page"] as const).map((kind) => {
+      const these = unplaced.filter((one) => one.kind === kind);
+      return these.length === 0
+        ? null
+        : {
+            key: kind,
+            for: these.map(({ id }) => id).join(" "),
+            text: noticeText(t, kind, these.map(({ name }) => name).join(", ")),
+          };
+    }),
+  ] as ({ key: string; text: string; for?: string } | null)[];
+  return (
+    <div
+      role="alert"
+      data-slot="slide-notice"
+      className="absolute inset-x-0 bottom-0 z-10 flex items-center gap-3 overflow-hidden rounded-b-md bg-destructive px-2 text-xs whitespace-nowrap text-destructive-foreground"
+      style={{ height: px(STRIP_HEIGHT) }}
+    >
+      {messages.map((message) =>
+        message === null ? null : (
+          <OverflowTooltip key={message.key} text={message.text}>
+            <span className="min-w-0 truncate" data-slide-notice-for={message.for}>
+              {message.text}
+            </span>
+          </OverflowTooltip>
+        ),
+      )}
+    </div>
+  );
+}
+
+// The page's lists drawn, master below layout below page, each in its own stacking order.
+function drawLists(draw: Draw, lists: readonly (readonly SlideElement[])[]): React.ReactNode {
+  return lists.map((elements, at) => {
+    const offset = lists.slice(0, at).reduce((sum, list) => sum + list.length, 0);
+    return (
+      <React.Fragment key={at}>
+        {stackOrder(elements).map((element, index) =>
+          renderElement(draw, element, offset + index, { x: 0, y: 0 }),
+        )}
+      </React.Fragment>
+    );
+  });
+}
+
+// The page's fill, or its background image's address; a missing or broken image is reported.
+function pageBackground(
+  draw: Draw,
+  pageData: { background: Background } | undefined,
+): { background: string | undefined; backgroundImage: string | undefined } {
+  if (pageData === undefined) return { background: undefined, backgroundImage: undefined };
+  const fill = pageData.background;
+  if (fill.type !== "image") return { background: fillOf(draw, fill), backgroundImage: undefined };
+  const backgroundImage = draw.resolveMedia?.(fill.media.id);
+  if (backgroundImage === undefined || draw.broken.has(backgroundImage)) {
+    draw.missingMedia.add(fill.media.id);
+  }
+  return { background: undefined, backgroundImage };
+}
+
+// The missing faces, each once: the families no file covers and the faces whose files failed.
+function uniqueFaces(
+  families: readonly string[],
+  faces: readonly SlideMissingFace[],
+): SlideMissingFace[] {
+  return [
+    ...new Map(
+      [...families.map((family) => ({ family })), ...faces].map((face) => [
+        missingFaceName(face),
+        face,
+      ]),
+    ).values(),
+  ];
+}
+
+// What the view reports (`onReport`), from what drawing the page found.
+function viewReport(
+  draw: Draw,
+  {
+    ready,
+    missingFaces,
+    overflow,
+    error,
+  }: {
+    ready: boolean;
+    missingFaces: SlideMissingFace[];
+    overflow: ReadonlySet<string>;
+    error: SlideDocumentError | undefined;
+  },
+): SlideViewReport {
+  return {
+    ready,
+    missingFonts: missingFaces.map(missingFaceName),
+    missingFaces,
+    overflowing: [...overflow].flatMap((id) => {
+      const text = draw.texts.get(id);
+      return text === undefined ? [] : [text.name];
+    }),
+    missingMedia: [...draw.missingMedia],
+    unknownTypes: [...draw.unknownTypes],
+    unknownIcons: [...draw.unknownIcons],
+    missingBrand: [...draw.missingBrand],
+    error,
+  };
+}
+
+// The report on the view's root, one attribute per kind, absent while empty.
+function reportAttributes(report: SlideViewReport) {
+  const joined = (list: readonly string[]) => list.join(",") || undefined;
+  return {
+    "data-slide-missing-fonts": joined(report.missingFonts),
+    "data-slide-overflowing": joined(report.overflowing),
+    "data-slide-missing-media": joined(report.missingMedia),
+    "data-slide-unknown-types": joined(report.unknownTypes),
+    "data-slide-unknown-icons": joined(report.unknownIcons),
+    "data-slide-missing-brand": joined(report.missingBrand),
+  };
+}
+
+// Missing fonts and brand colours (`general`), and a text notice with no room beside its box, are
+// named in a strip below the page, never over it: the page gives up the strip's height
+// (`SUI-FEATURE-180`).
+function arrangeNotices(
+  general: boolean,
+  layoutWith: (strip: number, centred?: number) => ReturnType<typeof noticeLayout>,
+) {
+  let layout = layoutWith(general ? STRIP_HEIGHT : 0);
+  if (!general && layout.unplaced.length > 0) {
+    layout = layoutWith(STRIP_HEIGHT);
+    // The smaller page left room for every notice: no strip, so the page is centred in the whole
+    // view, without an empty band below it (#321). Centred lower, a notice has more room above and
+    // the same beside, so every one stays placed.
+    if (layout.unplaced.length === 0) layout = layoutWith(STRIP_HEIGHT, 0);
+  }
+  return { layout, shown: general || layout.unplaced.length > 0 };
+}
+
+// The page itself, scaled into its place, with its background image under what is drawn on it.
+function SlidePage({
+  draw,
+  size: { width, height },
+  place,
+  background,
+  image,
+  children,
+}: {
+  draw: Draw;
+  size: { width: number; height: number };
+  place: { left: number; top: number; factor: number };
+  background: string | undefined;
+  image: { src: string; place: ReturnType<typeof placeBackground> } | undefined;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      data-slot="slide-page"
+      style={{
+        position: "absolute",
+        left: px(place.left),
+        top: px(place.top),
+        width: px(width),
+        height: px(height),
+        transform: `scale(${num(place.factor)})`,
+        transformOrigin: "0 0",
+        overflow: "hidden",
+        background,
+        visibility: draw.ready ? undefined : "hidden",
+        // The page's own text defaults, so nothing of the app's CSS (theme colour, font, size)
+        // reaches what inherits: list markers, a text without a run style.
+        color: cssColor(DEFAULT_TEXT_COLOR, draw.brand) ?? "#000000",
+        fontFamily: familyOf(draw, undefined),
+        fontSize: px(DEFAULT_TEXT_SIZE),
+        fontWeight: 400,
+        fontStyle: "normal",
+        lineHeight: "normal",
+        letterSpacing: "normal",
+        textAlign: "left",
+        textTransform: "none",
+      }}
+    >
+      {image === undefined ? null : (
+        <img
+          src={image.src}
+          alt=""
+          draggable={false}
+          onError={() => {
+            draw.onBroken(image.src);
+          }}
+          // "sized" once its size is known and its crop drawn within its reach: the export waits for it.
+          data-slide-image={image.place.natural === undefined ? "loading" : "sized"}
+          onLoad={(event) =>
+            draw.onLoaded(image.src, {
+              width: event.currentTarget.naturalWidth,
+              height: event.currentTarget.naturalHeight,
+            })
+          }
+          style={{
+            position: "absolute",
+            left: px(image.place.left),
+            top: px(image.place.top),
+            width: px(image.place.width),
+            height: px(image.place.height),
+            maxWidth: "none",
+            objectFit: "cover",
+            ...flipStyle(
+              image.place.flipped,
+              image.place.flippedVertical,
+              image.place.originX,
+              image.place.originY,
+            ),
+          }}
+        />
+      )}
+      {children}
+    </div>
+  );
+}
+
+// The boxes the follow layout changed on the page's own elements, the last list.
+function pageLaidOut(
+  given: readonly (readonly SlideElement[])[],
+  lists: readonly (readonly SlideElement[])[],
+) {
+  return changedBoxes(given.at(-1) ?? [], lists.at(-1) ?? []);
+}
+
+// A fresh draw for one render: what it collects starts empty, and the ids of its SVG defs are
+// counted in drawing order.
+function newDraw(
+  given: Omit<
+    Draw,
+    "nextId" | "missingMedia" | "unknownTypes" | "unknownIcons" | "missingBrand" | "texts"
+  >,
+  uid: string,
+): Draw {
+  const counter = { value: 0 };
+  return {
+    ...given,
+    nextId: () => `${uid}s${(counter.value += 1)}`,
+    missingMedia: new Set(),
+    unknownTypes: new Set(),
+    unknownIcons: new Set(),
+    missingBrand: new Set(),
+    texts: new Map(),
+  };
+}
+
+// The view of a valid page: the page in its place, the notices beside it and the strip below it.
+function PageFrame({
+  rootRef,
+  testId,
+  className,
+  scale,
+  box,
+  format,
+  draw,
+  report,
+  missingFaces,
+  pageBackground: fill,
+  backgroundImage,
+  background,
+  lists,
+  overflow,
+  notices,
+  pastPageNotices,
+  children,
+}: {
+  rootRef: (node: HTMLDivElement | null) => void;
+  testId: string | undefined;
+  className: string | undefined;
+  scale: number | "fit";
+  box: { width: number; height: number } | null;
+  format: SlideFormat;
+  draw: Draw;
+  report: SlideViewReport;
+  missingFaces: SlideMissingFace[];
+  pageBackground: Background;
+  backgroundImage: string | undefined;
+  background: string | undefined;
+  lists: readonly (readonly SlideElement[])[];
+  overflow: ReadonlySet<string>;
+  notices: boolean;
+  pastPageNotices: boolean;
+  children: React.ReactNode;
+}) {
+  const { width, height } = format;
+  const backgroundPlace =
+    backgroundImage === undefined || fill.type !== "image"
+      ? undefined
+      : placeBackground(fill, format, draw.loaded.get(backgroundImage));
+  // The page's elements that reach past its edge, when the view names them (the editor).
+  // Those of its master and layout too: they are drawn on the page (Codex #355 CX1).
+  const pastIds = new Set(notices && pastPageNotices ? overflowingIds(lists.flat(), format) : []);
+  const pastPage = lists.flat().filter((element) => pastIds.has(element.id));
+  const targets = noticeTargets(notices ? overflow : new Set(), draw.texts, pastIds, pastPage);
+  const layoutWith = (strip: number, centred = strip) =>
+    noticeLayout({ scale, box, size: format, strip, centred, targets });
+  const general = notices && (report.missingFonts.length > 0 || report.missingBrand.length > 0);
+  const { layout, shown } = arrangeNotices(general, layoutWith);
+  const strip = shown ? STRIP_HEIGHT : 0;
+  const { factor, pageLeft, pageTop } = layout;
+  const measured = scale !== "fit" || box !== null;
+  return (
+    <div
+      ref={rootRef}
+      data-slot="slide-view"
+      data-testid={testId}
+      data-slide-ready={draw.ready && measured ? "true" : "false"}
+      {...reportAttributes(report)}
+      className={cn("relative", scale === "fit" && "size-full overflow-hidden", className)}
+      style={
+        scale === "fit"
+          ? undefined
+          : { width: px(width * factor), height: px(height * factor + strip) }
+      }
+    >
+      <SlidePage
+        draw={draw}
+        size={format}
+        place={{ left: pageLeft, top: pageTop, factor }}
+        background={background}
+        image={
+          backgroundImage === undefined || backgroundPlace === undefined
+            ? undefined
+            : { src: backgroundImage, place: backgroundPlace }
+        }
+      >
+        {children}
+      </SlidePage>
+      {shown ? (
+        <NoticeStrip
+          missingFaces={report.missingFonts.length > 0 ? missingFaces : []}
+          missingBrand={report.missingBrand}
+          unplaced={layout.unplaced}
+        />
+      ) : null}
+      {layout.placed.map((notice) => (
+        <BesideNotice key={`${notice.kind}:${notice.id}`} {...notice} />
+      ))}
+    </div>
+  );
+}
+
 export function SlideView({
   document: source,
   page = 0,
@@ -1741,22 +2380,8 @@ export function SlideView({
   const parsed = React.useMemo(() => safeParseSlideDocument(source), [source]);
   const document = parsed.ok ? parsed.document : undefined;
   const pageData = document?.pages[page];
-  // What each text whose size follows it measured, by id; the lists drawn as that makes them.
-  const [textSizes, setTextSizes] = React.useState<ReadonlyMap<string, Measured>>(() => new Map());
-  const onMeasure = React.useCallback((id: string, size: Measured) => {
-    setTextSizes((current) => {
-      const old = current.get(id);
-      if (
-        old !== undefined &&
-        old.width === size.width &&
-        old.height === size.height &&
-        old.key === size.key
-      ) {
-        return current;
-      }
-      return new Map(current).set(id, size);
-    });
-  }, []);
+  const { textSizes, onMeasure, overflow, onFit, broken, onBroken, loaded, onLoaded } =
+    useDrawState();
   const given = document === undefined ? [] : pageLists(document, page);
   const lists = given.map((list) => followLayout(list, textSizes));
   const assets = assetsOf(brand, lists.flat(), extensions?.types);
@@ -1765,144 +2390,50 @@ export function SlideView({
   const ready = loadedFonts.ready && loadedIcons.ready;
   const reduced = useReducedMotion();
 
-  const [overflow, setOverflow] = React.useState<ReadonlySet<string>>(() => new Set());
-  const onFit = React.useCallback((id: string, fits: boolean) => {
-    setOverflow((current) => {
-      if (current.has(id) !== fits) return current;
-      const next = new Set(current);
-      if (fits) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }, []);
-  const [broken, setBroken] = React.useState<ReadonlySet<string>>(() => new Set());
-  const onBroken = React.useCallback((src: string) => {
-    setBroken((current) => (current.has(src) ? current : new Set([...current, src])));
-  }, []);
-  const [loaded, setLoaded] = React.useState<ReadonlyMap<string, ImageSize>>(() => new Map());
-  const onLoaded = React.useCallback((src: string, size: ImageSize) => {
-    setLoaded((current) => {
-      const known = current.get(src);
-      if (known?.width === size.width && known.height === size.height) return current;
-      return new Map([...current, [src, size]]);
-    });
-  }, []);
-
   // The root as state, so the observer attaches whenever the root appears (a document that was
   // invalid and becomes valid renders it only then).
   const [root, setRoot] = React.useState<HTMLDivElement | null>(null);
-  const [box, setBox] = React.useState<{ width: number; height: number } | null>(null);
-  React.useLayoutEffect(() => {
-    const element = root;
-    if (scale !== "fit" || element === null || typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(([entry]) => {
-      if (entry !== undefined) {
-        setBox({ width: entry.contentRect.width, height: entry.contentRect.height });
-      }
-    });
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [scale, root]);
+  const box = useFitBox(scale, root);
 
-  // Ids of this render's SVG defs, counted in drawing order.
-  const counter = { value: 0 };
-  const draw: Draw = {
-    brand,
-    step: animationStep,
-    // Master and layout elements animate on the page's steps too.
-    orders: animationOrders(lists.flat()),
-    reduced,
-    fitText,
+  const draw = newDraw(
+    {
+      brand,
+      step: animationStep,
+      // Master and layout elements animate on the page's steps too.
+      orders: animationOrders(lists.flat()),
+      reduced,
+      fitText,
+      ready,
+      icons: loadedIcons.icons,
+      resolveMedia,
+      extensions,
+      renderPlaceholder,
+      // Master and layout elements drawn on the page get its position too (`SUI-FEATURE-290`).
+      page: document === undefined ? null : pagePosition(document, page),
+      onFit,
+      onMeasure,
+      broken,
+      onBroken,
+      loaded,
+      onLoaded,
+      t: (key, options) => t(key, options),
+    },
+    uid,
+  );
+  const drawn = pageData === undefined ? null : drawLists(draw, lists);
+  const { background, backgroundImage } = pageBackground(draw, pageData);
+  const missingFaces = uniqueFaces(assets.missing, loadedFonts.missing);
+  const report = viewReport(draw, {
     ready,
-    icons: loadedIcons.icons,
-    resolveMedia,
-    extensions,
-    renderPlaceholder,
-    // Master and layout elements drawn on the page get its position too (`SUI-FEATURE-290`).
-    page: document === undefined ? null : pagePosition(document, page),
-    onFit,
-    onMeasure,
-    broken,
-    onBroken,
-    loaded,
-    onLoaded,
-    t: (key, options) => t(key, options),
-    nextId: () => `${uid}s${(counter.value += 1)}`,
-    missingMedia: new Set(),
-    unknownTypes: new Set(),
-    unknownIcons: new Set(),
-    missingBrand: new Set(),
-    texts: new Map(),
-  };
-  const drawn =
-    pageData === undefined
-      ? null
-      : // Master below layout below page, each in its own stacking order.
-        lists.map((elements, at) => {
-          const offset = lists.slice(0, at).reduce((sum, list) => sum + list.length, 0);
-          return (
-            <React.Fragment key={at}>
-              {stackOrder(elements).map((element, index) =>
-                renderElement(draw, element, offset + index, { x: 0, y: 0 }),
-              )}
-            </React.Fragment>
-          );
-        });
-  const background =
-    pageData === undefined || pageData.background.type === "image"
-      ? undefined
-      : fillOf(draw, pageData.background);
-  const backgroundImage =
-    pageData?.background.type === "image"
-      ? resolveMedia?.(pageData.background.media.id)
-      : undefined;
-  if (
-    pageData?.background.type === "image" &&
-    (backgroundImage === undefined || broken.has(backgroundImage))
-  ) {
-    draw.missingMedia.add(pageData.background.media.id);
-  }
-
-  const missingFaces = [
-    ...new Map(
-      [...assets.missing.map((family) => ({ family })), ...loadedFonts.missing].map((face) => [
-        missingFaceName(face),
-        face,
-      ]),
-    ).values(),
-  ];
-  const report: SlideViewReport = {
-    ready,
-    missingFonts: missingFaces.map(missingFaceName),
     missingFaces,
-    overflowing: [...overflow].flatMap((id) => {
-      const text = draw.texts.get(id);
-      return text === undefined ? [] : [text.name];
-    }),
-    missingMedia: [...draw.missingMedia],
-    unknownTypes: [...draw.unknownTypes],
-    unknownIcons: [...draw.unknownIcons],
-    missingBrand: [...draw.missingBrand],
+    overflow,
     error: parsed.ok ? undefined : parsed.error,
-  };
-  const reportKey = JSON.stringify({ ...report, error: report.error?.code });
-  const reportRef = React.useRef({ report, onReport });
-  React.useEffect(() => {
-    reportRef.current = { report, onReport };
   });
-  React.useEffect(() => {
-    reportRef.current.onReport?.(reportRef.current.report);
-  }, [reportKey]);
-  // The page's own elements are the last list.
-  const laidOut = changedBoxes(given.at(-1) ?? [], lists.at(-1) ?? []);
-  const layoutKey = JSON.stringify([...laidOut]);
-  const layoutRef = React.useRef({ laidOut, onLayout });
-  React.useEffect(() => {
-    layoutRef.current = { laidOut, onLayout };
+  useReported(report, JSON.stringify({ ...report, error: report.error?.code }), onReport);
+  const laidOut = pageLaidOut(given, lists);
+  useReported(laidOut, JSON.stringify([...laidOut]), (boxes) => {
+    if (boxes.size > 0) onLayout?.(boxes);
   });
-  React.useEffect(() => {
-    if (layoutRef.current.laidOut.size > 0) layoutRef.current.onLayout?.(layoutRef.current.laidOut);
-  }, [layoutKey]);
 
   if (document === undefined || pageData === undefined) {
     return (
@@ -1918,306 +2449,26 @@ export function SlideView({
     );
   }
 
-  const { width, height } = document.format;
-  // A background image's crop is an image element's over the page's cover fill (`SUI-DESIGN-002`
-  // rev 10), drawn within its reach once the image has loaded, as an image's is; cropped first, then
-  // flipped about the page's centre, either way, so the flipped page shows the same section, mirrored
-  // (`GL-UI-035`, `SUI-FEATURE-135`).
-  const backgroundPlace = (() => {
-    if (backgroundImage === undefined || pageData.background.type !== "image") return undefined;
-    const natural = loaded.get(backgroundImage);
-    const { zoom, offsetX, offsetY } =
-      natural === undefined
-        ? pageData.background.crop
-        : clampCrop(width, height, pageData.background.crop, natural);
-    const size = croppedImageSize(width, height, zoom, natural);
-    const left = (width - size.width) / 2 + offsetX;
-    const top = (height - size.height) / 2 + offsetY;
-    return {
-      natural,
-      flipped: pageData.background.flipped,
-      flippedVertical: pageData.background.flippedVertical,
-      left,
-      top,
-      width: size.width,
-      height: size.height,
-      originX: width / 2 - left,
-      originY: height / 2 - top,
-    };
-  })();
-  // Missing fonts and brand colours are named in a strip below the page, never over it: the page
-  // gives up the strip's height (`SUI-FEATURE-180`).
-  // The page's place in the view, with or without the strip of notices below it: `strip` is the room
-  // the page's size leaves for it, `centred` the room it is centred above.
-  // The page's elements that reach past its edge, when the view names them (the editor).
-  // Those of its master and layout too: they are drawn on the page (Codex #355 CX1).
-  const pastIds = new Set(
-    notices && pastPageNotices ? overflowingIds(lists.flat(), document.format) : [],
-  );
-  const pastPage = lists.flat().filter((element) => pastIds.has(element.id));
-  const layoutWith = (strip: number, centred = strip) => {
-    const factor =
-      scale === "fit"
-        ? box === null
-          ? 0
-          : Math.min(box.width / width, Math.max(0, box.height - strip) / height)
-        : scale;
-    const pageLeft = scale === "fit" && box !== null ? (box.width - width * factor) / 2 : 0;
-    const pageTop =
-      scale === "fit" && box !== null ? (box.height - centred - height * factor) / 2 : 0;
-    const viewWidth = scale === "fit" ? (box?.width ?? 0) : width * factor;
-    // A text that does not fit is named outside its box and outside where its text spills (down from
-    // the box, wrapped): above the box, else beside it, right or left, never over the text it names
-    // (`SUI-FEATURE-180`); with no room for any of them, in the strip below the page (#305).
-    // Above the box the notice starts at the box's left edge, as far as it fits: a spacer of that
-    // width before it gives way at the view's right edge (#321), so the notice stays on the canvas.
-    // An element past the page edge is named the same way, outside its drawn box.
-    const placed: {
-      id: string;
-      name: string;
-      kind: NoticeKind;
-      place: React.CSSProperties;
-      indent?: number;
-    }[] = [];
-    const unplaced: { id: string; name: string; kind: NoticeKind }[] = [];
-    const targets = [
-      ...(notices ? [...overflow] : []).flatMap((id) => {
-        const text = draw.texts.get(id);
-        if (text === undefined) return [];
-        return [{ id, kind: pastIds.has(id) ? ("both" as const) : ("text" as const), ...text }];
-      }),
-      ...pastPage
-        .filter((element) => !(notices && overflow.has(element.id) && draw.texts.has(element.id)))
-        .map((element) => ({
-          id: element.id,
-          kind: "page" as const,
-          name: element.name || element.id,
-          ...drawnBox(element),
-        })),
-    ];
-    for (const { id, kind, ...text } of targets) {
-      const top = pageTop + text.y * factor;
-      const left = pageLeft + text.x * factor;
-      const right = pageLeft + (text.x + text.width) * factor;
-      if (top - NOTICE_ROOM >= 0) {
-        placed.push({
-          id,
-          kind,
-          name: text.name,
-          place: { left: px(4), right: px(4), top: px(top - 4), transform: "translateY(-100%)" },
-          indent: Math.max(0, left - 4),
-        });
-      } else if (viewWidth - right - 8 >= NOTICE_WIDTH) {
-        placed.push({
-          id,
-          kind,
-          name: text.name,
-          place: {
-            left: px(right + 4),
-            top: px(Math.max(4, top)),
-            maxWidth: px(viewWidth - right - 8),
-          },
-        });
-      } else if (left - 8 >= NOTICE_WIDTH) {
-        placed.push({
-          id,
-          kind,
-          name: text.name,
-          place: {
-            right: px(viewWidth - left + 4),
-            top: px(Math.max(4, top)),
-            maxWidth: px(left - 8),
-          },
-        });
-      } else {
-        unplaced.push({ id, kind, name: text.name });
-      }
-    }
-    return { factor, pageLeft, pageTop, placed, unplaced };
-  };
-  // Missing fonts and brand colours, and a text notice with no room beside its box, are named in a
-  // strip below the page, never over it: the page gives up the strip's height (`SUI-FEATURE-180`).
-  const general = notices && (report.missingFonts.length > 0 || report.missingBrand.length > 0);
-  let layout = layoutWith(general ? STRIP_HEIGHT : 0);
-  if (!general && layout.unplaced.length > 0) {
-    layout = layoutWith(STRIP_HEIGHT);
-    // The smaller page left room for every notice: no strip, so the page is centred in the whole
-    // view, without an empty band below it (#321). Centred lower, a notice has more room above and
-    // the same beside, so every one stays placed.
-    if (layout.unplaced.length === 0) layout = layoutWith(STRIP_HEIGHT, 0);
-  }
-  const shown = general || layout.unplaced.length > 0;
-  const strip = shown ? STRIP_HEIGHT : 0;
-  const { factor, pageLeft, pageTop } = layout;
-  const measured = scale !== "fit" || box !== null;
-  const noticeText = (kind: NoticeKind, names: string) => {
-    const values = { names, interpolation: { escapeValue: false } };
-    if (kind === "text") return t("slides.overflowing", values);
-    if (kind === "page") return t("slides.pastPage", values);
-    return t("slides.overflowingAndPastPage", values);
-  };
-  const besides = layout.placed.map(({ id, kind, name, place, indent }) => {
-    const notice = (
-      <div
-        key={`${kind}:${id}`}
-        role="alert"
-        data-slot="slide-notice"
-        data-slide-notice-for={id}
-        data-slide-notice-kind={kind}
-        className={cn(
-          "rounded-md bg-destructive px-2 py-0.5 text-xs text-destructive-foreground",
-          indent === undefined
-            ? "absolute z-10 max-w-[calc(100%-1rem)]"
-            : "pointer-events-auto max-w-full flex-none",
-        )}
-        style={indent === undefined ? place : undefined}
-      >
-        {noticeText(kind, name)}
-      </div>
-    );
-    return indent === undefined ? (
-      notice
-    ) : (
-      <div key={`${kind}:${id}`} className="pointer-events-none absolute z-10 flex" style={place}>
-        <div className="min-w-0 shrink" style={{ flexBasis: px(indent) }} />
-        {notice}
-      </div>
-    );
-  });
   return (
-    <div
-      ref={setRoot}
-      data-slot="slide-view"
-      data-testid={testId}
-      data-slide-ready={ready && measured ? "true" : "false"}
-      data-slide-missing-fonts={report.missingFonts.join(",") || undefined}
-      data-slide-overflowing={report.overflowing.join(",") || undefined}
-      data-slide-missing-media={report.missingMedia.join(",") || undefined}
-      data-slide-unknown-types={report.unknownTypes.join(",") || undefined}
-      data-slide-unknown-icons={report.unknownIcons.join(",") || undefined}
-      data-slide-missing-brand={report.missingBrand.join(",") || undefined}
-      className={cn("relative", scale === "fit" && "size-full overflow-hidden", className)}
-      style={
-        scale === "fit"
-          ? undefined
-          : { width: px(width * factor), height: px(height * factor + strip) }
-      }
+    <PageFrame
+      rootRef={setRoot}
+      testId={testId}
+      className={className}
+      scale={scale}
+      box={box}
+      format={document.format}
+      draw={draw}
+      report={report}
+      missingFaces={missingFaces}
+      pageBackground={pageData.background}
+      backgroundImage={backgroundImage}
+      background={background}
+      lists={lists}
+      overflow={overflow}
+      notices={notices}
+      pastPageNotices={pastPageNotices}
     >
-      <div
-        data-slot="slide-page"
-        style={{
-          position: "absolute",
-          left: px(pageLeft),
-          top: px(pageTop),
-          width: px(width),
-          height: px(height),
-          transform: `scale(${num(factor)})`,
-          transformOrigin: "0 0",
-          overflow: "hidden",
-          background,
-          visibility: ready ? undefined : "hidden",
-          // The page's own text defaults, so nothing of the app's CSS (theme colour, font, size)
-          // reaches what inherits: list markers, a text without a run style.
-          color: cssColor(DEFAULT_TEXT_COLOR, brand) ?? "#000000",
-          fontFamily: familyOf(draw, undefined),
-          fontSize: px(DEFAULT_TEXT_SIZE),
-          fontWeight: 400,
-          fontStyle: "normal",
-          lineHeight: "normal",
-          letterSpacing: "normal",
-          textAlign: "left",
-          textTransform: "none",
-        }}
-      >
-        {backgroundImage === undefined || backgroundPlace === undefined ? null : (
-          <img
-            src={backgroundImage}
-            alt=""
-            draggable={false}
-            onError={() => {
-              onBroken(backgroundImage);
-            }}
-            // "sized" once its size is known and its crop drawn within its reach: the export waits for it.
-            data-slide-image={backgroundPlace.natural === undefined ? "loading" : "sized"}
-            onLoad={(event) =>
-              onLoaded(backgroundImage, {
-                width: event.currentTarget.naturalWidth,
-                height: event.currentTarget.naturalHeight,
-              })
-            }
-            style={{
-              position: "absolute",
-              left: px(backgroundPlace.left),
-              top: px(backgroundPlace.top),
-              width: px(backgroundPlace.width),
-              height: px(backgroundPlace.height),
-              maxWidth: "none",
-              objectFit: "cover",
-              ...flipStyle(
-                backgroundPlace.flipped,
-                backgroundPlace.flippedVertical,
-                backgroundPlace.originX,
-                backgroundPlace.originY,
-              ),
-            }}
-          />
-        )}
-        {drawn}
-      </div>
-      {shown ? (
-        <div
-          role="alert"
-          data-slot="slide-notice"
-          className="absolute inset-x-0 bottom-0 z-10 flex items-center gap-3 overflow-hidden rounded-b-md bg-destructive px-2 text-xs whitespace-nowrap text-destructive-foreground"
-          style={{ height: px(STRIP_HEIGHT) }}
-        >
-          {/* Each message ends in "…" where the strip is too narrow, never cut off silently; the
-              texts with no room beside them form one message naming them all (#321). A cut message
-              shows its full text in the overflow tooltip (`GL-UI-016`); so do the elements past the
-              page edge with no room beside them. */}
-          {(
-            [
-              report.missingFonts.length > 0
-                ? {
-                    key: "fonts",
-                    text: t("slides.missingFonts", {
-                      fonts: missingFontsText(t, missingFaces),
-                      interpolation: { escapeValue: false },
-                    }),
-                  }
-                : null,
-              report.missingBrand.length > 0
-                ? {
-                    key: "brand",
-                    text: t("slides.missingBrand", {
-                      keys: report.missingBrand.join(", "),
-                      interpolation: { escapeValue: false },
-                    }),
-                  }
-                : null,
-              ...(["text", "both", "page"] as const).map((kind) => {
-                const these = layout.unplaced.filter((one) => one.kind === kind);
-                return these.length === 0
-                  ? null
-                  : {
-                      key: kind,
-                      for: these.map(({ id }) => id).join(" "),
-                      text: noticeText(kind, these.map(({ name }) => name).join(", ")),
-                    };
-              }),
-            ] as ({ key: string; text: string; for?: string } | null)[]
-          ).map((message) =>
-            message === null ? null : (
-              <OverflowTooltip key={message.key} text={message.text}>
-                <span className="min-w-0 truncate" data-slide-notice-for={message.for}>
-                  {message.text}
-                </span>
-              </OverflowTooltip>
-            ),
-          )}
-        </div>
-      ) : null}
-      {besides}
-    </div>
+      {drawn}
+    </PageFrame>
   );
 }

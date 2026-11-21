@@ -955,7 +955,7 @@ function gate(): number {
     ...size.overMaximum.map((line) => `size-limit above maximum: ${line}`),
     ...size.unlined.map(
       (name) =>
-        `size-limit: ${name} has no lines in size-limit-lines.json (recommended = measured, maximum = recommended + 5 %)`,
+        `size-limit: ${name} has no lines in size-limit-lines.json (recommended = measured, maximum = recommended + min(5 %, 10 kB), GL-CODE-021)`,
     ),
   ];
   for (const line of [...notes, ...falls(baseline, counts)]) console.log(`hygiene: note ${line}`);

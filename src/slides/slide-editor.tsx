@@ -1,48 +1,17 @@
-import {
-  AlignCenterHorizontalIcon,
-  AlignCenterVerticalIcon,
-  AlignEndHorizontalIcon,
-  AlignEndVerticalIcon,
-  AlignHorizontalDistributeCenterIcon,
-  AlignStartHorizontalIcon,
-  AlignStartVerticalIcon,
-  AlignVerticalDistributeCenterIcon,
-  ArrowDownIcon,
-  ArrowDownToLineIcon,
-  ArrowUpIcon,
-  ArrowUpToLineIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  EyeIcon,
-  EyeOffIcon,
-  GroupIcon,
-  LockIcon,
-  LockKeyholeIcon,
-  LockOpenIcon,
-  Trash2Icon,
-  UngroupIcon,
-} from "lucide-react";
 import * as React from "react";
-import { createPortal, flushSync } from "react-dom";
+import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
 import { cn } from "../lib/cn.js";
-import { PRESSED_FILL_CLASS } from "../lib/pressed-fill.js";
-import { toggleIcon } from "../lib/toggle-icon.js";
 import { Button } from "../ui/button.js";
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuTrigger,
-} from "../ui/context-menu.js";
-import { CanvasOverlay, type CanvasTarget, CanvasZoom, type CanvasZoomMode } from "../ui/canvas.js";
+import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from "../ui/context-menu.js";
+import { CanvasOverlay, type CanvasTarget, type CanvasZoomMode } from "../ui/canvas.js";
 import { formatDecimal } from "../ui/decimal-number.js";
 import { type DrawerId, DrawerRail, type DrawerRailProps } from "../ui/drawer-rail.js";
-import { EditorHeader, type EditorHeaderLayout, useEditorLeaveGuard } from "../ui/editor-header.js";
+import { EditorHeader, useEditorLeaveGuard } from "../ui/editor-header.js";
 import { Field } from "../ui/field.js";
 import { pageDrafts, useHasFieldDrafts } from "../ui/field-drafts-internal.js";
-import { GridFields, GridOverlay, GridToggle } from "../ui/grid.js";
+import { GridOverlay } from "../ui/grid.js";
 import { FlipToggle } from "../ui/flip-toggle.js";
 import { Hint } from "../ui/hint.js";
 import { helpIdFor } from "../ui/label-with-help.js";
@@ -52,8 +21,7 @@ import { PropertyPanel } from "../ui/property-panel.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select.js";
 import { SubgroupTitle } from "../ui/subgroup-title.js";
 import { toast } from "../ui/toaster.js";
-import { IconButtonTooltip, OverflowTooltip } from "../ui/tooltip.js";
-import { DELETE_SHORTCUT } from "../ui/use-edit-shortcuts.js";
+import { OverflowTooltip } from "../ui/tooltip.js";
 import { ElementLockedContext, LockedTrigger } from "./element-lock-internal.js";
 import { type SlideDocumentError, safeParseSlideDocument } from "./document.js";
 import {
@@ -67,17 +35,14 @@ import {
   blockOf,
   boundsOf,
   boxOf,
-  copyElements,
   distributeElements,
   drawnBox,
-  duplicateElements,
   findElement,
   groupChain,
   groupElements,
   groupSizeRange,
   holdsProtected,
   insertElement,
-  protectedElements,
   intoGroups,
   type LayerMove,
   type LibraryEntry,
@@ -85,16 +50,12 @@ import {
   clampCrop,
   cropArea,
   croppedImageBox,
-  deleteElements,
   type ImageCrop,
   type ImageSize,
   mirroredCrop,
-  moveEach,
   moveLayer,
   nextAnimationOrder,
   pageBox,
-  panCrop,
-  pasteElements,
   placedBox,
   setAnimation,
   setBox,
@@ -103,8 +64,6 @@ import {
   setRotation,
   setTransition,
   sharedTurnedFrame,
-  stepIntoGroups,
-  toggleSelected,
   transferFormat,
   ungroupElement,
   uniqueId,
@@ -117,17 +76,8 @@ import {
   containsPoint,
   type Handle,
   HANDLES,
-  intersects,
   type Point,
-  resizeBox,
   resizeCursor,
-  rotationTowards,
-  type SnapCandidates,
-  snapBox,
-  snapCandidates,
-  snapResize,
-  standingElements,
-  turnedFrameCandidates,
 } from "./editor-geometry.js";
 import { deletePage, duplicatePage, movePage, newPage, setPageHidden } from "./editor-pages.js";
 import {
@@ -139,11 +89,11 @@ import {
   setPageLayout,
   withLayout,
 } from "./editor-layouts.js";
-import { resizeColumn, setCell } from "./editor-table.js";
+import { setCell } from "./editor-table.js";
 import { formatRange, insertRuns } from "./editor-text.js";
 import { offersHandle, unfollowsBy } from "./text-follow.js";
 import { paragraphCount } from "./paragraph-count.js";
-import { cssColor, eachElement, stackOrder } from "./render-style.js";
+import { cssColor, stackOrder } from "./render-style.js";
 import {
   type ColorValue,
   type Run,
@@ -179,11 +129,9 @@ import { BackgroundFields, type ImageBackground } from "./slide-editor-backgroun
 import { LineFields } from "./slide-editor-line.js";
 import { ShadowFields } from "./slide-editor-shadow.js";
 import { ShapeFields } from "./slide-editor-shape.js";
-import { PageSorter } from "./slide-editor-pages.js";
 import {
   type CellAt,
   cellBox,
-  cellUnder,
   nextCell,
   TableFields,
   type TableLayout,
@@ -200,8 +148,36 @@ import {
   toggledFormat,
 } from "./slide-editor-text.js";
 import { NumberedListFields } from "./slide-editor-numbered.js";
-import { ANIMATION_MAX_MS, SlidePreview } from "./slide-editor-preview.js";
-import { TransferFormat, type TransferScope } from "./slide-editor-transfer.js";
+import {
+  CanvasMenuEntry,
+  selectionCommands,
+  useAdoptingFits,
+  useCommandQueue,
+} from "./slide-editor-commands-internal.js";
+import {
+  asFrame,
+  cancelGesture,
+  doubleClick,
+  type Drag,
+  type GestureContext,
+  type Guides,
+  pointerDown,
+  pointerMove,
+  pointerUp,
+  startColumn as startColumnGesture,
+  startHandle as startHandleGesture,
+} from "./slide-editor-gesture-internal.js";
+import { editorKeyDown } from "./slide-editor-keys-internal.js";
+import {
+  ArrangeSections,
+  DocumentPanel,
+  GroupButton,
+  LayerList,
+  SelectionActions,
+} from "./slide-editor-panels-internal.js";
+import { EditorToolbar } from "./slide-editor-toolbar-internal.js";
+import { ANIMATION_MAX_MS } from "./slide-editor-preview.js";
+import type { TransferScope } from "./slide-editor-transfer.js";
 import {
   CELL_PADDING,
   carriesUnloadedAddOn,
@@ -211,8 +187,7 @@ import {
   type SlideViewProps,
 } from "./slide-view.js";
 import { type SlideHistory, type SlideHostStep, useSlideHistory } from "./use-slide-history.js";
-import { adoptBrand, mediaIds, mediaLabel, withMedia } from "./editor-adopt.js";
-import { elementClipboard, keepInClipboard } from "./element-clipboard-internal.js";
+import { elementClipboard } from "./element-clipboard-internal.js";
 import {
   hasReadOnlyContent,
   ReadOnlyContent,
@@ -356,15 +331,11 @@ type ViewProps = Pick<
   "brand" | "fonts" | "fontOrigins" | "resolveMedia" | "extensions" | "renderPlaceholder"
 >;
 
-// How near (screen px) an edge snaps, the rotate handle's distance above the box, a handle's size.
-const SNAP_PX = 6;
+// The rotate handle's distance above the box, a handle's size.
 const ROTATE_OFFSET = 32;
 const HANDLE_PX = 10;
 // The wheel's zoom per 100 px of scrolling while cropping.
 const CROP_ZOOM_STEP = 1.1;
-// One step of + or − while cropping: coarse, 10 % as `Bild↑`/`Bild↓` on the zoom slider
-// (`SUI-FEATURE-230` rev 4).
-const CROP_KEY_STEP = 0.1;
 // The canvas area's width below which the crop bar leaves its hint out.
 const CROP_HINT_ROOM = 480;
 // The canvas area's inline padding before it is measured: `ps-2` at its start (flush with the
@@ -378,69 +349,17 @@ const FIELD_RANGE = 2 * SLIDE_LIMITS.maxFormatSide;
 const INSERT_REFUSED_TOAST = "slide-editor-insert-refused";
 // The one error toast of text refused at input: a repeated key replaces it.
 const TEXT_REFUSED_TOAST = "slide-editor-text-refused";
-// The one error toast of a delete or cut refused for a protected element (`SUI-FEATURE-194`).
-const PROTECTED_REFUSED_TOAST = "slide-editor-protected-refused";
 // The element clipboard's keys (`SUI-FEATURE-191`), on the canvas and named in its menu.
 const CUT_SHORTCUT = ["Ctrl+X", "Meta+X"] as const;
 const COPY_SHORTCUT = ["Ctrl+C", "Meta+C"] as const;
 const PASTE_SHORTCUT = ["Ctrl+V", "Meta+V"] as const;
 const DUPLICATE_SHORTCUT = ["Ctrl+D", "Meta+D"] as const;
-// How long a paste waits for `adoptMedia` before it counts as failed, and before the canvas says it
-// is busy (`SUI-FEATURE-106` rev 5).
-const ADOPT_TIMEOUT_MS = 10_000;
-const ADOPT_BUSY_MS = 300;
-// The operation spinner (`size-4`) and the status's own gap (`gap-2`), for the status's room.
-const SPINNER_PX = 16;
-const STATUS_GAP_PX = 8;
 // How long a new entrance, exit or transition plays (ms); the most a duration or delay field takes
 // is `ANIMATION_MAX_MS`, shared with the preview.
 const ANIMATION_MS = 500;
 const EFFECTS = ["fade", "slide", "zoom"] as const;
 const DIRECTIONS = ["left", "right", "top", "bottom"] as const;
 const TRANSITIONS = ["none", "fade", "slide"] as const;
-
-type Group = Extract<SlideElement, { type: "group" }>;
-
-// A drag measures in `frame`: the groups the edited element stands in, outermost first, so moving
-// and resizing a child of a turned group follow the pointer where the child is drawn. Turning
-// measures on the screen, the groups' `turn` taken off.
-type Drag =
-  | {
-      kind: "move";
-      // Each moving element's groups, in the order of `ids`: a step on the page is turned into each
-      // one's own frame, so a selection across levels moves together (Codex #326).
-      frames: Group[][];
-      // The turned groups all moving elements share, whose frame `box` and the snapping are in
-      // (`SUI-FEATURE-190`); `undefined` measures on the page.
-      frame: Group[] | undefined;
-      start: Point;
-      base: SlideDocument;
-      ids: string[];
-      box: Box;
-      candidates: SnapCandidates;
-    }
-  | { kind: "marquee"; start: Point; current: Point; additive: string[]; before: string[] }
-  | {
-      kind: "resize";
-      frame: Group[];
-      start: Point;
-      base: SlideDocument;
-      id: string;
-      box: Box;
-      rotation: number;
-      handle: Handle;
-      // What the dragged edges snap to (`SUI-FEATURE-196` §1), in the frame of `box`; none for a turned
-      // element or one inside a turned frame, which does not snap.
-      candidates: SnapCandidates | undefined;
-    }
-  // The box where it is drawn on the page and its groups' turn: the angle is measured on the screen.
-  | { kind: "rotate"; base: SlideDocument; id: string; box: Box; turn: number }
-  // A table's column border dragged: `frame` is the table's groups and the table itself, so the
-  // pointer is measured along the table's own width.
-  | { kind: "column"; frame: Group[]; start: Point; base: SlideDocument; id: string; index: number }
-  // Shifting an image in its frame while cropping: the crop at the press and the image's rotation on
-  // the page, so it follows the pointer.
-  | { kind: "crop"; start: Point; crop: ImageCrop; rotation: number };
 
 // The document with an image's crop set; the same document when nothing changed.
 const withCrop = (document: SlideDocument, page: number, id: string, crop: ImageCrop) =>
@@ -473,10 +392,6 @@ const withBody = (
     : element.type === "table" && cell !== undefined
       ? setCell(element, cell.row, cell.column, (one) => ({ ...one, ...change(one) }))
       : element;
-
-// An element as a frame of `intoGroups`, which reads a frame's box and turn only (every element has
-// them), so a point can be taken into the element's own box.
-const asFrame = (element: SlideElement) => element as Group;
 
 // Text being edited is drawn by its editable field only: on the canvas it keeps its place but no ink.
 // An inline icon takes its paragraph's colour, so it goes with it (`SUI-FEATURE-164`).
@@ -858,108 +773,6 @@ function shownCrop(
 const sameCrop = (a: ImageCrop, b: ImageCrop) =>
   a.zoom === b.zoom && a.offsetX === b.offsetX && a.offsetY === b.offsetY;
 
-// The box of a resize drag at the pointer (`local`, in the drag's frame), its dragged edges snapped
-// (`SUI-FEATURE-196` §1); a resize inside a turned frame does not snap.
-function resizedBox(
-  drag: Extract<Drag, { kind: "resize" }>,
-  local: Point,
-  zoom: number,
-  keys: { altKey: boolean; shiftKey: boolean },
-): { box: Box; guides: { x?: number; y?: number; frame?: Group[] } } {
-  const box = resizeBox(
-    drag.box,
-    drag.rotation,
-    drag.handle,
-    { x: local.x - drag.start.x, y: local.y - drag.start.y },
-    keys.shiftKey,
-  );
-  if (drag.candidates === undefined) return { box, guides: {} };
-  const snap = snapResize({
-    start: drag.box,
-    handle: drag.handle,
-    box,
-    candidates: drag.candidates,
-    tolerance: SNAP_PX / zoom,
-    bypass: keys.altKey,
-    keepRatio: keys.shiftKey,
-  });
-  return { box: snap.box, guides: snap.guides };
-}
-
-// Whether a host slot holds something to show.
-const filled = (node: React.ReactNode) =>
-  node !== undefined && node !== null && typeof node !== "boolean" && node !== "";
-
-// Toolbar bands in order (`SUI-FEATURE-196` §2): an empty one (`null`) is left out with its
-// separator; a separator, in the border colour at about two thirds of a control's height, stands
-// only between two bands that hold something, and a band's own gap is smaller than the one between.
-// A band whose content renders nothing (an empty fragment, a component returning `null`) is hidden
-// with the separator next to it; one that a wrap leaves at a row's end or start is cleared by
-// `useWrappedSeparators`. A band wraps its own controls too, so a wide one never overflows a narrow
-// viewport (WCAG 1.4.10).
-// `end`: the bands right of the free space wrap their controls to the right edge (§2).
-function ToolbarBands({
-  bands,
-  end = false,
-}: {
-  bands: readonly (readonly [string, React.ReactNode])[];
-  end?: boolean;
-}) {
-  return bands
-    .filter(([, content]) => content !== null)
-    .map(([name, content], index) => (
-      <React.Fragment key={name}>
-        {index === 0 ? null : (
-          <span
-            className="h-5 w-px bg-border data-wrapped:invisible [&:has(+div:empty)]:hidden [div:empty+&]:hidden"
-            aria-hidden="true"
-            data-testid="slide-editor-toolbar-separator"
-          />
-        )}
-        <div
-          className={cn("flex flex-wrap items-center gap-1 empty:hidden", end && "justify-end")}
-          data-testid={`slide-editor-band-${name}`}
-        >
-          {content}
-        </div>
-      </React.Fragment>
-    ));
-}
-
-// A wrapped toolbar (narrow viewports): a separator that does not stand on one row with both of its
-// bands is marked `data-wrapped` and turns invisible, keeping its place so the wrap cannot flip back.
-// Read from the layout after each render and again whenever the toolbar resizes.
-function useWrappedSeparators(toolbar: React.RefObject<HTMLDivElement | null>) {
-  const measure = React.useCallback(() => {
-    const node = toolbar.current;
-    if (!node) return;
-    const separators = node.querySelectorAll<HTMLElement>(
-      "[data-testid=slide-editor-toolbar-separator]",
-    );
-    for (const separator of separators) {
-      const rect = separator.getBoundingClientRect();
-      const middle = (rect.top + rect.bottom) / 2;
-      const beside = (band: Element | null) => {
-        if (!band) return false;
-        const box = band.getBoundingClientRect();
-        return box.top <= middle && middle <= box.bottom;
-      };
-      separator.toggleAttribute(
-        "data-wrapped",
-        !beside(separator.previousElementSibling) || !beside(separator.nextElementSibling),
-      );
-    }
-  }, [toolbar]);
-  React.useLayoutEffect(measure);
-  React.useLayoutEffect(() => {
-    const node = toolbar.current;
-    if (!node || typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(measure);
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [toolbar, measure]);
-}
-
 export function SlideEditor({
   document: source,
   title,
@@ -1205,9 +1018,10 @@ function Editor({
     reported.current = { step: history.step, document: history.document, settled };
     // A run typed and taken back is the document reported before; without `onChange` nothing is
     // checked.
-    if (history.document === last.document || onChangeRef.current === undefined) return;
+    const report = onChangeRef.current;
+    if (history.document === last.document || report === undefined) return;
     const result = safeParseSlideDocument(history.document);
-    if (result.ok) onChangeRef.current?.(result.document);
+    if (result.ok) report(result.document);
   }, [history.step, history.merging, history.document, settled]);
   const settle = () => {
     if (history.merging && onChange !== undefined) setSettled((count) => count + 1);
@@ -1290,7 +1104,7 @@ function Editor({
     undefined,
   );
   // The guides, in the frame of the turned groups they are drawn turned with.
-  const [guides, setGuides] = React.useState<{ x?: number; y?: number; frame?: Group[] }>({});
+  const [guides, setGuides] = React.useState<Guides>({});
   // A group's size typed beyond what its turned children reach (`SUI-FEATURE-190`): the size set
   // instead and which end it is, named at the field while the group keeps that size.
   const [sizeLimit, setSizeLimit] = React.useState<
@@ -1963,8 +1777,6 @@ function Editor({
     return shownCrop(image, src === brokenCropSrc ? undefined : size);
   };
   const canvas = React.useRef<HTMLDivElement>(null);
-  const toolbar = React.useRef<HTMLDivElement>(null);
-  useWrappedSeparators(toolbar);
   // A delete down to the one page under a cap of 1 takes the page list away with its confirm dialog,
   // whose focus would fall to the body: the canvas takes it, after the dialog's own focus return.
   const focusCanvasOnOnePage = React.useRef(false);
@@ -2229,108 +2041,29 @@ function Editor({
     apply(() => next);
     startEditing(id);
   };
-  // The selection deleted, the unlocked part of it; a placeholder it filled shows again.
-  // The commands below take the selection, or the ids a held command was meant for (#535): of
-  // those, the ones still there.
-  const chosen = (ids?: readonly string[]) =>
-    ids === undefined
-      ? selected
-      : ids.flatMap((id) => {
-          const found = findElement(elements, id);
-          return found === undefined ? [] : [found.element];
-        });
-  // A choice holding a protected element, in a group too, is neither deleted nor cut: nothing
-  // changes and a hint says why (`SUI-FEATURE-194`, `GL-UI-029`).
-  // One protected element is named; when it is chosen beside others, the hint says to deselect it.
-  const refusedAsProtected = (list: readonly SlideElement[], action: "delete" | "cut") => {
-    const found = protectedElements(
-      elements,
-      list.map((element) => element.id),
-      list.flatMap((element) => (element.locked ? [] : [element.id])),
-    );
-    const [one] = found;
-    if (one === undefined) return false;
-    const hint =
-      found.length > 1
-        ? `slides.editor.${action}Protected`
-        : list.length > 1 && list.some((element) => element.id === one.id)
-          ? `slides.editor.${action}ProtectedRest`
-          : `slides.editor.${action}ProtectedOne`;
-    toast.error(t(hint, { name: nameOf(one), interpolation: { escapeValue: false } }), {
-      id: PROTECTED_REFUSED_TOAST,
-    });
-    return true;
+  // Any other way out of cropping — another selection, another page — keeps the crop, as Enter does;
+  // only Esc, Cancel and Undo drop it (#349). No selection holds a group together with its own
+  // descendant (`SUI-FEATURE-098`).
+  const setSelection = (ids: string[]) => {
+    if (cropping !== undefined) endCrop(true);
+    setSelectionState(withoutNested(elements, ids));
   };
-  // `false` when refused, so a held command keeps its choice selected.
-  const removeSelected = (of?: readonly string[]) => {
-    const list = chosen(of);
-    if (refusedAsProtected(list, "delete")) return false;
-    const ids = list.flatMap((element) => (element.locked ? [] : [element.id]));
-    if (ids.length === 0) return true;
-    apply((current) => deleteElements(current, page, ids));
-    setSelection([]);
-    return true;
+  const setPage = (next: number) => {
+    if (cropping !== undefined) endCrop(true);
+    setPageState(next);
   };
-  // The element clipboard (`SUI-FEATURE-191`): copy, cut and duplicate take the whole selection, a
-  // locked element too; cut removes only its unlocked part. A paste or duplicate the page cannot take
-  // is refused with a toast. Each change is one step, the copies selected after it. The clipboard
-  // keeps this editor's brand set and which copies filled a title placeholder, for a paste into
-  // another document (`SUI-FEATURE-106`).
-  const copySelection = (of?: readonly string[]) => {
-    const copied = chosen(of);
-    if (copied.length === 0) return;
-    const titles = new Set<string>();
-    eachElement(copied, (element) => {
-      if (element.placeholderRole === "title") titles.add(element.id);
-    });
-    keepInClipboard(
-      copyElements(
-        elements,
-        copied.map((element) => element.id),
-      ),
-      view.brand,
-      titles,
-    );
-  };
-  const cutSelection = (of?: readonly string[]) => {
-    if (refusedAsProtected(chosen(of), "cut")) return false;
-    copySelection(of);
-    return removeSelected(of);
-  };
-  // The copies with the elements in their groups, as the element limit counts them; a duplicate of
-  // an element in a group lies in that group.
-  const counted = (result: { document: SlideDocument; ids: string[] }) => {
-    const ids = new Set(result.ids);
-    let count = 0;
-    eachElement(result.document.pages[page]?.elements ?? [], (element) => {
-      if (ids.has(element.id)) eachElement([element], () => (count += 1));
-    });
-    return count;
-  };
-  const placeCopies = (result: { document: SlideDocument; ids: string[] }) => {
-    // Copies, not a choice of element, so the generic error's advice does not apply (#514).
-    if (
-      result.ids.length === 0 ||
-      !insertFits(result.document, {
-        refused: "slides.editor.pasteRefused",
-        failed: "slides.editor.pasteFailed",
-        count: { refused: counted(result), failed: result.ids.length },
-      })
-    ) {
-      return;
-    }
-    apply(() => result.document);
-    setSelection(result.ids);
-    return result.ids;
-  };
-  const duplicate = (of?: readonly string[]) =>
-    placeCopies(
-      duplicateElements(
-        history.document,
-        page,
-        chosen(of).map((element) => element.id),
-      ),
-    );
+  const commands = selectionCommands({
+    t,
+    elements,
+    selected,
+    document: history.document,
+    page,
+    brand: view.brand,
+    apply,
+    setSelection,
+    insertFits,
+    nameOf,
+  });
   // The canvas's menu (`SUI-FEATURE-191`): a right click on an element outside the selection selects
   // it first. Paste reads the clipboard as the menu opens; another editor may have filled it.
   const [clipboardFilled, setClipboardFilled] = React.useState(false);
@@ -2349,44 +2082,6 @@ function Editor({
     if (hit !== undefined) handPresses.current += 1;
     if (hit !== undefined && !selection.includes(hit.id)) setSelection([hit.id]);
   };
-  const menuEntry = (
-    name: "cut" | "copy" | "paste" | "duplicate" | "saveAsBlock",
-    usable: boolean,
-    shortcut: readonly string[] | undefined,
-    onSelect: () => void,
-  ) => (
-    <Hint
-      key={name}
-      text={t(`slides.editor.${name}Hint`)}
-      // Always carried, so every entry stands in the same full-width grid and toggling never
-      // remounts it.
-      disabledText={t(
-        // The entry stands only with a selection: locked, the selection is too big for one block.
-        name === "saveAsBlock"
-          ? "slides.editor.saveAsBlockTooBig"
-          : `slides.editor.${name}Unavailable`,
-      )}
-      carrierClassName="grid rounded-sm focus-visible:focus-ring-inset"
-      shortcut={shortcut}
-    >
-      <ContextMenuItem
-        {...(usable ? {} : { "aria-disabled": true, "data-disabled": "" })}
-        onSelect={(event) => {
-          if (usable) onSelect();
-          else event.preventDefault();
-        }}
-        // Its hint opens on the pointer as well; locked, it takes no tint.
-        className={
-          usable
-            ? undefined
-            : "focus:bg-transparent focus:text-popover-foreground data-[disabled]:pointer-events-auto data-[disabled]:cursor-not-allowed"
-        }
-        data-testid={`slide-editor-menu-${name}`}
-      >
-        {t(`slides.editor.${name}`)}
-      </ContextMenuItem>
-    </Hint>
-  );
   // "Save as block" (`SUI-FEATURE-380`): the host's call with a copy of the selection; the document
   // and `onChange` stay as they are. None under `readOnly` or without the host's call. A selection
   // too big for one block (`blockFits`, a count without copies) keeps the action locked with the
@@ -2452,150 +2147,6 @@ function Editor({
         updateElements(current, page, [id], (element) => withBody(element, cell, change)),
       merge,
     );
-  // What a move or a resize snaps to, once per drag (`SUI-FEATURE-190`, `SUI-FEATURE-196` §1): in a
-  // turned group's frame (`turned`) at it, the groups enclosing it there and the siblings; else on the
-  // page at the page, the elements that stay (in the `enclosing` groups too, at every level) and the
-  // shown grid.
-  const dragCandidates = (
-    turned: readonly Group[] | undefined,
-    enclosing: readonly Group[],
-    stays: (element: SlideElement) => boolean,
-  ): SnapCandidates =>
-    turned !== undefined
-      ? turnedFrameCandidates(turned, stays)
-      : snapCandidates(
-          { width: pageWidth, height: pageHeight },
-          standingElements(elements, new Set(enclosing.map((group) => group.id)), stays).map(
-            (element) => pageBox(elements, element),
-          ),
-          gridShown ? grid : null,
-        );
-  // Pointer work on the canvas: select, move, frame-select, resize, rotate.
-  const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (event.button !== 0) return;
-    handPresses.current += 1;
-    event.currentTarget.setPointerCapture(event.pointerId);
-    event.currentTarget.focus();
-    const point = toPage(event);
-    // While cropping, a press on the image (its dimmed rest included) shifts it in its frame; a
-    // press beside it applies the crop and ends cropping, one step Undo takes back (`SUI-FEATURE-230`).
-    if (cropping !== undefined) {
-      // The focus taken above left the % field, which set its clamped zoom in this event: the press
-      // starts from it, not from the crop rendered before (#495).
-      const byField = cropByField.current;
-      cropByField.current = undefined;
-      const crop = byField?.before === cropping.crop ? byField.crop : cropping.crop;
-      if (cropWhole === undefined) return;
-      if (onCropImage(point)) {
-        setDrag({ kind: "crop", start: point, crop, rotation: cropWhole.rotation });
-      } else {
-        endCrop(true, crop);
-      }
-      return;
-    }
-    // A press beside the field being edited ends the editing (one in it never reaches the canvas).
-    if (editing !== undefined) setEditing(undefined);
-    const hit = hitTest(point);
-    // A press into the selected table makes the cell under it the current one.
-    if (hit?.type === "table" && single?.id === hit.id) {
-      setTableCell({ id: hit.id, cell: cellUnder(layoutOf(hit), localPoint(hit, point)) });
-    }
-    if (hit === undefined) {
-      setSelection(event.shiftKey ? selection : []);
-      setDrag({
-        kind: "marquee",
-        start: point,
-        current: point,
-        additive: event.shiftKey ? selection : [],
-        before: selection,
-      });
-      return;
-    }
-    let ids = selection;
-    if (event.shiftKey) {
-      ids = toggleSelected(elements, selection, hit.id);
-    } else if (!selection.includes(hit.id)) {
-      ids = [hit.id];
-    }
-    setSelection(ids);
-    // Under `readOnly` a press selects only, nothing moves.
-    const moving = ids.flatMap((id) => {
-      const found = findElement(elements, id);
-      return found === undefined || found.element.locked || readOnly ? [] : [found.element];
-    });
-    if (moving.length === 0 || (event.shiftKey && !ids.includes(hit.id))) return;
-    const movingIds = moving.map((element) => element.id);
-    const frames = movingIds.map((id) => groupChain(elements, id));
-    // Children of the same turned group snap in its frame, any other selection by its box on the page.
-    const first = frames[0]!;
-    const shared =
-      first.some((group) => group.rotation !== 0) &&
-      frames.every(
-        (frame) =>
-          frame.length === first.length &&
-          frame.every((group, index) => group.id === first[index]!.id),
-      );
-    const stays = (element: SlideElement) => !movingIds.includes(element.id) && !element.hidden;
-    if (shared) {
-      setDrag({
-        kind: "move",
-        frames,
-        frame: first,
-        start: point,
-        base: history.document,
-        ids: movingIds,
-        box: boundsOf(moving.map(drawnBox))!,
-        candidates: dragCandidates(first, first, stays),
-      });
-      return;
-    }
-    setDrag({
-      kind: "move",
-      frames,
-      frame: undefined,
-      start: point,
-      base: history.document,
-      ids: movingIds,
-      box: boundsOf(moving.map((element) => pageBox(elements, element)))!,
-      candidates: dragCandidates(undefined, frames.flat(), stays),
-    });
-  };
-
-  // A double click on a group selects its child under the pointer (`SUI-FEATURE-161` rev 5).
-  const onDoubleClick = (event: React.MouseEvent<HTMLDivElement>) => {
-    if (cropping !== undefined) return;
-    const point = toPage(event);
-    const hit = hitTest(point);
-    // Under `readOnly` a double click only selects a group's child: no crop, no text editing, no fill.
-    if (readOnly && hit?.type !== "group") return;
-    // A double click on an image starts cropping it (`SUI-FEATURE-162`).
-    if (hit?.type === "image" && !hit.locked) {
-      const ids = [hit.id];
-      setSelection(ids);
-      setCropping({ id: hit.id, crop: cropFrom(hit), selection: ids });
-      return;
-    }
-    // A double click on a text field starts editing it, on a table its cell under the pointer
-    // (`SUI-FEATURE-161` §Text, §Tabellen).
-    if (hit?.type === "text" && !hit.locked) {
-      startEditing(hit.id);
-      return;
-    }
-    if (hit?.type === "table" && !hit.locked) {
-      startEditing(hit.id, cellUnder(layoutOf(hit), localPoint(hit, point)));
-      return;
-    }
-    // A double click on an open placeholder fills it with a text field (`SUI-FEATURE-192`).
-    const open = hit === undefined ? placeholderAt(point) : undefined;
-    if (open !== undefined) {
-      fillWithText(open);
-      return;
-    }
-    if (hit?.type !== "group") return;
-    const child = topmost(hit.children, intoGroups([...groupChain(elements, hit.id), hit], point));
-    if (child !== undefined) setSelection([child.id]);
-  };
-
   // What the pointer stands over; while cropping only the image takes the pointer (to shift it),
   // nothing else is hovered.
   const hover = (point: Point) =>
@@ -2613,482 +2164,96 @@ function Editor({
     rehover.current = false;
     if (pointerAt.current !== undefined) hover(pointerAt.current);
   });
-  const onPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
-    const point = toPage(event);
-    pointerAt.current = point;
-    if (drag === undefined) {
-      hover(point);
-      return;
-    }
-    if (drag.kind === "crop") {
-      const image =
-        cropping === undefined ? undefined : findElement(elements, cropping.id)?.element;
-      if (image === undefined || cropping === undefined) return;
-      const step = { x: point.x - drag.start.x, y: point.y - drag.start.y };
-      const { width, height } = cropArea(image);
-      // A flipped image moves the way it is dragged: its drawn shift follows the pointer (#772).
-      const flipped = image.type === "image" && image.flipped;
-      const flippedVertical = image.type === "image" && image.flippedVertical;
-      const shown = mirroredCrop(drag.crop, flipped, flippedVertical);
-      setCropping({
-        ...cropping,
-        crop: mirroredCrop(
-          panCrop(width, height, shown, step, drag.rotation, cropNatural),
-          flipped,
-          flippedVertical,
-        ),
-      });
-      return;
-    }
-    if (drag.kind === "marquee") {
-      setDrag({ ...drag, current: point });
-      const frameBox = {
-        x: Math.min(drag.start.x, point.x),
-        y: Math.min(drag.start.y, point.y),
-        width: Math.abs(point.x - drag.start.x),
-        height: Math.abs(point.y - drag.start.y),
-      };
-      const inside = elements
-        .filter(
-          (element) =>
-            !element.hidden && !element.locked && intersects(frameBox, drawnBox(element)),
-        )
-        .map((element) => element.id);
-      setSelection([...new Set([...drag.additive, ...inside])]);
-      return;
-    }
-    if (drag.kind === "move") {
-      const frame = drag.frame;
-      const step = stepIntoGroups(frame ?? [], {
-        x: point.x - drag.start.x,
-        y: point.y - drag.start.y,
-      });
-      const moved = { ...drag.box, x: drag.box.x + step.x, y: drag.box.y + step.y };
-      const snap = snapBox(moved, drag.candidates, SNAP_PX / zoom, event.altKey);
-      setGuides({ ...snap.guides, ...(frame === undefined ? {} : { frame }) });
-      const snapped = { x: step.x + snap.dx, y: step.y + snap.dy };
-      const steps = new Map(
-        drag.ids.map((id, index) => [
-          id,
-          frame === undefined ? stepIntoGroups(drag.frames[index]!, snapped) : snapped,
-        ]),
-      );
-      setPreview(moveEach(drag.base, page, steps));
-      return;
-    }
-    if (drag.kind === "column") {
-      const delta = intoGroups(drag.frame, point).x - drag.start.x;
-      setPreview(
-        updateElements(drag.base, page, [drag.id], (element) =>
-          element.type === "table" ? resizeColumn(element, drag.index, delta) : element,
-        ),
-      );
-      return;
-    }
-    if (drag.kind === "resize") {
-      const { box, guides } = resizedBox(drag, intoGroups(drag.frame, point), zoom, event);
-      setGuides(guides);
-      // A handle on a side that follows the text makes the field `fixed`, in the same step
-      // (`SUI-FEATURE-165`).
-      const dragged = findElement(drag.base.pages[page]?.elements ?? [], drag.id)?.element;
-      const base =
-        dragged !== undefined && unfollowsBy(dragged, drag.handle)
-          ? updateElements(drag.base, page, [drag.id], (element) =>
-              element.type === "text" ? { ...element, sizing: "fixed" } : element,
-            )
-          : drag.base;
-      setPreview(setBox(base, page, drag.id, box));
-      return;
-    }
-    setPreview(
-      setRotation(
-        drag.base,
-        page,
-        drag.id,
-        rotationTowards(drag.box, point, event.shiftKey, drag.turn),
-      ),
-    );
-  };
-
-  // After the release the pointer is the one of the spot under it again (`SUI-FEATURE-099`).
-  const onPointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (preview !== undefined) {
-      const result = preview;
-      apply(() => result);
-    }
-    setPreview(undefined);
-    setDrag(undefined);
-    setGuides({});
-    hover(toPage(event));
-  };
-
+  // The canvas's pointer work (`slide-editor-gesture-internal.ts`), reading the state as it is when the
+  // event reaches it.
+  const gesture = (): GestureContext => ({
+    elements,
+    selection,
+    single,
+    readOnly,
+    drag,
+    preview,
+    cropping,
+    cropWhole,
+    cropNatural,
+    cropByField,
+    editing: editing !== undefined,
+    document: history.document,
+    page,
+    zoom,
+    pageWidth,
+    pageHeight,
+    grid,
+    gridShown,
+    handPresses,
+    canvas,
+    pointerAt,
+    rehover,
+    toPage,
+    hitTest,
+    topmost,
+    onCropImage,
+    layoutOf,
+    localPoint,
+    placeholderAt,
+    fillWithText,
+    cropFrom,
+    startEditing,
+    endCrop,
+    hover,
+    apply,
+    setDrag,
+    setPreview,
+    setGuides,
+    setSelection,
+    setCropping,
+    setEditing,
+    setTableCell,
+  });
+  const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) =>
+    pointerDown(event, gesture());
+  const onDoubleClick = (event: React.MouseEvent<HTMLDivElement>) => doubleClick(event, gesture());
+  const onPointerMove = (event: React.PointerEvent<HTMLDivElement>) =>
+    pointerMove(event, gesture());
+  const onPointerUp = (event: React.PointerEvent<HTMLDivElement>) => pointerUp(event, gesture());
   const startHandle = (
     event: React.PointerEvent,
     kind: "resize" | "rotate",
     handle: Handle = "se",
-  ) => {
-    if (single === undefined || single.locked || event.button !== 0) return;
-    event.stopPropagation();
-    handPresses.current += 1;
-    // The canvas layer takes the pointer for the whole drag, and the focus, so the arrow keys work on
-    // after it.
-    canvas.current?.setPointerCapture(event.pointerId);
-    canvas.current?.focus();
-    const box = boxOf(single);
-    const frame = groupChain(elements, single.id);
-    const placed = placedBox(elements, single);
-    // A resize snaps as a move does (`SUI-FEATURE-196` §1); an element turned itself or by a turned
-    // group does not.
-    const stays = (element: SlideElement) => element.id !== single.id && !element.hidden;
-    const candidates =
-      kind !== "resize" || single.rotation !== 0 || frame.some((group) => group.rotation !== 0)
-        ? undefined
-        : dragCandidates(undefined, frame, stays);
-    setDrag(
-      kind === "resize"
-        ? {
-            kind,
-            frame,
-            start: intoGroups(frame, toPage(event)),
-            base: history.document,
-            id: single.id,
-            box,
-            rotation: single.rotation,
-            handle,
-            candidates,
-          }
-        : {
-            kind,
-            base: history.document,
-            id: single.id,
-            box: placed.box,
-            turn: placed.rotation - single.rotation,
-          },
-    );
-  };
-
-  // A column border of the selected table dragged (`SUI-FEATURE-161` §Tabellen): the canvas takes the
-  // pointer and the focus, as for a handle.
-  const startColumn = (event: React.PointerEvent, index: number) => {
-    if (single?.type !== "table" || single.locked || event.button !== 0) return;
-    event.stopPropagation();
-    handPresses.current += 1;
-    canvas.current?.setPointerCapture(event.pointerId);
-    canvas.current?.focus();
-    const frame = [...groupChain(elements, single.id), asFrame(single)];
-    setDrag({
-      kind: "column",
-      frame,
-      start: intoGroups(frame, toPage(event)),
-      base: history.document,
-      id: single.id,
-      index,
-    });
-  };
-
-  // Any other way out of cropping — another selection, another page — keeps the crop, as Enter does;
-  // only Esc, Cancel and Undo drop it (#349). No selection holds a group together with its own
-  // descendant (`SUI-FEATURE-098`).
-  const setSelection = (ids: string[]) => {
-    if (cropping !== undefined) endCrop(true);
-    setSelectionState(withoutNested(elements, ids));
-  };
-  const setPage = (next: number) => {
-    if (cropping !== undefined) endCrop(true);
-    setPageState(next);
-  };
+  ) => startHandleGesture(event, kind, handle, gesture());
+  const startColumn = (event: React.PointerEvent, index: number) =>
+    startColumnGesture(event, index, gesture());
 
   const latestInsert = React.useRef(insertEntry);
   React.useEffect(() => {
     latestInsert.current = insertEntry;
   });
-  // A paste takes the brand keys this document lacks to its own brand set's, and asks the app for the
-  // media it cannot resolve; it lands once the app answers, on the document as it is then, as one
-  // step. The app has 10 s: after that the call counts as failed and a later answer is dropped
-  // (`SUI-FEATURE-106` rev 5). A medium that still does not resolve after that, renamed by the app
-  // or not, pastes anyway, its image a placeholder, and a hint names it by its image's alt text or
-  // name (one with neither is counted). One the editor closes on never lands.
-  // Copy, cut, paste, duplicate, Delete, the arrow keys, Undo and Redo pressed during a drag with a
-  // preview, while a paste waits for the app, or behind ones still held, wait (#525, #527, #530,
-  // #535): the release would put back the preview, drawn from the document as the drag began, and
-  // a paste the app answers during a drag waits for it too, ahead of what was held behind it. They
-  // run in the order pressed, one a render, each on what the one before left, once no drag holds
-  // them and no paste waits; the end of a drag never ends a paste's wait. Each acts on what was
-  // meant when it was pressed: the selection then, or, with no selection made by hand since the
-  // command before it was pressed, what that one left selected; of those, the elements still there.
-  // A frame selection draws no preview: under it they act at once, unless a paste waits.
-  type Meant = { ids: readonly string[] | undefined };
-  type Held = {
-    meant: Meant;
-    left: Meant;
-    run: (ids: readonly string[], left: Meant) => readonly string[] | undefined;
-    // Changes nothing (Copy), so it still runs once `readOnly` turned on (#798).
-    readSafe?: boolean;
-    // Selects only what it makes (Paste), so dropped it hands on no ids (#804).
-    dropsToNone?: boolean;
-  };
-  const held = React.useRef<Held[]>([]);
-  const pastePending = React.useRef(false);
-  // What the last command held or waiting leaves selected, and the selection and presses it saw: a
-  // selection other than that one, or a press since, was made by hand. `ran` is set by a held
-  // command (or a landing paste) that ran, so the selection it left is the one seen from the next
-  // render on.
-  const pressChain = React.useRef<
-    { left: Meant; seen: readonly string[]; presses: number } | undefined
-  >(undefined);
-  const ran = React.useRef(false);
-  React.useEffect(() => {
-    if (!ran.current) return;
-    ran.current = false;
-    if (pressChain.current !== undefined) pressChain.current.seen = selection;
-  });
-  const [heldTurn, setHeldTurn] = React.useState(0);
-  // After 300 ms of waiting the canvas says it is busy, the head's status slot why (`SUI-FEATURE-106` rev 7).
-  const [adopting, setAdopting] = React.useState<"waiting" | "slow">();
-  const slowTimer = React.useRef<number | undefined>(undefined);
-  // Whether the head has the room for spinner and label beside its title's floor; measured while the
-  // paste waits, with the room the status takes counted back in, so the choice does not flip on itself.
-  // Room the status's own folds freed counts for nothing (#581): it is read only once the head has
-  // settled, and only while the head stands at the step it needs without the status. Once the full
-  // label holds folds or makes the head taller than it stood without it, the status keeps its compact
-  // form until the paste ends, as does a status shown compact from its start (`SUI-FEATURE-104` rev 5).
-  const [adoptingFits, setAdoptingFits] = React.useState(true);
-  const adoptingBox = React.useRef<HTMLSpanElement>(null);
-  const adoptingStatus = React.useRef<HTMLSpanElement>(null);
-  // The head's layout, read through its own API (#599).
-  const headLayout = React.useRef<EditorHeaderLayout>(null);
-  // The height the head needs without the full label, as last read.
-  const bareHeight = React.useRef(0);
-  React.useLayoutEffect(() => {
-    const head = headLayout.current;
-    // Read from the paste's start, so the slot shows the right form from its first frame.
-    if (adopting === undefined || !head) return;
-    let latched = false;
-    const measure = () => {
-      if (latched) return;
-      const height = head.height();
-      const full = adoptingStatus.current?.querySelector("[data-testid=operation-label]") ?? null;
-      // A status shown compact stays so until the paste ends; a widening never unfolds it (#607).
-      if (adoptingStatus.current !== null && full === null) {
-        latched = true;
-        return;
-      }
-      if (full !== null && (head.statusFolds() > 0 || height > bareHeight.current)) {
-        latched = true;
-        setAdoptingFits(false);
-        return;
-      }
-      // With the label, a head no taller than it stood would without it be no taller either.
-      bareHeight.current = height;
-      // A safety net: room read off a head a status holds folded is not the head's. A shown status
-      // that holds folds has latched above by now (#607); while the paste waits there is none.
-      if (head.statusFolds() > 0) return;
-      const label = adoptingBox.current?.querySelector("[data-slot=slide-editor-adopting-measure]");
-      if (!label) return;
-      // Spinner, gap and label; the head takes its slot's row gap off the room itself.
-      const needed = SPINNER_PX + STATUS_GAP_PX + label.getBoundingClientRect().width;
-      setAdoptingFits(head.statusRoom() >= needed);
-    };
-    measure();
-    // Read whenever the head settles, on its width, its height or a fold step. The form it takes is
-    // laid out before the paint, so the head never shows the full label it gives up (#598).
-    return head.onSettle(() => flushSync(measure));
-  }, [adopting]);
-  const queueBusy = () =>
-    (drag !== undefined && drag.kind !== "marquee") ||
-    pastePending.current ||
-    held.current.length > 0;
-  // Whether a command pressed now would act on what the one before it leaves selected.
-  const chained = () => {
-    const last = pressChain.current;
-    return (
-      queueBusy() &&
-      last !== undefined &&
-      last.seen === selection &&
-      last.presses === handPresses.current
-    );
-  };
-  const hold = (run: Held["run"], readSafe?: boolean, dropsToNone?: boolean) => {
-    if (!queueBusy()) return false;
-    const meant = chained() ? pressChain.current!.left : { ids: selection };
-    const left: Meant = { ids: undefined };
-    held.current.push({ meant, left, run, readSafe, dropsToNone });
-    pressChain.current = { left, seen: selection, presses: handPresses.current };
-    return true;
-  };
-  const landPaste = (
-    copies: readonly SlideElement[],
-    unresolved: readonly string[],
-    remap: Record<string, string>,
-    left: Meant,
-  ) => {
-    pastePending.current = false;
-    // Ahead of what was held behind it, as it was pressed before them (#533).
-    if (drag !== undefined && drag.kind !== "marquee") {
-      held.current.unshift({
-        meant: { ids: [] },
-        left,
-        run: () => latestLandPaste.current(copies, unresolved, remap, left),
-      });
-      return undefined;
-    }
-    window.clearTimeout(slowTimer.current);
-    setAdopting(undefined);
-    const missing = unresolved.filter(
-      (id) => view.resolveMedia?.(Object.hasOwn(remap, id) ? remap[id]! : id) === undefined,
-    );
-    const result = pasteElements(history.document, page, withMedia(copies, remap));
-    const ids = placeCopies(result);
-    ran.current = true;
-    left.ids = ids ?? [];
-    if (result.ids.length > 0 && missing.length > 0) {
-      const named = missing.flatMap((id) => mediaLabel(copies, id) ?? []);
-      const unnamed = missing.length - named.length;
-      toast.warning(
-        t("slides.editor.mediaNotAdopted", {
-          count: missing.length,
-          names: [
-            ...named,
-            ...(unnamed > 0 ? [t("slides.editor.unnamedMedia", { count: unnamed })] : []),
-          ].join(", "),
-          interpolation: { escapeValue: false },
-        }),
-      );
-    }
-    setHeldTurn((turn) => turn + 1);
-    return ids;
-  };
-  const latestLandPaste = React.useRef(landPaste);
-  React.useEffect(() => {
-    latestLandPaste.current = landPaste;
-  });
-  const closed = React.useRef(false);
-  React.useEffect(() => {
-    closed.current = false;
-    return () => {
-      closed.current = true;
-      window.clearTimeout(slowTimer.current);
-    };
-  }, []);
-  // `left` is given when the paste runs held, and takes what it leaves selected.
-  const paste = (left?: Meant) => {
-    if (left === undefined && hold((_, own) => latestHeld.current.paste(own), false, true))
-      return undefined;
-    const own = left ?? { ids: undefined };
-    const { elements: copied, brand, titles } = elementClipboard;
-    const copies = adoptBrand(copied, brand, view.brand, titles);
-    // Without `resolveMedia` no medium resolves: the page draws each one as missing (#525).
-    const unresolved = mediaIds(copies).filter((id) => view.resolveMedia?.(id) === undefined);
-    if (unresolved.length === 0 || adoptMedia === undefined) {
-      return landPaste(copies, unresolved, {}, own);
-    }
-    pastePending.current = true;
-    if (left === undefined)
-      pressChain.current = { left: own, seen: selection, presses: handPresses.current };
-    // Nothing stays selected while it waits; what it pastes is once it lands (`SUI-FEATURE-106`
-    // rev 6). The selection it leaves is no hand's, so a command pressed now still means the paste.
-    setSelection([]);
-    ran.current = true;
-    setAdopting("waiting");
-    window.clearTimeout(slowTimer.current);
-    slowTimer.current = window.setTimeout(() => setAdopting("slow"), ADOPT_BUSY_MS);
-    let settled = false;
-    const land = (remap: Record<string, string>) => {
-      if (settled) return;
-      settled = true;
-      window.clearTimeout(timeout);
-      if (!closed.current) latestLandPaste.current(copies, unresolved, remap, own);
-    };
-    const timeout = window.setTimeout(() => land({}), ADOPT_TIMEOUT_MS);
-    adoptMedia(unresolved).then(land, () => land({}));
-    return undefined;
-  };
-  // The arrow keys move the selection a step on the screen: in a turned group's frame, the step
-  // turned back, for each element in its own groups.
-  const nudge = (move: { x: number; y: number }, of?: readonly string[]) => {
-    const steps = new Map(
-      chosen(of).flatMap(({ id, locked }) => {
-        if (locked) return [];
-        const local = stepIntoGroups(groupChain(elements, id), move);
-        const x = Math.round(local.x * 1000) / 1000;
-        const y = Math.round(local.y * 1000) / 1000;
-        return [[id, { x, y }] as const];
-      }),
-    );
-    if (steps.size > 0) apply((current) => moveEach(current, page, steps));
-  };
-  const latestHeld = React.useRef({
-    cut: cutSelection,
-    copy: copySelection,
-    paste,
-    duplicate,
-    remove: removeSelected,
-    nudge,
+  const queue = useCommandQueue({
+    t,
+    drag,
+    readOnly,
+    selection,
+    handPressesRef: handPresses,
+    document: history.document,
+    page,
+    view,
+    adoptMedia,
+    setSelection,
+    commands,
     travel,
   });
-  React.useEffect(() => {
-    latestHeld.current = {
-      cut: cutSelection,
-      copy: copySelection,
-      paste,
-      duplicate,
-      remove: removeSelected,
-      nudge,
-      travel,
-    };
-  });
-  React.useEffect(() => {
-    // Commands held from before `readOnly` turned on are dropped, never run, but Copy (#798). A paste
-    // that landed behind the drag is dropped too: its busy status ends with it. A dropped command
-    // leaves what it was meant for selected, a dropped Paste none, so a Copy chained behind it
-    // copies that (#804).
-    if (readOnly) {
-      const dropped = held.current;
-      held.current = [];
-      if (!pastePending.current) {
-        window.clearTimeout(slowTimer.current);
-        setAdopting(undefined);
-      }
-      for (const edit of dropped) {
-        const ids = edit.meant.ids ?? [];
-        if (edit.readSafe === true) edit.run(ids, edit.left);
-        edit.left.ids ??= edit.dropsToNone === true ? [] : ids;
-      }
-      return;
-    }
-    if ((drag !== undefined && drag.kind !== "marquee") || pastePending.current) return;
-    const edit = held.current.shift();
-    if (edit === undefined) return;
-    const ids = edit.meant.ids ?? [];
-    const result = edit.run(ids, edit.left);
-    ran.current = true;
-    // A paste that starts waiting for the app holds the rest until it lands (#533).
-    if (pastePending.current) return;
-    edit.left.ids ??= result ?? ids;
-    setHeldTurn((turn) => turn + 1);
-  }, [drag, heldTurn, readOnly]);
-  // The commands' keys, held or at once. A held one gives what it leaves selected, none for the ids
-  // it took.
-  const cutKey = () => {
-    const held = hold((ids) => (latestHeld.current.cut(ids) ? [] : undefined));
-    if (!held) cutSelection();
-  };
-  const copyKey = () => {
-    if (!hold((ids) => void latestHeld.current.copy(ids), true)) copySelection();
-  };
-  const duplicateKey = () => {
-    if (!hold((ids) => latestHeld.current.duplicate(ids))) duplicate();
-  };
-  const removeKey = () => {
-    const held = hold((ids) => (latestHeld.current.remove(ids) ? [] : undefined));
-    if (!held) removeSelected();
-  };
-  const nudgeKey = (move: { x: number; y: number }) => {
-    if (!hold((ids) => void latestHeld.current.nudge(move, ids))) nudge(move);
-  };
-  const travelKey = (step: "undo" | "redo") => {
-    if (!hold(() => void latestHeld.current.travel(step))) travel(step);
-  };
+  const {
+    adopting,
+    chained,
+    paste,
+    cutKey,
+    copyKey,
+    duplicateKey,
+    removeKey,
+    nudgeKey,
+    travelKey,
+  } = queue;
+  const { adoptingFits, adoptingBox, adoptingStatus, headLayout } = useAdoptingFits(adopting);
   // The app's picker: a cancel inserts nothing; a picker that fails, or a medium the page cannot
   // take, is named in an error toast with what to do next.
   const pickFromMedia =
@@ -3249,129 +2414,31 @@ function Editor({
       </div>
     );
 
-  // While cropping the keys work on the crop: Enter takes it, Esc drops it (before any outer `Esc`
-  // layer, `GL-UI-007`), + and − zoom about the frame's centre, the arrow keys shift the image.
-  const onCropKey = (
-    event: React.KeyboardEvent<HTMLDivElement>,
-    state: { id: string; crop: ImageCrop; selection: readonly string[] },
-  ) => {
-    const { id, crop } = state;
-    const image = findElement(elements, id)?.element;
-    if (image === undefined) return;
-    const { width, height } = cropArea(image);
-    const step = event.shiftKey ? 10 : 1;
-    const shift = {
-      ArrowLeft: { x: -step, y: 0 },
-      ArrowRight: { x: step, y: 0 },
-      ArrowUp: { x: 0, y: -step },
-      ArrowDown: { x: 0, y: step },
-    }[event.key];
-    const sign = { "+": 1, "=": 1, "-": -1 }[event.key];
-    // Rounded to whole %, so the steps land on 110 %, 120 %, … and not beside them.
-    const factor =
-      sign === undefined
-        ? undefined
-        : Math.round((crop.zoom + sign * CROP_KEY_STEP) * 100) / 100 / crop.zoom;
-    if (event.key === "Enter") {
-      endCrop(true);
-    } else if (event.key === "Escape") {
-      endCrop(false);
-    } else if (shift !== undefined) {
-      const rotation = placedBox(elements, image).rotation;
-      // A flipped image moves the way the arrow points, as a drag moves it (#772).
-      const flipped = image.type === "image" && image.flipped;
-      const flippedVertical = image.type === "image" && image.flippedVertical;
-      const shown = mirroredCrop(crop, flipped, flippedVertical);
-      const next = panCrop(width, height, shown, shift, rotation, cropNatural);
-      setCropping({ ...state, crop: mirroredCrop(next, flipped, flippedVertical) });
-    } else if (factor !== undefined) {
-      setCropping({ ...state, crop: zoomCrop(width, height, crop, factor, cropNatural) });
-    } else {
-      return;
-    }
-    event.preventDefault();
-  };
-
-  const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    // Esc cancels a gesture: nothing of it is kept, a frame selection gives back the one before, and
-    // the pointer is the one of the spot again (`SUI-FEATURE-099`). While cropping, Esc goes on to
-    // drop the crop.
-    if (event.key === "Escape" && drag !== undefined) {
-      if (drag.kind === "marquee") setSelection(drag.before);
-      setPreview(undefined);
-      setDrag(undefined);
-      setGuides({});
-      rehover.current = true;
-      if (cropping === undefined) {
-        event.preventDefault();
-        return;
-      }
-    }
-    if (cropping !== undefined) {
-      onCropKey(event, cropping);
-      return;
-    }
-    const command = (event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey;
-    // Under `readOnly` only Copy answers: Delete, cut, paste, duplicate, the arrows and Enter change
-    // nothing (`SUI-FEATURE-133`).
-    if (readOnly) {
-      if (command && event.key.toLowerCase() === "c") {
-        event.preventDefault();
-        copyKey();
-      }
-      return;
-    }
-    const clipboardKey = command
-      ? {
-          x: cutKey,
-          c: copyKey,
-          v: () => void paste(),
-          d: duplicateKey,
-        }[event.key.toLowerCase()]
-      : undefined;
-    if (clipboardKey !== undefined) {
-      event.preventDefault();
-      clipboardKey();
-      return;
-    }
-    // Enter on one selected image starts cropping it, as a double click does.
-    if (event.key === "Enter" && single?.type === "image" && !single.locked) {
-      event.preventDefault();
-      setCropping({ id: single.id, crop: cropFrom(single), selection });
-      return;
-    }
-    // Enter on one selected text field or table starts editing it, as a double click does.
-    if (event.key === "Enter" && single?.type === "text" && !single.locked) {
-      event.preventDefault();
-      startEditing(single.id);
-      return;
-    }
-    if (event.key === "Enter" && single?.type === "table" && !single.locked) {
-      event.preventDefault();
-      startEditing(single.id, currentCell);
-      return;
-    }
-    // Behind a paste that waits, the keys may be meant for what it pastes, nothing selected yet.
-    const queued = pastePending.current || held.current.length > 0;
-    if (
-      (event.key === "Delete" || event.key === "Backspace") &&
-      (editable.length > 0 || guarded || queued)
-    ) {
-      event.preventDefault();
-      removeKey();
-      return;
-    }
-    const step = event.shiftKey ? 10 : 1;
-    const move = {
-      ArrowLeft: { x: -step, y: 0 },
-      ArrowRight: { x: step, y: 0 },
-      ArrowUp: { x: 0, y: -step },
-      ArrowDown: { x: 0, y: step },
-    }[event.key];
-    if (move === undefined || (editable.length === 0 && !queued)) return;
-    event.preventDefault();
-    nudgeKey(move);
-  };
+  // The canvas's keys (`editorKeyDown`), reading the state as it is when pressed.
+  const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) =>
+    editorKeyDown(event, {
+      elements,
+      cropNatural,
+      endCrop,
+      setCropping,
+      cancelGesture: () => cancelGesture(gesture()),
+      cropping,
+      readOnly,
+      single,
+      selection,
+      currentCell,
+      editable,
+      guarded,
+      queued: queue.queued,
+      cropFrom,
+      startEditing,
+      cutKey,
+      copyKey,
+      pasteKey: () => void paste(),
+      duplicateKey,
+      removeKey,
+      nudgeKey,
+    });
 
   // The page sorter's changes (`SUI-FEATURE-161` §Seiten-Sortierer): one step each, naming the page
   // it changed (`changed`) for Undo and Redo; the canvas then shows the page `shown` picks by the id
@@ -3443,34 +2510,15 @@ function Editor({
     setSelection(result.ids);
   };
 
-  const iconButton = (
-    label: string,
-    icon: React.ReactNode,
-    onClick: () => void,
-    testIdOf: string,
-    disabledText?: string,
-    shortcut?: readonly string[],
-  ) => (
-    <IconButtonTooltip label={label} disabledText={disabledText} shortcut={shortcut}>
-      <Button
-        type="button"
-        variant="outline"
-        size="icon-sm"
-        disabled={disabledText !== undefined}
-        onClick={onClick}
-        data-testid={`slide-editor-${testIdOf}`}
-      >
-        {icon}
-      </Button>
-    </IconButtonTooltip>
+  const groupButton = (prefix: string) => (
+    <GroupButton
+      prefix={prefix}
+      several={selected.length > 1}
+      single={single}
+      onGroup={group}
+      onUngroup={ungroup}
+    />
   );
-
-  const groupButton = (prefix: string) =>
-    selected.length > 1
-      ? iconButton(t("slides.editor.group"), <GroupIcon />, group, `${prefix}group`)
-      : single?.type === "group"
-        ? iconButton(t("slides.editor.ungroup"), <UngroupIcon />, ungroup, `${prefix}ungroup`)
-        : null;
 
   const fieldValue = (key: "x" | "y" | "width" | "height", value: number) =>
     key === "width" || key === "height"
@@ -4070,106 +3118,15 @@ function Editor({
       {lineFields}
       {shapeFields}
       {shadowFields}
-      {selected.length === 0 || editable.length === 0 ? null : (
-        <section className="flex flex-col gap-2">
-          <h3 className="text-base font-semibold">{t("slides.editor.arrange")}</h3>
-          <div className="flex flex-wrap gap-1" data-tooltip-row="">
-            {single === undefined ? null : (
-              <>
-                {iconButton(
-                  t("slides.editor.front"),
-                  <ArrowUpToLineIcon />,
-                  () => layer("front"),
-                  "front",
-                )}
-                {iconButton(
-                  t("slides.editor.forward"),
-                  <ArrowUpIcon />,
-                  () => layer("forward"),
-                  "forward",
-                )}
-                {iconButton(
-                  t("slides.editor.backward"),
-                  <ArrowDownIcon />,
-                  () => layer("backward"),
-                  "backward",
-                )}
-                {iconButton(
-                  t("slides.editor.back"),
-                  <ArrowDownToLineIcon />,
-                  () => layer("back"),
-                  "back",
-                )}
-              </>
-            )}
-            {groupButton("")}
-          </div>
-        </section>
-      )}
-      {editable.length === 0 ? null : (
-        <section className="flex flex-col gap-2">
-          <h3 className="text-base font-semibold">{t("slides.editor.align")}</h3>
-          <div className="flex flex-wrap gap-1" data-tooltip-row="">
-            {iconButton(
-              t("slides.editor.alignLeft"),
-              <AlignStartVerticalIcon />,
-              () => align("left"),
-              "align-left",
-            )}
-            {iconButton(
-              t("slides.editor.alignCenter"),
-              <AlignCenterVerticalIcon />,
-              () => align("center"),
-              "align-center",
-            )}
-            {iconButton(
-              t("slides.editor.alignRight"),
-              <AlignEndVerticalIcon />,
-              () => align("right"),
-              "align-right",
-            )}
-            {iconButton(
-              t("slides.editor.alignTop"),
-              <AlignStartHorizontalIcon />,
-              () => align("top"),
-              "align-top",
-            )}
-            {iconButton(
-              t("slides.editor.alignMiddle"),
-              <AlignCenterHorizontalIcon />,
-              () => align("middle"),
-              "align-middle",
-            )}
-            {iconButton(
-              t("slides.editor.alignBottom"),
-              <AlignEndHorizontalIcon />,
-              () => align("bottom"),
-              "align-bottom",
-            )}
-          </div>
-        </section>
-      )}
-      {selected.length < 2 ? null : (
-        <section className="flex flex-col gap-2">
-          <h3 className="text-base font-semibold">{t("slides.editor.distribute")}</h3>
-          <div className="flex flex-wrap gap-1" data-tooltip-row="">
-            {iconButton(
-              t("slides.editor.distributeHorizontal"),
-              <AlignHorizontalDistributeCenterIcon />,
-              () => distribute("horizontal"),
-              "distribute-horizontal",
-              editable.length < 3 ? t("slides.editor.distributeNeedsThree") : undefined,
-            )}
-            {iconButton(
-              t("slides.editor.distributeVertical"),
-              <AlignVerticalDistributeCenterIcon />,
-              () => distribute("vertical"),
-              "distribute-vertical",
-              editable.length < 3 ? t("slides.editor.distributeNeedsThree") : undefined,
-            )}
-          </div>
-        </section>
-      )}
+      <ArrangeSections
+        single={single}
+        selectedCount={selected.length}
+        editableCount={editable.length}
+        groupButton={groupButton("")}
+        onLayer={layer}
+        onAlign={align}
+        onDistribute={distribute}
+      />
       {/* The page's layout (`SUI-FEATURE-192`): the document's and the app's; what fills a
           placeholder follows into the new layout's placeholder of its role. */}
       {selected.length === 0 && pageData !== undefined && offered.length > 0 ? (
@@ -4350,187 +3307,18 @@ function Editor({
       </p>
     );
 
-  // The selection's actions floating at it (`GL-UI-040` §5): grouping, then the layer steps. A
-  // locked selection holding a protected element gets only Delete, which says why it stays.
+  // The selection's actions floating at it (`GL-UI-040` §5).
   const actions =
     readOnly || selected.length === 0 || (editable.length === 0 && !guarded) ? undefined : (
-      <div
-        className="flex items-center gap-1"
-        data-tooltip-row=""
-        data-testid="slide-editor-actions"
-      >
-        {editable.length === 0 ? null : groupButton("action-")}
-        {single === undefined || editable.length === 0
-          ? null
-          : iconButton(
-              t("slides.editor.forward"),
-              <ArrowUpIcon />,
-              () => layer("forward"),
-              "action-forward",
-            )}
-        {single === undefined || editable.length === 0
-          ? null
-          : iconButton(
-              t("slides.editor.backward"),
-              <ArrowDownIcon />,
-              () => layer("backward"),
-              "action-backward",
-            )}
-        {iconButton(
-          t("slides.editor.deleteSelection"),
-          <Trash2Icon />,
-          // Called only when pressed: it reads the queue's refs then, never while rendering (#535).
-          // eslint-disable-next-line react-hooks/refs
-          removeKey,
-          "action-delete",
-          undefined,
-          // The canvas's keys for it (`onKeyDown`).
-          DELETE_SHORTCUT,
-        )}
-      </div>
+      <SelectionActions
+        single={single}
+        editableCount={editable.length}
+        groupButton={groupButton("action-")}
+        onLayer={layer}
+        // Called only when pressed: it reads the queue's refs then, never while rendering (#535).
+        onRemove={removeKey}
+      />
     );
-
-  // A state of a layer as a mark only, focusable for its hint, as the protection's mark.
-  const layerMark = (label: string, icon: React.ReactNode, testId: string) => (
-    <Hint text={label} describe={false}>
-      <span
-        role="img"
-        aria-label={label}
-        tabIndex={0}
-        className="relative inline-flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none focus-visible:focus-ring [&_svg]:size-3"
-        data-testid={testId}
-      >
-        {icon}
-      </span>
-    </Hint>
-  );
-  // The layers of the page, topmost first, groups with their children indented.
-  const layerRows = (list: readonly SlideElement[], depth: number): React.ReactNode[] =>
-    [...stackOrder(list)].reverse().flatMap((element) => [
-      <li
-        key={element.id}
-        className={cn(
-          "flex items-center gap-1 rounded-md pr-1 pl-[calc(var(--layer-depth)*--spacing(4))]",
-          selection.includes(element.id) && "bg-accent text-accent-foreground",
-        )}
-        style={{ "--layer-depth": depth } as React.CSSProperties}
-        data-testid="slide-editor-layer"
-        data-layer-id={element.id}
-        data-tooltip-row=""
-      >
-        <Hint text={t("slides.editor.layerSelectHint")}>
-          <button
-            type="button"
-            className={cn(
-              "min-w-0 flex-1 truncate px-2 py-1 text-left text-sm",
-              element.hidden && "text-muted-foreground line-through",
-            )}
-            aria-pressed={selection.includes(element.id)}
-            onClick={() => setSelection([element.id])}
-            data-testid="slide-editor-layer-select"
-          >
-            {nameOf(element)}
-          </button>
-        </Hint>
-        {/* The app's protection, a mark only: no switch for it (`SUI-FEATURE-194`). */}
-        {element.deletable ? null : (
-          <Hint
-            text={t("slides.editor.protected", {
-              name: nameOf(element),
-              interpolation: { escapeValue: false },
-            })}
-            describe={false}
-          >
-            <span
-              role="img"
-              aria-label={t("slides.editor.protected", {
-                name: nameOf(element),
-                interpolation: { escapeValue: false },
-              })}
-              tabIndex={0}
-              className="relative inline-flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none focus-visible:focus-ring [&_svg]:size-3"
-              data-testid="slide-editor-layer-protected"
-            >
-              <LockKeyholeIcon aria-hidden="true" />
-            </span>
-          </Hint>
-        )}
-        {/* Under `readOnly` the lock and visibility as marks, the toggles gone (`SUI-FEATURE-133`). */}
-        {readOnly && element.locked
-          ? layerMark(
-              t("slides.editor.layerLocked", {
-                name: nameOf(element),
-                interpolation: { escapeValue: false },
-              }),
-              <LockIcon aria-hidden="true" />,
-              "slide-editor-layer-locked",
-            )
-          : null}
-        {readOnly && element.hidden
-          ? layerMark(
-              t("slides.editor.layerHidden", {
-                name: nameOf(element),
-                interpolation: { escapeValue: false },
-              }),
-              <EyeOffIcon aria-hidden="true" />,
-              "slide-editor-layer-hidden",
-            )
-          : null}
-        {readOnly ? null : (
-          <>
-            <IconButtonTooltip
-              label={t("slides.editor.lock", {
-                name: nameOf(element),
-                interpolation: { escapeValue: false },
-              })}
-            >
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-xs"
-                aria-pressed={element.locked}
-                onClick={() =>
-                  apply((current) =>
-                    updateElements(current, page, [element.id], (one) => ({
-                      ...one,
-                      locked: !one.locked,
-                    })),
-                  )
-                }
-                data-testid="slide-editor-layer-lock"
-              >
-                {element.locked ? <LockIcon /> : <LockOpenIcon />}
-              </Button>
-            </IconButtonTooltip>
-            <IconButtonTooltip
-              label={t("slides.editor.hide", {
-                name: nameOf(element),
-                interpolation: { escapeValue: false },
-              })}
-            >
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-xs"
-                aria-pressed={element.hidden}
-                onClick={() =>
-                  apply((current) =>
-                    updateElements(current, page, [element.id], (one) => ({
-                      ...one,
-                      hidden: !one.hidden,
-                    })),
-                  )
-                }
-                data-testid="slide-editor-layer-hide"
-              >
-                {element.hidden ? <EyeOffIcon /> : <EyeIcon />}
-              </Button>
-            </IconButtonTooltip>
-          </>
-        )}
-      </li>,
-      ...(element.type === "group" ? layerRows(element.children, depth + 1) : []),
-    ]);
 
   const marquee =
     drag?.kind === "marquee"
@@ -4715,9 +3503,22 @@ function Editor({
             {
               id: "layers",
               content: (
-                <ul className="flex flex-col gap-0.5" data-testid="slide-editor-layers">
-                  {layerRows(elements, 0)}
-                </ul>
+                <LayerList
+                  elements={elements}
+                  selection={selection}
+                  readOnly={readOnly}
+                  nameOf={nameOf}
+                  onSelect={(id) => setSelection([id])}
+                  onToggle={(id, state) =>
+                    apply((current) =>
+                      updateElements(current, page, [id], (one) =>
+                        state === "locked"
+                          ? { ...one, locked: !one.locked }
+                          : { ...one, hidden: !one.hidden },
+                      ),
+                    )
+                  }
+                />
               ),
             },
             // The host's Stil drawer (`SUI-FEATURE-384`), openable under `readOnly` too.
@@ -4732,98 +3533,78 @@ function Editor({
                   {
                     id: "document" as const,
                     content: (
-                      <div className="flex flex-col gap-4">
-                        {/* The saved steps only: a drag's preview or a crop being set never redraws the
-                      pictures. */}
-                        {onePage ? null : (
-                          <PageSorter
-                            document={history.document}
-                            layouts={offered}
-                            page={page}
-                            view={view}
-                            readOnly={readOnly}
-                            limitText={
-                              pagesFull
-                                ? t("slides.editor.pageLimitReached", { count: pageCap })
-                                : undefined
-                            }
-                            onShow={showPage}
-                            onMove={(from, to) =>
-                              changePages(movePage(history.document, from, to), to, (id) => id)
-                            }
-                            onDuplicate={(index) => {
-                              if (pagesFull) return;
-                              const made = duplicatePage(history.document, index);
-                              if (!fits(made.document, "slides.editor.pageRefused")) return;
-                              changePages(
-                                made.document,
-                                made.index,
-                                () => made.document.pages[made.index]!.id,
-                              );
-                            }}
-                            onHidden={(index, hidden) =>
-                              changePages(
-                                setPageHidden(history.document, index, hidden),
-                                index,
-                                (id) => id,
-                              )
-                            }
-                            onDelete={(index) => {
-                              const next = deletePage(history.document, index);
-                              if (pageCap === 1 && next.pages.length === 1)
-                                focusCanvasOnOnePage.current = true;
-                              const shown = Math.min(index, next.pages.length - 1);
-                              changePages(next, shown, (id) =>
-                                next.pages.some((one) => one.id === id)
-                                  ? id
-                                  : next.pages[shown]!.id,
-                              );
-                            }}
-                            onNew={(layoutId) => {
-                              if (pagesFull) return;
-                              const made = newPage(
-                                holding(history.document, layoutId),
+                      <DocumentPanel
+                        sorter={
+                          onePage
+                            ? undefined
+                            : {
+                                document: history.document,
+                                layouts: offered,
                                 page,
-                                layoutId,
-                              );
-                              if (!fits(made.document, "slides.editor.pageRefused")) return;
-                              changePages(
-                                made.document,
-                                made.index,
-                                () => made.document.pages[made.index]!.id,
-                              );
-                            }}
-                          />
-                        )}
-                        {/* Its own section under its heading, apart from the pages (`GL-UI-010`). */}
-                        {readOnly ? null : (
-                          <section className="flex flex-col gap-2" data-testid="slide-editor-grid">
-                            <h3 id={gridTitle} className="text-base font-semibold">
-                              {t("grid.label")}
-                            </h3>
-                            <GridFields
-                              value={grid}
-                              allowNone
-                              labelledBy={gridTitle}
-                              onChange={(value) =>
-                                apply((current) => ({ ...current, grid: value }), "grid")
+                                view,
+                                readOnly,
+                                limitText: pagesFull
+                                  ? t("slides.editor.pageLimitReached", { count: pageCap })
+                                  : undefined,
+                                onShow: showPage,
+                                onMove: (from, to) =>
+                                  changePages(movePage(history.document, from, to), to, (id) => id),
+                                onDuplicate: (index) => {
+                                  if (pagesFull) return;
+                                  const made = duplicatePage(history.document, index);
+                                  if (!fits(made.document, "slides.editor.pageRefused")) return;
+                                  changePages(
+                                    made.document,
+                                    made.index,
+                                    () => made.document.pages[made.index]!.id,
+                                  );
+                                },
+                                onHidden: (index, hidden) =>
+                                  changePages(
+                                    setPageHidden(history.document, index, hidden),
+                                    index,
+                                    (id) => id,
+                                  ),
+                                onDelete: (index) => {
+                                  const next = deletePage(history.document, index);
+                                  if (pageCap === 1 && next.pages.length === 1)
+                                    focusCanvasOnOnePage.current = true;
+                                  const shown = Math.min(index, next.pages.length - 1);
+                                  changePages(next, shown, (id) =>
+                                    next.pages.some((one) => one.id === id)
+                                      ? id
+                                      : next.pages[shown]!.id,
+                                  );
+                                },
+                                onNew: (layoutId) => {
+                                  if (pagesFull) return;
+                                  const made = newPage(
+                                    holding(history.document, layoutId),
+                                    page,
+                                    layoutId,
+                                  );
+                                  if (!fits(made.document, "slides.editor.pageRefused")) return;
+                                  changePages(
+                                    made.document,
+                                    made.index,
+                                    () => made.document.pages[made.index]!.id,
+                                  );
+                                },
                               }
-                            />
-                          </section>
-                        )}
-                        {host.documentPanel === undefined ? null : (
-                          <section
-                            className="flex flex-col gap-2"
-                            aria-labelledby={documentPanelTitle}
-                            data-testid="slide-editor-document-panel"
-                          >
-                            <h3 id={documentPanelTitle} className="text-base font-semibold">
-                              {host.documentPanel.title}
-                            </h3>
-                            {host.documentPanel.content}
-                          </section>
-                        )}
-                      </div>
+                        }
+                        grid={
+                          readOnly
+                            ? undefined
+                            : {
+                                value: grid,
+                                titleId: gridTitle,
+                                onChange: (value) =>
+                                  apply((current) => ({ ...current, grid: value }), "grid"),
+                              }
+                        }
+                        hostPanel={host.documentPanel}
+                        hostPanelTitleId={documentPanelTitle}
+                      />
                     ),
                   },
                 ]),
@@ -4833,120 +3614,26 @@ function Editor({
           {...(styleSave === undefined ? {} : { styleSave })}
         />
         <div className="flex min-w-0 flex-1 flex-col">
-          <div
-            ref={toolbar}
-            className="flex flex-wrap items-center gap-2 border-b px-2 py-1"
-            data-tooltip-row=""
-            data-testid="slide-editor-toolbar"
-          >
-            {/* The bands (`SUI-FEATURE-196` §2): what makes something on the left, what only changes
-                the view on the right; a separator only between two bands that hold something. */}
-            <ToolbarBands
-              bands={[
-                ["start", filled(host.toolbarStart) ? host.toolbarStart : null],
-                [
-                  "transfer",
-                  readOnly || onTransfer === undefined || otherFormats.length === 0 ? null : (
-                    <TransferFormat formats={otherFormats} onTransfer={transfer} />
-                  ),
-                ],
-                [
-                  "pages",
-                  onePage ? null : (
-                    <>
-                      <IconButtonTooltip label={t("slides.editor.previousPage")}>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon-sm"
-                          disabled={page === 0}
-                          onClick={() => {
-                            setPage(page - 1);
-                            setSelection([]);
-                          }}
-                          data-testid="slide-editor-previous-page"
-                        >
-                          <ChevronLeftIcon />
-                        </Button>
-                      </IconButtonTooltip>
-                      <span className="text-sm tabular-nums" data-testid="slide-editor-page">
-                        {t("slides.editor.page", {
-                          current: page + 1,
-                          total: document.pages.length,
-                        })}
-                      </span>
-                      <IconButtonTooltip label={t("slides.editor.nextPage")}>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon-sm"
-                          disabled={page >= document.pages.length - 1}
-                          onClick={() => {
-                            setPage(page + 1);
-                            setSelection([]);
-                          }}
-                          data-testid="slide-editor-next-page"
-                        >
-                          <ChevronRightIcon />
-                        </Button>
-                      </IconButtonTooltip>
-                    </>
-                  ),
-                ],
-              ]}
-            />
-            <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
-              <ToolbarBands
-                end
-                bands={[
-                  ["zoom", <CanvasZoom zoom={zoom} mode={zoomMode} onMode={setZoomMode} />],
-                  [
-                    "view",
-                    <>
-                      <GridToggle
-                        mode="coupled"
-                        value={{ guides: gridShown, snap: gridShown }}
-                        onChange={(value) => setGridShown(value.guides)}
-                        definition={grid}
-                        unavailableText={t("slides.editor.gridUnavailable")}
-                        {...(host.gridToggleIcons === undefined
-                          ? {}
-                          : {
-                              icon: host.gridToggleIcons.icon,
-                              pressedIcon: host.gridToggleIcons.pressedIcon,
-                            })}
-                      />
-                      {/* A labelled overlay's toggle with the app's hint, already translated, on
-                          hover and focus; the type requires it, never the label in its place
-                          (`GL-UI-017`, rev 8). With the app's `icon` the icon before the label, while
-                          shown its `pressedIcon` (`SUI-FEATURE-196` §3). */}
-                      {overlays.map((overlay) => {
-                        if (overlay.label === undefined) return null;
-                        const shown = overlaysShown.includes(overlay.id);
-                        return (
-                          <Hint key={overlay.id} text={overlay.hint}>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              aria-pressed={shown}
-                              className={PRESSED_FILL_CLASS}
-                              onClick={() => toggleOverlay(overlay.id)}
-                              data-testid={`slide-editor-overlay-toggle-${overlay.id}`}
-                            >
-                              {toggleIcon(shown, overlay.icon, overlay.pressedIcon)}
-                              {overlay.label}
-                            </Button>
-                          </Hint>
-                        );
-                      })}
-                      <SlidePreview document={document} page={page} view={view} />
-                    </>,
-                  ],
-                ]}
-              />
-            </div>
-          </div>
+          <EditorToolbar
+            start={host.toolbarStart}
+            transfer={
+              readOnly || onTransfer === undefined || otherFormats.length === 0
+                ? undefined
+                : { formats: otherFormats, onTransfer: transfer }
+            }
+            pages={onePage ? undefined : { page, total: document.pages.length, onShow: showPage }}
+            zoom={zoom}
+            zoomMode={zoomMode}
+            onZoomMode={setZoomMode}
+            grid={grid}
+            gridShown={gridShown}
+            onGridShown={setGridShown}
+            gridToggleIcons={host.gridToggleIcons}
+            overlays={overlays}
+            overlaysShown={overlaysShown}
+            onToggleOverlay={toggleOverlay}
+            preview={{ document, page, view }}
+          />
           <div
             ref={setArea}
             // An inner scroll area (`GL-UI-018`): its start flush with the toolbar's content, the gap
@@ -5202,30 +3889,44 @@ function Editor({
                   {/* The entries call their command only when chosen; it reads the queue's refs
                       then, never while rendering (#535). */}
                   {/* Under `readOnly` Copy alone (`SUI-FEATURE-133`). */}
-                  {readOnly
-                    ? null
-                    : // eslint-disable-next-line react-hooks/refs
-                      menuEntry("cut", selected.length > 0 || menuChained, CUT_SHORTCUT, cutKey)}
-                  {/* eslint-disable-next-line react-hooks/refs */}
-                  {menuEntry("copy", selected.length > 0 || menuChained, COPY_SHORTCUT, copyKey)}
-                  {readOnly
-                    ? null
-                    : // eslint-disable-next-line react-hooks/refs
-                      menuEntry("paste", clipboardFilled, PASTE_SHORTCUT, () => void paste())}
-                  {readOnly
-                    ? null
-                    : menuEntry(
-                        "duplicate",
-                        selected.length > 0 || menuChained,
-                        DUPLICATE_SHORTCUT,
-                        // eslint-disable-next-line react-hooks/refs
-                        duplicateKey,
-                      )}
-                  {(saveBlock === undefined && !saveBlockTooBig) || selected.length === 0
-                    ? null
-                    : menuEntry("saveAsBlock", saveBlock !== undefined, undefined, () =>
-                        saveBlock?.(),
-                      )}
+                  {readOnly ? null : (
+                    <CanvasMenuEntry
+                      name="cut"
+                      usable={selected.length > 0 || menuChained}
+                      shortcut={CUT_SHORTCUT}
+                      onSelect={cutKey}
+                    />
+                  )}
+                  <CanvasMenuEntry
+                    name="copy"
+                    usable={selected.length > 0 || menuChained}
+                    shortcut={COPY_SHORTCUT}
+                    onSelect={copyKey}
+                  />
+                  {readOnly ? null : (
+                    <CanvasMenuEntry
+                      name="paste"
+                      usable={clipboardFilled}
+                      shortcut={PASTE_SHORTCUT}
+                      onSelect={() => void paste()}
+                    />
+                  )}
+                  {readOnly ? null : (
+                    <CanvasMenuEntry
+                      name="duplicate"
+                      usable={selected.length > 0 || menuChained}
+                      shortcut={DUPLICATE_SHORTCUT}
+                      onSelect={duplicateKey}
+                    />
+                  )}
+                  {(saveBlock === undefined && !saveBlockTooBig) || selected.length === 0 ? null : (
+                    <CanvasMenuEntry
+                      name="saveAsBlock"
+                      usable={saveBlock !== undefined}
+                      shortcut={undefined}
+                      onSelect={() => saveBlock?.()}
+                    />
+                  )}
                 </ContextMenuContent>
               </ContextMenu>
               {/* Over the whole window during a gesture, so nothing under the pointer changes it; the

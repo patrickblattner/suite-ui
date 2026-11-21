@@ -530,6 +530,43 @@ describe("slide editor operations on turned groups", () => {
     expect(safeParseSlideDocument(resized).ok).toBe(true);
   });
 
+  // Finding #511 (SUI-FEATURE-411): a reachable typed size is stored exactly, not as the refit around
+  // children rounded to 1/1000 px puts it (a typed 200 came back as 199.999).
+  it("stores a reachable typed width of a group with a turned child exactly", () => {
+    const turned = doc([
+      { ...shape("t", 100, 100, 200, 100), rotation: 45 },
+      shape("u", 600, 100),
+      shape("v", 1000, 300),
+    ]);
+    const { document: grouped45, id } = groupElements(turned, 0, ["t", "u"]);
+    const group = findElement(grouped45.pages[0]!.elements, id!)!.element;
+    if (group.type !== "group") throw new Error("expected the group");
+    const range = groupSizeRange(group, "width")!;
+    for (const width of [200, 250, 333.333, Math.round(range.min + 1), Math.round(range.max - 1)]) {
+      const resized = setBox(grouped45, 0, id!, { ...boxOf(group), width });
+      expect(box(resized, id!).width).toBe(width);
+      // An edit elsewhere on the page refits every group: the stored width stays.
+      expect(box(moveBy(resized, 0, ["v"], 1, 0), id!).width).toBe(width);
+    }
+  });
+
+  // #511 review: the stored box is kept only within one 1/1000 px grain; a child moved further
+  // moves the group's edge with it, so the grain cannot widen unnoticed.
+  it("keeps the stored group box within one grain only", () => {
+    const { document: grouped, id } = groupElements(
+      doc([shape("a", 0, 0, 100, 100), shape("b", 200, 0, 100, 100)]),
+      0,
+      ["a", "b"],
+    );
+    expect(box(grouped, id!).width).toBe(300);
+    // 0.002 past the edge: the group follows.
+    expect(box(moveBy(grouped, 0, ["b"], 0.002, 0), id!).width).toBe(300.002);
+    // 0.001 past it: the group keeps its stored width, at most one grain behind its children.
+    const lagging = box(moveBy(grouped, 0, ["b"], 0.001, 0), id!).width;
+    expect(lagging).toBe(300);
+    expect(300.001 - lagging).toBeLessThanOrEqual(0.001 + 1e-9);
+  });
+
   // Codex #317 CX2: a size no positive scale reaches never gives a child a negative size.
   it("keeps every child size positive when the size typed cannot be reached", () => {
     const turned = doc([{ ...shape("t", 100, 100, 200, 100), rotation: 45 }, shape("u", 600, 100)]);

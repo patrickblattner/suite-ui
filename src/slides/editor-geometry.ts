@@ -214,7 +214,7 @@ export function snapBox(
 // one, a corner two), with the candidates, tolerance and rule of a move; the opposite edges stay where
 // `start` has them. With `keepRatio` (Shift) at a corner the axis with the smaller offset snaps and
 // the other follows the ratio of `start`; only the snapped axis has a guide. `bypass` (Alt) snaps
-// nothing. An edge that would leave a side under 1 px does not snap.
+// nothing. An edge that would leave a side under 1 px does not snap, nor one whose ratio would.
 export function snapResize({
   start,
   handle,
@@ -254,6 +254,8 @@ export function snapResize({
   if (ratio > 0) {
     if (hx !== null) height = width / ratio;
     else width = height * ratio;
+    // The side that follows the ratio passed no 1 px check of its own (#438).
+    if (width < 1 || height < 1) return { box, guides: {} };
   }
   // The fixed edge of each axis from `start`; an axis without a dragged edge keeps its centre.
   const place = (side: number, at: number, size: number, next: number) =>

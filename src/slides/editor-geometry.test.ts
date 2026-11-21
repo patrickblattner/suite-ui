@@ -211,4 +211,34 @@ describe("snapResize", () => {
     const tie = candidates(true, { x: 366, y: 300, width: 80, height: 60 });
     expect(snap("e", [183, 0], { other: tie }).guides).toEqual({ x: 366 });
   });
+
+  // Finding #438: with Shift the following axis is derived from the ratio after the snapped axis
+  // passed the 1 px check, so on a 10 : 1 box it could drop under 1 px. Such a snap is refused; the
+  // mirror case (#438 review) is a 1 : 10 box whose snapped height would leave the width under 1 px.
+  it.each([
+    ["height", { width: 100, height: 10 }, { x: -90, y: -9 }, { x: 105, y: 300 }],
+    ["width", { width: 10, height: 100 }, { x: -9, y: -90 }, { x: 300, y: 105 }],
+  ] as const)(
+    "refuses a Shift snap whose following %s would fall under 1 px",
+    (_, size, delta, edge) => {
+      const start = { x: 100, y: 100, ...size };
+      // Shift at the corner down to a tenth; an element edge lies 5 px from the snapping edge.
+      const box = resizeBox(start, 0, "se", delta, true);
+      expect(Math.min(box.width, box.height)).toBe(1);
+      const result = snapResize({
+        start,
+        handle: "se",
+        box,
+        candidates: snapCandidates(
+          { width: 800, height: 450 },
+          [{ ...edge, width: 40, height: 40 }],
+          null,
+        ),
+        tolerance: 6,
+        bypass: false,
+        keepRatio: true,
+      });
+      expect(result).toEqual({ box, guides: {} });
+    },
+  );
 });

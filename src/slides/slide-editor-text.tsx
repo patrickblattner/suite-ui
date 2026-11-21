@@ -851,9 +851,9 @@ export function InlineTextEditor({
             onPointerDown={(event) => event.stopPropagation()}
             // A click on an inline run selects it, so the panel shows its height and alt text.
             onClick={(event) => {
-              const span = (event.target as Element).closest?.("[data-inline]");
+              const span = (event.target as Element).closest("[data-inline]");
               const node = root.current;
-              if (span === null || span === undefined || node === null) return;
+              if (span === null || node === null) return;
               const [parent, index] = beside(span);
               const start = offsetOf(node, parent, index);
               selectRange(node, { start, end: start + 1 });
