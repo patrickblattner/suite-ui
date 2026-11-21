@@ -1,6 +1,6 @@
 import type * as React from "react";
 
-import { revealKeyboardFocus } from "../lib/list-focus.js";
+import { revealKeyboardFocus, useInputTracking } from "../lib/list-focus.js";
 import { Skeleton } from "../ui/skeleton.js";
 import { GutterRow } from "./list-gutter.js";
 import { listState, ListStateContent, type ListStateProps, scrollTabIndex } from "./list-state.js";
@@ -66,6 +66,7 @@ function TileGridShell({
     ...stateProps,
   });
   const focusable = tabIndex === 0;
+  useInputTracking();
   return (
     <div
       className="flex min-h-0 flex-1 flex-col gap-4"

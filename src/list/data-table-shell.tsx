@@ -1,6 +1,6 @@
 import * as React from "react";
 
-import { revealKeyboardFocus } from "../lib/list-focus.js";
+import { revealKeyboardFocus, useInputTracking } from "../lib/list-focus.js";
 import { Skeleton } from "../ui/skeleton.js";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "../ui/table.js";
 import { type GutterInset, GutterRow } from "./list-gutter.js";
@@ -138,6 +138,7 @@ function DataTableShell({
     [scrollRef],
   );
   useStickyActionsMarker(scroller);
+  useInputTracking();
   const reorderState = useReorder(reorder?.onDrop);
   return (
     <div

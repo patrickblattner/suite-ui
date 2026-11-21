@@ -587,8 +587,9 @@ describe("AppSidebar", () => {
       const help = screen.getByTestId("help-button");
       // jsdom guesses the focus modality from earlier events; the entry answers as keyboard focus.
       Object.defineProperty(help, "matches", { value: () => true });
+      fireEvent.keyDown(document.body, { key: "Tab" });
       act(() => help.focus());
-      expect(scrolled).toHaveBeenCalledWith({ block: "nearest" });
+      expect(scrolled).toHaveBeenCalledWith({ block: "nearest", inline: "nearest" });
       expect(scrolled.mock.contexts.at(-1)).toBe(help);
     } finally {
       // @ts-expect-error -- jsdom has no scrollIntoView; restore its absence.
@@ -605,6 +606,7 @@ describe("AppSidebar", () => {
       const help = screen.getByTestId("help-button");
       // The entry answers `:focus-visible` as pointer focus would.
       Object.defineProperty(help, "matches", { value: () => false });
+      fireEvent.pointerDown(help);
       act(() => help.focus());
       expect(scrolled).not.toHaveBeenCalled();
     } finally {

@@ -5,6 +5,7 @@ import { NavLink, useLocation, useNavigate } from "react-router-dom";
 
 import { cn } from "../lib/cn.js";
 import { useEscapeLayer } from "../lib/escape-layers.js";
+import { revealKeyboardFocus, useInputTracking } from "../lib/list-focus.js";
 import { useModalOverlay } from "../lib/modal-overlay.js";
 import { Hint, type HintProps } from "../ui/hint.js";
 import { OverflowTooltip } from "../ui/tooltip.js";
@@ -77,6 +78,7 @@ function AppSidebar({
 }: AppSidebarProps) {
   const { t, i18n } = useTranslation("suite");
   const { isOpen, isOverlay, overlayOpen, closeOverlay } = useSidebar();
+  useInputTracking();
   const location = useLocation();
   const { pathname } = location;
   const navigate = useNavigate();
@@ -337,14 +339,10 @@ function AppSidebar({
         {/* `relative`: the frame of the active entry's bar, which sits at its left edge. The focus is
             never obscured (`GL-UI-013`, `SUI-FEATURE-102`): a keyboard-focused entry scrolls fully into
             view, its ring kept clear of the area's edges by the scroll padding, so the footer below never
-            meets it. Only keyboard focus: Chromium focuses on mousedown, and scrolling then would move the
-            entry from under the pointer and lose the click. */}
+            meets it. Only keyboard focus, told by the last input (#979): Chromium focuses on mousedown,
+            and scrolling then would move the entry from under the pointer and lose the click. */}
         <div
-          onFocus={(event) => {
-            if (event.target.matches(":focus-visible")) {
-              event.target.scrollIntoView?.({ block: "nearest" });
-            }
-          }}
+          onFocus={revealKeyboardFocus}
           data-testid="nav-scroll"
           className={cn(
             "relative min-h-0 flex-1 scroll-py-2 overflow-y-auto px-2 py-2",

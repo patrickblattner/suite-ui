@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Fixed (#979, Codex CX1, GL-UI-013):** a text field clicked inside a `DataTableShell` or `TileGridShell` (and an entry of the sidebar's nav) no longer scrolls under the pointer. The scrollers' keyboard reveal (#978) decided "keyboard" by `:focus-visible`, which a text field matches after a click as well; it now asks the last input (key or press), the tracker `useOpenOnKeyboardFocus` already uses. Gallery `?page=list&actions=1&ownerInput=1` (the owner as a text field) with a `@scrollbars` test: a click into the partly hidden field leaves the scroll, a Tab brings it in. No baseline changes.
+- **Size (#979, GL-CODE-021, register #1998):** `./list/tile-grid-shell` maximum 14005 → 14886 B (measured 14177 B + 5 %; cause: the scroller now tracks the last input through the shared tracker of `keyboard-focus-open-internal`).
+
 ## 0.254.0 — #970 R5 batch 2 (menu-opened autoFocus, locked checkbox Enter, scroller focus rings), #977, #978 (minor)
 
 - **Fixed (#970, finding #819, GL-UI-013):** the selected day in the `DateField`/`DateTimeField` calendar answers hover with the filled button's tint (`bg-primary-hover`) instead of keeping its fill.

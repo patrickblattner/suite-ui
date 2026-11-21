@@ -72,27 +72,34 @@ function slotIds(column: HTMLElement) {
   );
 }
 
-describe("DataTableShell keyboard focus in view (finding #577)", () => {
+describe("DataTableShell keyboard focus in view (finding #577, #979)", () => {
   // Chromium scrolls a focus target only while it is wholly out of view; the scroller brings a partly
-  // hidden one in fully, its ring kept clear by the scroll padding. Only keyboard focus.
+  // hidden one in fully, its ring kept clear by the scroll padding. Only keyboard focus, told by the last
+  // input: a text field matches `:focus-visible` after a press too (#979).
   it.each([
-    [true, 1],
-    [false, 0],
-  ])("a control focused with :focus-visible=%s scrolls in %i time(s)", (keyboard, times) => {
+    ["Tab into a text field", "input", "key", true],
+    ["a click into a text field", "input", "press", false],
+    ["a click on a button", "button", "press", false],
+    ["Tab onto a button", "button", "key", true],
+  ] as const)("%s (%s via %s): scrolls %s", (_, tag, input, scrolls) => {
     const scrolled = vi.fn();
     Element.prototype.scrollIntoView = scrolled;
     try {
       renderShell({});
       const cell = screen.getByTestId("row").lastElementChild!;
-      const button = cell.appendChild(document.createElement("button"));
-      // jsdom's `:focus-visible` follows no input modality; the control answers as asked.
-      Object.defineProperty(button, "matches", { value: () => keyboard });
-      act(() => button.focus());
-      expect(scrolled).toHaveBeenCalledTimes(times);
-      if (keyboard) {
-        expect(scrolled).toHaveBeenCalledWith({ block: "nearest", inline: "nearest" });
-        expect(scrolled.mock.contexts[0]).toBe(button);
-      }
+      const control = cell.appendChild(document.createElement(tag));
+      // jsdom's `:focus-visible` follows no input modality; a text field matches it after a press as
+      // well, a button only after a key.
+      Object.defineProperty(control, "matches", {
+        value: () => tag === "input" || input === "key",
+      });
+      if (input === "key") fireEvent.keyDown(document.body, { key: "Tab" });
+      else fireEvent.pointerDown(control);
+      act(() => control.focus());
+      if (scrolls) {
+        expect(scrolled).toHaveBeenCalledExactlyOnceWith({ block: "nearest", inline: "nearest" });
+        expect(scrolled.mock.contexts[0]).toBe(control);
+      } else expect(scrolled).not.toHaveBeenCalled();
     } finally {
       // @ts-expect-error -- jsdom has no scrollIntoView; restore its absence.
       delete Element.prototype.scrollIntoView;

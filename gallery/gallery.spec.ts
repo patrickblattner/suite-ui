@@ -21826,3 +21826,44 @@ test("scrollers keep the whole focus ring of an edge tab stop in view @scrollbar
   expect(await focusRing(tiles.first(), grid)).toEqual(none);
   expect(await focusRing(tiles.last(), grid)).toEqual(none);
 });
+
+// #979 (Codex CX1, `GL-UI-013`): a text field matches `:focus-visible` after a press as well, so the
+// list scroller tells keyboard from pointer by the last input. Scrolled to the actions, the first
+// row's owner field sits partly under the start edge: a click into it leaves the scroll where it is; a
+// keyboard focus brings it in fully.
+test("data table: a click into a partly hidden text field does not scroll, a keyboard focus does @scrollbars", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/?page=list&actions=1&ownerInput=1&band=1");
+  const owner = page.getByTestId("owner-input").first();
+  const placement = () =>
+    owner.evaluate((el) => {
+      const sc = el.closest<HTMLElement>("[data-testid=data-table-scroll]")!;
+      const view = sc.getBoundingClientRect().left + sc.clientLeft;
+      const r = el.getBoundingClientRect();
+      return { scrollLeft: sc.scrollLeft, hiddenAtStart: r.left < view, right: r.right, view };
+    });
+  const cut = () =>
+    owner.evaluate((el) => {
+      const sc = el.closest<HTMLElement>("[data-testid=data-table-scroll]")!;
+      const view = sc.getBoundingClientRect().left + sc.clientLeft;
+      sc.scrollLeft += el.getBoundingClientRect().left - (view - 40);
+    });
+  // Scrolled so the field is cut 40 px at the start edge.
+  await cut();
+  const before = await placement();
+  expect(before.hiddenAtStart).toBe(true);
+  expect(before.right).toBeGreaterThan(before.view + 20);
+  // A click on its visible part: the focus lands, nothing scrolls.
+  await owner.click({ position: { x: (await owner.boundingBox())!.width - 10, y: 10 } });
+  await expect(owner).toBeFocused();
+  await page.waitForTimeout(300);
+  expect((await placement()).scrollLeft).toBe(before.scrollLeft);
+  // Away and back by keyboard, cut again: Shift+Tab off the field, Tab into it.
+  await page.keyboard.press("Shift+Tab");
+  await cut();
+  await page.keyboard.press("Tab");
+  await expect(owner).toBeFocused();
+  await expect.poll(async () => (await placement()).hiddenAtStart).toBe(false);
+});

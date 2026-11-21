@@ -34,6 +34,12 @@ function trackInput(): void {
   document.addEventListener("pointerdown", () => (lastInput = "press"), { capture: true });
 }
 
+// Whether the last tracked input was a key. Shared with the list scrollers' reveal (#979); `trackInput`
+// must run before the input it should tell.
+function lastInputWasKey(): boolean {
+  return lastInput === "key";
+}
+
 // The element whose keyboard focus opens the bubble (`GL-UI-016` rev 16, Q&A #4643): the nearest
 // focusable ancestor, where it carries: a tabbable element (natively focusable, or `tabindex` 0 and
 // up) or one with an interactive role (also as a roving `tabindex="-1"` item). A container that only a
@@ -210,4 +216,12 @@ function useOpenOnKeyboardFocus({
   return { due, lines: due ? lines : [], close };
 }
 
-export { inDocumentOrder, overflowOf, TOOLTIP_HINT_DELAY, TOOLTIP_OPEN, useOpenOnKeyboardFocus };
+export {
+  inDocumentOrder,
+  lastInputWasKey,
+  overflowOf,
+  TOOLTIP_HINT_DELAY,
+  TOOLTIP_OPEN,
+  trackInput,
+  useOpenOnKeyboardFocus,
+};

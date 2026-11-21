@@ -1,4 +1,6 @@
-import type { FocusEvent } from "react";
+import { type FocusEvent, useEffect } from "react";
+
+import { lastInputWasKey, trackInput } from "../ui/keyboard-focus-open-internal.js";
 
 // Where the focus goes when the focused entry of a list disappears (`SUI-FEATURE-056`): to the entry
 // that moves up into its place, otherwise the previous one, and on an empty list to the list frame —
@@ -40,12 +42,21 @@ function focusListEntry(frame: HTMLElement, index: number): void {
  * it scrolls fully into view, its ring kept clear of the edges by the scroller's scroll padding.
  * Chromium scrolls a focus target only while it is wholly out of view, so a partly hidden one (a cell
  * under the horizontal edge, a row cut at the bottom) stayed cut (finding #577). Only keyboard focus:
- * scrolling on a click would move the control from under the pointer.
+ * scrolling on a click would move the control from under the pointer. `:focus-visible` alone does not
+ * tell it, a text field matches it after a press as well (#979), so the last input decides; the
+ * scroller runs `useInputTracking` so it is tracked from its mount on.
  */
 function revealKeyboardFocus(event: FocusEvent<HTMLElement>): void {
   const target = event.target;
-  if (target === event.currentTarget || !target.matches(":focus-visible")) return;
+  if (target === event.currentTarget || !lastInputWasKey() || !target.matches(":focus-visible")) {
+    return;
+  }
   target.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+}
+
+/** Tracks the last input (key or press) from the caller's mount on, for `revealKeyboardFocus`. */
+function useInputTracking(): void {
+  useEffect(trackInput, []);
 }
 
 export {
@@ -56,4 +67,5 @@ export {
   LIST_FRAME_SELECTOR,
   listEntries,
   revealKeyboardFocus,
+  useInputTracking,
 };

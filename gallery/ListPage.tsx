@@ -14,6 +14,7 @@ import { PageScroll } from "../src/list/page-scroll.js";
 import { RowActions, RowActionsHead } from "../src/list/row-actions.js";
 import { useSort } from "../src/list/sort-select.js";
 import { TablePagination } from "../src/list/table-pagination.js";
+import { Input } from "../src/ui/input.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../src/ui/select.js";
 import { TableCell, TableHead, TableRow } from "../src/ui/table.js";
 import { Tabs, TabsList, TabsTrigger } from "../src/ui/tabs.js";
@@ -119,6 +120,9 @@ const STEP = new URLSearchParams(window.location.search).get("step") === "1";
 // `?links=1` (with `actions=1`) gives every row an external "Top up" link action (`SUI-FEATURE-331`),
 // locked with its reason on the first row.
 const LINKS = new URLSearchParams(window.location.search).get("links") === "1";
+// `?ownerInput=1` (with `actions=1`) makes the owner a text field in every row (#979): scrolled to the
+// actions, it sits partly under the start edge, where a click must not scroll it but a Tab must.
+const OWNER_INPUT = new URLSearchParams(window.location.search).get("ownerInput") === "1";
 const topUpLink = (labels: (typeof LABELS)[keyof typeof LABELS], id: number) =>
   LINKS
     ? [
@@ -286,7 +290,19 @@ export function ListPage() {
         {rows.map((row) => (
           <TableRow key={row.id} data-testid="list-row">
             <TableCell>{row.id}</TableCell>
-            <TableCell>{row.owner}</TableCell>
+            <TableCell>
+              {OWNER_INPUT ? (
+                <Input
+                  size="sm"
+                  aria-label={`Owner ${row.id}`}
+                  defaultValue={row.owner}
+                  className="w-32"
+                  data-testid="owner-input"
+                />
+              ) : (
+                row.owner
+              )}
+            </TableCell>
             <TableCell>{row.severity}</TableCell>
             <TableCell>
               {ROWS_WITH_SELECT.has(row.id) ? (
