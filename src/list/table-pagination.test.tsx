@@ -101,6 +101,10 @@ describe("TablePagination select width (SUI-FEATURE-026)", () => {
     render(<Harness total={42} />);
     expect(screen.getByTestId("pagination-page-size-sizer")).toHaveTextContent("100 per page");
     expect(screen.getByTestId("pagination-page-size")).not.toHaveClass("min-w-[160px]");
+    // The one cap of every measured select (`GL-UI-024` rev 15).
+    expect(screen.getByTestId("pagination-page-size-sizer").parentElement).toHaveClass(
+      "max-w-(--select-width-max)",
+    );
     await act(() => i18n.changeLanguage("es"));
     expect(screen.getByTestId("pagination-page-size-sizer")).toHaveTextContent("100 por página");
   });

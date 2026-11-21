@@ -77,11 +77,17 @@ const LABELS = {
 
 const SEVERITIES = ["info", "warning", "error"] as const;
 // `?rooms=glyphs` swaps in a wide short and a narrow long option, so the gallery measures that the
-// sizer goes by the rendering, not the character count.
+// sizer goes by the rendering, not the character count. `?rooms=long` adds an option far wider than
+// the cap of every measured select (`GL-UI-024` rev 15), as the cockpit's System-Log "Vorgang".
+const LONG_ROOM =
+  "Konferenzzentrum im Erdgeschoss des Verwaltungsgebäudes, Nordflügel, Raum 0.142 mit Vorraum";
+const ROOMS_PARAM = new URLSearchParams(window.location.search).get("rooms");
 const ROOMS =
-  new URLSearchParams(window.location.search).get("rooms") === "glyphs"
+  ROOMS_PARAM === "glyphs"
     ? ["WWWW", "iiiiii"]
-    : ["Seminarraum", "Konferenzzentrum"];
+    : ROOMS_PARAM === "long"
+      ? ["Seminarraum", LONG_ROOM]
+      : ["Seminarraum", "Konferenzzentrum"];
 // `?pickers=1` adds two pickers that always hold a value (`SUI-FEATURE-031`): a FilterSelect without
 // `allValue` and a LabeledSelect.
 const PICKERS = new URLSearchParams(window.location.search).get("pickers") === "1";

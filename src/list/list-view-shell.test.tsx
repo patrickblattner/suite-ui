@@ -74,6 +74,18 @@ describe("ListViewShell (SUI-FEATURE-047)", () => {
     expect(screen.getByRole("radio", { name: "Tiles" })).toHaveFocus();
   });
 
+  // #997 (`GL-UI-018` rev 11 §Listen-Rahmen): the toolbar the shell places above the tiles shares
+  // their bar track, so the tile scroller keeps the ring's 3 px on its end, not --page-gutter.
+  it("the tile scroller below the toolbar takes the shared track's 3 px end", () => {
+    render(<MediaList />);
+    const table = screen.getByRole("radio", { name: "Table" });
+    table.focus();
+    fireEvent.keyDown(table, { key: "ArrowRight" });
+    const classes = screen.getByTestId("tile-grid-scroll").className.split(" ");
+    expect(classes).toContain("pe-[3px]");
+    expect(classes).not.toContain("pe-[var(--page-gutter)]");
+  });
+
   it("puts the toolbar first, above the frame", () => {
     render(<MediaList />);
     const shell = screen.getByTestId("list-view");

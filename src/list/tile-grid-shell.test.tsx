@@ -56,14 +56,32 @@ describe("TileGridShell tabs", () => {
   });
 
   // Finding #577 (`GL-UI-013`, #850): 6 px of ring room on the top, start and bottom sides, taken back
-  // by an equal negative margin; on the bar side exactly the ring's 3 px, not taken back (`GL-UI-018`
-  // rev 11 §Listen-Rahmen). The gallery measures the ring against the scroller's visible rect.
-  it("the scroller carries ring room: 6 px taken back on top, start and bottom, 3 px on the end", () => {
-    renderGrid({});
-    const classes = screen.getByTestId("tile-grid-scroll").className.split(" ");
-    expect(classes).toEqual(
-      expect.arrayContaining(["-my-1.5", "py-1.5", "-ms-1.5", "ps-1.5", "pe-[3px]"]),
-    );
+  // by an equal negative margin. The bar side follows the frame (`GL-UI-018` rev 11, #997): exactly the
+  // ring's 3 px where a FilterBar or pager shares the bar track (§Listen-Rahmen), else the inner
+  // scroll surface's floor `--page-gutter` (§Innere Scroll-Flächen). The gallery measures both.
+  const scrollerClasses = () => screen.getByTestId("tile-grid-scroll").className.split(" ");
+  const ringRoom = ["-my-1.5", "py-1.5", "-ms-1.5", "ps-1.5"];
+
+  it.each([
+    ["a FilterBar", { toolbar: <div>bar</div> }],
+    ["a pager only", { pagination: <div>pager</div> }],
+  ])("with %s in the shared gutter, the end carries the ring's 3 px", (_, props) => {
+    renderGrid(props);
+    const classes = scrollerClasses();
+    expect(classes).toEqual(expect.arrayContaining([...ringRoom, "pe-[3px]"]));
+    expect(classes).not.toContain("pe-[var(--page-gutter)]");
+    expect(classes.some((name) => /^-?(me|px|mx|p|m)-/.test(name))).toBe(false);
+  });
+
+  it.each([
+    ["neither FilterBar nor pager", {}],
+    ["tabs only", { tabs: { list: LIST, value: "mine" } }],
+    ["empty slots", { toolbar: null, pagination: false }],
+  ])("with %s, the end carries the inner scroll surface's --page-gutter", (_, props) => {
+    renderGrid(props);
+    const classes = scrollerClasses();
+    expect(classes).toEqual(expect.arrayContaining([...ringRoom, "pe-[var(--page-gutter)]"]));
+    expect(classes).not.toContain("pe-[3px]");
     expect(classes.some((name) => /^-?(me|px|mx|p|m)-/.test(name))).toBe(false);
   });
 });

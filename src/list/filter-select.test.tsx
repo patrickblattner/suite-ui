@@ -91,6 +91,21 @@ describe("FilterSelect select width (SUI-FEATURE-026)", () => {
     expect(screen.getByTestId("filter-room")).not.toHaveClass("min-w-24");
   });
 
+  // `GL-UI-024` rev 15: the measured width stops at the one cap of every measured select. The cell's
+  // single column may shrink below its content, the sizer clips, and the trigger may get narrower
+  // than its text, which then truncates in the value with the overflow tooltip (block below).
+  it("caps the measured width at --select-width-max; the trigger may shrink below its text", () => {
+    renderRoom("Room");
+    const cell = screen.getByTestId("filter-room-sizer").parentElement;
+    expect(cell).toHaveClass("grid", "max-w-(--select-width-max)", "grid-cols-[minmax(0,1fr)]");
+    expect(screen.getByTestId("filter-room-sizer")).toHaveClass("overflow-hidden");
+    expect(screen.getByTestId("filter-room")).toHaveClass("min-w-0");
+    expect(screen.getByTestId("filter-room").querySelector("[data-slot=select-value]")).toHaveClass(
+      "min-w-0",
+      "truncate",
+    );
+  });
+
   it("AC5: the sizer stacks every full trigger text in one grid cell", () => {
     renderRoom("Room");
     const rows = [...screen.getByTestId("filter-room-sizer").children];

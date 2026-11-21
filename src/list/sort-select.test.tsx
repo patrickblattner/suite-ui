@@ -47,6 +47,13 @@ describe("SortSelect select width (SUI-FEATURE-026)", () => {
     expect(screen.getByTestId("filter-sort-sizer")).toHaveTextContent("Sort by:Last edited ↓");
     expect(screen.getByTestId("filter-sort")).toHaveClass("col-start-1", "row-start-1", "w-full");
   });
+
+  it("shares the one cap of every measured select (GL-UI-024 rev 15)", () => {
+    renderSort();
+    expect(screen.getByTestId("filter-sort-sizer").parentElement).toHaveClass(
+      "max-w-(--select-width-max)",
+    );
+  });
 });
 
 describe("SortSelect name (#97)", () => {

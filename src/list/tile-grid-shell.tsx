@@ -1,8 +1,8 @@
-import type * as React from "react";
+import * as React from "react";
 
 import { revealKeyboardFocus, useInputTracking } from "../lib/list-focus.js";
 import { Skeleton } from "../ui/skeleton.js";
-import { GutterRow } from "./list-gutter.js";
+import { GutterRow, hasGutterSlot, SharedGutterContext } from "./list-gutter.js";
 import { listState, ListStateContent, type ListStateProps, scrollTabIndex } from "./list-state.js";
 import { ListTabPanel, type ListTabs } from "./list-tabs.js";
 import type { RowGrid } from "./use-row-grid.js";
@@ -11,11 +11,16 @@ const SKELETON_TILE_COUNT = 6;
 
 // The scroller clips at its padding box, so it carries 6 px of room for the 3 px focus ring of a tile on
 // the top, start and bottom sides, taken back by an equal negative margin: the tiles keep their place and
-// a tile at the edge shows its whole ring (`GL-UI-013` rev 5, #850, finding #577). On the bar side it
-// carries exactly the ring's width, not taken back: the ring's outer edge ends where FilterBar and pager
-// end (`GL-UI-018` rev 11 §Listen-Rahmen).
+// a tile at the edge shows its whole ring (`GL-UI-013` rev 5, #850, finding #577). The bar side depends
+// on the frame (`GL-UI-018` rev 11): with a FilterBar or pager in the shared gutter, the rows share one
+// bar track and the scroller carries exactly the ring's width, so the ring's outer edge ends where
+// FilterBar and pager end (§Listen-Rahmen; a toolbar `ListViewShell` places above counts); without
+// either it is an ordinary inner scroll surface with the bar-side floor `--page-gutter`
+// (§Innere Scroll-Flächen), which also gives the ring its room.
 const SCROLL_CLASS =
-  "relative -my-1.5 -ms-1.5 min-h-6 flex-1 scroll-py-2 overflow-auto py-1.5 ps-1.5 pe-[3px] [scrollbar-gutter:stable]";
+  "relative -my-1.5 -ms-1.5 min-h-6 flex-1 scroll-py-2 overflow-auto py-1.5 ps-1.5 [scrollbar-gutter:stable]";
+const SHARED_TRACK_END = "pe-[3px]";
+const INNER_SURFACE_END = "pe-[var(--page-gutter)]";
 
 const GRID_CLASS = "grid grid-cols-[repeat(auto-fill,minmax(12rem,1fr))] gap-4";
 
@@ -67,6 +72,10 @@ function TileGridShell({
     ...stateProps,
   });
   const focusable = tabIndex === 0;
+  // A toolbar above it (`ListViewShell`) counts as its own.
+  const sharedAbove = React.useContext(SharedGutterContext);
+  const sharedTrack = sharedAbove || hasGutterSlot(toolbar) || hasGutterSlot(pagination);
+  const scrollClass = `${SCROLL_CLASS} ${sharedTrack ? SHARED_TRACK_END : INNER_SURFACE_END}`;
   useInputTracking();
   return (
     <div
@@ -79,7 +88,7 @@ function TileGridShell({
       <ListTabPanel tabs={tabs}>
         <div
           className={
-            focusable ? `${SCROLL_CLASS} outline-none focus-visible:focus-ring` : SCROLL_CLASS
+            focusable ? `${scrollClass} outline-none focus-visible:focus-ring` : scrollClass
           }
           data-testid={scrollTestId}
           ref={scrollRef}

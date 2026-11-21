@@ -5681,8 +5681,13 @@ test("media tile: the overflow tooltip at the viewport's top and left edge is ne
         }),
     );
     expect(at.y).toBeGreaterThanOrEqual(0);
-    expect(Math.abs(at.x - (left + 8))).toBeLessThanOrEqual(1);
-    expect(Math.abs(at.x + at.width - (right - 8))).toBeLessThanOrEqual(1);
+    // 8 px a side: the bubble is the visible part less 16 px, rounded down to whole pixels so it never
+    // reaches past its edge (`inTile`), and stands 8 px in from the left edge, snapped to the device
+    // pixel. On a tile at a fractional x both roundings add up on the right, so the right edge is held
+    // to "never past right − 8" and the width to its exact value, not to ±1 px each (#997).
+    expect(Math.abs(at.x - (left + 8))).toBeLessThanOrEqual(0.5);
+    expect(at.width).toBe(Math.floor(right - left - 16));
+    expect(at.x + at.width).toBeLessThanOrEqual(right - 8 + 0.5);
     for (const other of [...others, text])
       expect(
         at.x < other.x + other.width &&
@@ -8770,6 +8775,82 @@ for (const [lng, all] of [
       widths.push((await box(trigger)).width);
     }
     for (const width of widths) expect(Math.abs(width - (widths[0] ?? 0))).toBeLessThanOrEqual(1);
+  });
+}
+
+// `GL-UI-024` rev 15: every measured select stops at one cap (`--select-width-max`). A filter value
+// far wider than it (`?rooms=long`, as the cockpit's System-Log "Vorgang") keeps the FilterBar one
+// line at 1920×1080 in every language; the chosen value truncates in the trigger and its tooltip
+// shows it in full, while the open list shows the entry untruncated.
+const LONG_ROOM =
+  "Konferenzzentrum im Erdgeschoss des Verwaltungsgebäudes, Nordflügel, Raum 0.142 mit Vorraum";
+for (const [lng, room] of [
+  ["de", "Raum"],
+  ["en", "Room"],
+  ["es", "Sala"],
+] as const) {
+  test(`measured select width: a long filter value stops at the cap, the bar stays one line ${lng}`, async ({
+    page,
+  }) => {
+    await page.goto(`/?page=list&filters=node&lng=${lng}&rooms=long`);
+    const trigger = page.getByTestId("filter-room");
+    const sizer = page.getByTestId("filter-room-sizer");
+    await expect(sizer).toContainText(LONG_ROOM);
+    const cap = await page.evaluate(() => {
+      const probe = document.createElement("div");
+      probe.style.width = "var(--select-width-max)";
+      document.body.append(probe);
+      const width = probe.getBoundingClientRect().width;
+      probe.remove();
+      return width;
+    });
+    expect(cap).toBe(288);
+    // Unclamped, the longest text would make the trigger far wider than the cap.
+    expect(await sizer.evaluate((el) => el.scrollWidth)).toBeGreaterThan(cap + 100);
+
+    await choose(page, trigger, LONG_ROOM);
+    expect((await box(trigger)).width).toBeLessThanOrEqual(cap + 0.5);
+    const value = trigger.locator('[data-slot="select-value"]');
+    await expect(value).toHaveText(`${room}: ${LONG_ROOM}`);
+    expect(await value.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeGreaterThan(0);
+
+    // One line: every control of the bar shares the search field's row.
+    const ids = [
+      "filter-haystack",
+      "filter-owner",
+      "filter-severity",
+      "filter-room",
+      "filter-reset",
+      "filter-sort",
+    ];
+    const boxes = await Promise.all(ids.map((id) => box(page.getByTestId(id))));
+    const row = (boxes[0]?.y ?? 0) + (boxes[0]?.height ?? 0) / 2;
+    for (const control of boxes) {
+      expect(Math.abs(control.y + control.height / 2 - row)).toBeLessThanOrEqual(1);
+    }
+    const bar = await box(page.getByTestId("filterbar"));
+    const last = boxes[boxes.length - 1];
+    expect((last?.x ?? 0) + (last?.width ?? 0)).toBeLessThanOrEqual(bar.x + bar.width + 1);
+
+    // The truncated value's tooltip shows it in full.
+    await value.hover();
+    await expect(page.getByRole("tooltip")).toContainText(`${room}: ${LONG_ROOM}`, {
+      timeout: 5000,
+    });
+    await page.mouse.move(0, 0);
+
+    // The open list shows the entry untruncated, wider than the trigger.
+    await trigger.click();
+    const option = page.getByRole("option", { name: LONG_ROOM, exact: true });
+    await expect(option).toBeVisible();
+    const text = option.locator("span").last();
+    expect(await text.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(0);
+    expect(await option.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(0);
+    expect((await box(option)).width).toBeGreaterThan(cap);
+    const listbox = await box(page.getByRole("listbox"));
+    expect(listbox.x).toBeGreaterThanOrEqual(0);
+    expect(listbox.x + listbox.width).toBeLessThanOrEqual(1920);
+    await page.keyboard.press("Escape");
   });
 }
 
@@ -21988,6 +22069,33 @@ test("scrollers keep the whole focus ring of an edge tab stop in view @scrollbar
   );
   const bar = await box(page.getByTestId("tiles-media").getByTestId("filterbar"));
   expect(Math.abs(Math.max(...rights) + 3 - (bar.x + bar.width))).toBeLessThanOrEqual(1);
+});
+
+// #997 (`GL-UI-018` rev 11 §Innere Scroll-Flächen): a tile grid without FilterBar and pager is an
+// ordinary inner scroll surface, so its bar side keeps the floor `--page-gutter` between the end tile
+// and the bar's place, not the shared track's 3 px ring room.
+test("tile grid without FilterBar and pager: the bar side keeps --page-gutter", async ({
+  page,
+}) => {
+  await page.goto("/?page=tiles");
+  const scroller = page.getByTestId("media-tiles-scroll");
+  await expect(scroller.getByTestId("media-tile").first()).toBeVisible();
+  const gutter = await page.evaluate(() => {
+    const probe = document.createElement("div");
+    probe.style.width = "var(--page-gutter)";
+    document.body.append(probe);
+    const width = probe.getBoundingClientRect().width;
+    probe.remove();
+    return width;
+  });
+  expect(gutter).toBe(24);
+  // The tile grid's right edge (its auto-fill tracks reach it even where tiles end earlier) against
+  // the padding box's right edge, inside the bar's reserved place.
+  const grid = await box(scroller.locator(":scope > div"));
+  const inner = await scroller.evaluate(
+    (el) => el.getBoundingClientRect().left + el.clientLeft + el.clientWidth,
+  );
+  expect(Math.abs(inner - (grid.x + grid.width) - gutter)).toBeLessThanOrEqual(1);
 });
 
 // #979 (Codex CX1, `GL-UI-013`): a text field matches `:focus-visible` after a press as well, so the

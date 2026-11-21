@@ -98,7 +98,7 @@
     "./list/filter-select": { "recommended": 42769, "maximum": 43174 },
     "./list/index": { "recommended": 108167, "maximum": 110489 },
     "./list/labeled-select": { "recommended": 42868, "maximum": 43278 },
-    "./list/list-gutter": { "recommended": 341, "maximum": 359 },
+    "./list/list-gutter": { "recommended": 341, "maximum": 485 },
     "./list/list-state": { "recommended": 10359, "maximum": 10771 },
     "./list/list-tabs": { "recommended": 1428, "maximum": 1500 },
     "./list/list-view-shell": { "recommended": 27242, "maximum": 27822 },

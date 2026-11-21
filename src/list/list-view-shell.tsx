@@ -1,7 +1,7 @@
 import type * as React from "react";
 
 import { DataTableShell, type DataTableShellProps } from "./data-table-shell.js";
-import { GutterRow } from "./list-gutter.js";
+import { GutterRow, hasGutterSlot, SharedGutterContext } from "./list-gutter.js";
 import { TileGridShell, type TileGridShellProps } from "./tile-grid-shell.js";
 import type { ListView } from "./view-toggle.js";
 
@@ -24,7 +24,10 @@ function ListViewShell({ view, toolbar, table, tiles }: ListViewShellProps) {
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4" data-testid="list-view">
       <GutterRow>{toolbar}</GutterRow>
-      {view === "tiles" ? <TileGridShell {...tiles} /> : <DataTableShell {...table} />}
+      {/* The frame below shares the toolbar's bar track (`GL-UI-018` rev 11 §Listen-Rahmen). */}
+      <SharedGutterContext.Provider value={hasGutterSlot(toolbar)}>
+        {view === "tiles" ? <TileGridShell {...tiles} /> : <DataTableShell {...table} />}
+      </SharedGutterContext.Provider>
     </div>
   );
 }
