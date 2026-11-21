@@ -19,9 +19,12 @@ export default tseslint.config(
       ".size-limit.cjs",
       // A stand-in app checkout for the parity tests, outside the typed project graph.
       "test/fixtures/**",
-      // Git-ignored (.claude/ in part) and holding no source: hygiene's tree fingerprint does not see them, so lint must not read them (#942).
+      // Git-ignored and holding no source: hygiene's tree fingerprint does not see them, so lint must not
+      // read them (#942). Of `.claude/` only its git-ignored parts: a tracked file there is linted like
+      // any other (#988, finding #703).
       "worklogs/**",
-      ".claude/**",
+      ".claude/settings.local.json",
+      ".claude/*.bak*",
       ".playwright-mcp/**",
     ],
   },

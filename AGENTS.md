@@ -1,82 +1,47 @@
-# Repository Guidelines
+# Working in suite-ui
 
-These rules apply to all AI coding agents in this project.
-Core behavioral principles (Think Before Coding, Simplicity First, Surgical Changes, Goal-Driven Execution) are defined globally in `~/.claude/CLAUDE.md`.
+`@suite/ui`, the one shared UI package of all Suite apps. This page orients an agent working in this
+repository; the lead's charter (`~/.claude/roles/lead.md`) and `CLAUDE.md` carry the rest.
 
-## General Behavior
+## Specs are the truth
 
-- Leave `.git/` untouched — reading or modifying git internals causes corruption.
-- Use tmux for long-running tasks (dev servers, watchers, REPLs). One-off commands run directly.
-- Before concluding a task, run: build, lint, unit tests, E2E tests (if configured). Fix failures before marking done.
-- Use `git add <specific-files>` only, not `git add .`.
+- Specs live in the spec server (MCP server `spec`, project `suite-ui`); its database is the source of
+  truth. There are no spec files in this repo, and `~/projects/specs-db/` is only an export.
+- Read them through the funnel: `spec_usage` first, then `spec_tree`, `spec_search`, `spec_get`.
+- A change of observable behaviour or of a contract that no sheet describes goes to the spec master
+  before it is built. A taste question (look, wording, the feel of a flow) is never decided here.
+- Shared building blocks live in this package; an app never builds its own copy (`GL-UI-004`).
 
-## Coding Style
+## The toolkit and the gate
 
-- TypeScript, ES modules, functional style. Match existing patterns in the codebase.
-- Run `npm run lint` + `npm run format` before pushing.
-- Libraries may be installed autonomously when the implementation plan includes them.
-- English for all code, comments, and documentation.
+- The spec-sync toolkit runs only as `node_modules/.bin/spec-sync` from the checkout's root, never
+  through npx (`GL-SEC-011`).
+- Local gate: `node_modules/.bin/spec-sync gate --profile local`. Before a push the merge preflight
+  (`gate --profile merge --preflight`) must list nothing. stdout is one JSON object; the full output
+  of each phase is in `.spec-sync/logs/<timestamp>/<phase>.log` — read the failed phase there, not
+  the whole log.
+- No merge without a green merge gate (`npm run gate:record`); a release tag only through
+  `npm run release:tag` on a recorded commit.
+- `.spec-sync-pause` in the root means the owner paused the project: finish what is in flight, start
+  nothing new.
 
-## Testing
+## Gallery
 
-- Place unit tests next to code (`*.test.ts` / `*.test.tsx`).
-- Add regression tests for bugs before fixing — proves the bug exists and prevents reintroduction.
-- Mock external API calls in tests — real calls make tests slow, flaky, and expensive.
-- Playwright runs headless. Headed mode is only for user-requested debugging.
+- Screenshots run only in the pinned Playwright image: `npm run gallery:image` (it takes a machine
+  slot). Baselines are Linux baselines from that image, never from the host.
+- One merge gate's gallery phase at a time; no other gallery run beside it.
+- Recapture only what a change alters (`-- --update-snapshots=changed`), look at each changed image,
+  and name the recaptured baselines in a CHANGELOG `Gallery` line.
 
-## Gate Logs
+## Every change
 
-A gate run writes the full command output to `.spec-sync/logs/<timestamp>/<phase>.log`; the
-JSON response carries only exit code, first error and that path.
-
-- **The driver (PM) never reads a log.** It passes the path on and delegates.
-- A **sub-agent reads selectively**: the failed phase, via `grep`/`tail` — **never the whole
-  file**. A fully read log costs more context than the error it contains is worth.
-
-## Security
-
-- Keep secrets out of version control — use `.env` files. Committed secrets require immediate rotation.
-- Keep passwords and credentials out of logs — they persist in log aggregation systems.
-- Provide `.env.example` for others to copy.
-
-## CodeGraph + Serena (MCP) — Code Navigation
-
-Prefer them over native Read/Grep for code — symbol-level results instead of full files, far fewer tokens. Both are deferred; load them in **one** call:
-
-```
-ToolSearch select:mcp__serena__get_symbols_overview,mcp__serena__find_symbol,mcp__serena__find_referencing_symbols,mcp__serena__search_for_pattern,mcp__codegraph__codegraph_explore
-```
-
-**Division of labor (binding):** CodeGraph answers **orientation** — structure, call graph, impact ("who calls this, what depends on it"). Serena reads the **current state** of specific symbols. Impact questions → CodeGraph, current state → Serena.
-
-| Priority | Tool | Use when |
-|----------|------|----------|
-| 1 | `codegraph_explore` / `get_symbols_overview` | Orienting: structure, where things live |
-| 2 | `find_symbol` (`include_body`) | Reading a specific function/class |
-| 3 | `find_referencing_symbols` / CodeGraph impact | Blast radius — who calls/imports this? |
-| 4 | `search_for_pattern` | Non-symbolic content (strings, config, comments) |
-| 5 | `Read` / `Grep` | Fallback — and still the right tool for configs, logs, docs, and a location you already identified |
-
-Inside a git worktree **CodeGraph reflects the MAIN checkout's index**, not your uncommitted changes — never trust it for state you just modified. All code edits go through native Edit/Write — they integrate with Claude Code's permission and diff system. Never halt over tooling.
-
-## shadcn (MCP) — UI Components
-
-When `mcp__shadcn__*` tools are available and you are building React UI, use them to look up components before building custom ones.
-
-| Tool | Use when |
-|------|----------|
-| `search_items_in_registries` | Check if a shadcn component exists for your need |
-| `view_items_in_registries` | View component source, variants, usage |
-| `get_item_examples_from_registries` | Get real-world usage examples |
-| `get_add_command_for_items` | Get the correct install CLI command |
-
-Never manually create files in `components/ui/` — always install via the CLI command from the MCP server. See each agent's "UI Work" section for full styling rules.
-
-## Output Rules
-
-- Skip explanations for obvious code.
-- Keep answers concise.
-- Keep emojis out of code comments — they render inconsistently across tools.
-- Reference files instead of restating their contents — restating wastes tokens and risks stale copies.
-
-<!-- scaffolded by init-project.sh on 2026-10-06 -->
+- Tests sit next to the code (`*.test.ts(x)`); a bug gets a failing test before its fix.
+- `CHANGELOG.md`: each change adds its own lines under `## Unreleased`, naming the issue and the sheet.
+- A change that crosses a size-limit maximum or raises a quality-ratchet count raises it in the same
+  change (`GL-CODE-021`): size to the measured size + 5 %, a count to the measured count, through
+  `node_modules/.bin/spec-sync measure set … --register 1998`, with a CHANGELOG `Size` line that
+  names the cause (a raise above +20 % is named a large jump). Security counts (Semgrep, gitleaks,
+  Trivy, `eslint.security`) are never raised: the change fixes the finding.
+- Stage files by name (`git add <files>`), never `git add .`: parallel work shares the checkout's
+  neighbours. Worktrees live under `~/projects/.worktrees/suite-ui/`.
+- English for code, comments, commit messages and documentation; theme tokens and i18n texts in UI.

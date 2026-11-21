@@ -40,7 +40,7 @@ function stubPath(): string {
 }
 
 async function findBundles(dir: string): Promise<string[]> {
-  // eslint-disable-next-line security/detect-non-literal-fs-filename -- root = suite-ui-parity --root or cwd (operator root) + literal APP_SOURCES dir, form (1)
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- root = suite-ui-parity --root or cwd (the checkout npm runs it in) + literal APP_SOURCES dir, form (1)
   const entries = await readdir(dir, { recursive: true });
   return entries
     .filter(
@@ -59,7 +59,7 @@ export async function loadAppStrings(app: App, root: string): Promise<AppStrings
   const { src, locales } = APP_SOURCES[app];
   const srcDir = join(root, src);
   const localesDir = join(root, locales);
-  // eslint-disable-next-line security/detect-non-literal-fs-filename -- root = suite-ui-parity --root or cwd (operator root) + literal APP_SOURCES dir, form (1)
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- root = suite-ui-parity --root or cwd (the checkout npm runs it in) + literal APP_SOURCES dir, form (1)
   if (!existsSync(localesDir)) throw new Error(`no locale directory at ${localesDir}`);
 
   const stub = stubPath();

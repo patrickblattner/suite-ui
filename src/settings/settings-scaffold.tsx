@@ -85,10 +85,10 @@ type SettingsScaffoldProps = {
 // head action of the first section) shows its whole ring, and the content keeps its place
 // (`GL-UI-013` rev 5, #850). The end side carries its own `GL-UI-018` bar-side floor
 // (`padding-inline-end: var(--page-gutter)`, beside the stable gutter), which also gives the ring its
-// room there (#864 → #949). The bottom keeps its 16 px. The bar's place is reserved (`GL-UI-018` stable gutter), so the
-// content width holds when the body starts or stops overflowing. The top scroll padding (10 px) lets a
-// control brought into view stop below the covered ring room with its ring and its forced-colors
-// outline (2 px + 2 px offset) whole (#927).
+// room there (#864 → #949). The bottom keeps its 16 px. The bar's place is reserved (`GL-UI-018`
+// stable gutter), so the content width holds when the body starts or stops overflowing. The top scroll
+// padding (10 px) lets a control brought into view stop below the covered ring room with its ring and
+// its forced-colors outline (2 px + 2 px offset) whole (#927).
 const BODY_SCROLL_CLASS =
   "relative -ms-1.5 -mt-1.5 min-h-0 flex-1 scroll-pt-2.5 scroll-pb-2 overflow-y-auto ps-1.5 pe-[var(--page-gutter)] pt-1.5 pb-4 [scrollbar-gutter:stable]";
 

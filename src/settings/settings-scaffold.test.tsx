@@ -214,8 +214,11 @@ describe("SettingsScaffold body scroller", () => {
     "@panel-split:pe-0",
     "!pe-2",
     "md:!px-1",
+    // Tailwind 4's canonical suffix form (#988, finding #755).
+    "pe-2!",
+    "md:px-1!",
   ])("counts %s as end padding", (utility) => expect(endPadding.test(utility)).toBe(true));
-  it.each(["ps-1.5", "pt-1.5", "pb-4", "-ms-1.5", "py-2", "scroll-py-2", "pl-2"])(
+  it.each(["ps-1.5", "pt-1.5", "pb-4", "-ms-1.5", "py-2", "scroll-py-2", "pl-2", "!ps-1", "ps-1!"])(
     "does not count %s as end padding",
     (utility) => expect(endPadding.test(utility)).toBe(false),
   );
