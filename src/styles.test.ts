@@ -203,7 +203,7 @@ describe("styles.css tokens", () => {
       "toast-gap": "0.5rem",
       "tooltip-hint-delay": "1500ms",
       "checker-size": "12px",
-      "select-width-max": "18rem",
+      "select-width-max": "16rem",
     });
     expect(root.get("toast-offset-top")).toBe("var(--toast-offset-shell)");
     expect(root.get("toast-offset-shell")?.replace(/\s+/g, " ")).toBe(

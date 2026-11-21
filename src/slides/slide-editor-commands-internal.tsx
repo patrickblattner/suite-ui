@@ -584,3 +584,80 @@ export function CanvasMenuEntry({
     </Hint>
   );
 }
+
+// The element clipboard's keys (`SUI-FEATURE-191`), on the canvas and named in its menu.
+const CUT_SHORTCUT = ["Ctrl+X", "Meta+X"] as const;
+const COPY_SHORTCUT = ["Ctrl+C", "Meta+C"] as const;
+const PASTE_SHORTCUT = ["Ctrl+V", "Meta+V"] as const;
+const DUPLICATE_SHORTCUT = ["Ctrl+D", "Meta+D"] as const;
+
+// The canvas menu's entries (`SUI-FEATURE-191`). The entries call their command only when chosen; it
+// reads the queue's refs then, never while rendering (#535). Under `readOnly` Copy alone
+// (`SUI-FEATURE-133`). Cut, Copy and Duplicate are usable with a selection or behind a paste that
+// waits (`chained`); "Save as block" stands only with a selection and an app that takes blocks.
+export function CanvasMenuItems({
+  readOnly,
+  selected,
+  chained,
+  clipboardFilled,
+  saveBlock,
+  saveBlockTooBig,
+  onCut,
+  onCopy,
+  onPaste,
+  onDuplicate,
+}: {
+  readOnly: boolean;
+  selected: boolean;
+  chained: boolean;
+  clipboardFilled: boolean;
+  saveBlock: (() => void) | undefined;
+  saveBlockTooBig: boolean;
+  onCut: () => void;
+  onCopy: () => void;
+  onPaste: () => void;
+  onDuplicate: () => void;
+}) {
+  return (
+    <>
+      {readOnly ? null : (
+        <CanvasMenuEntry
+          name="cut"
+          usable={selected || chained}
+          shortcut={CUT_SHORTCUT}
+          onSelect={onCut}
+        />
+      )}
+      <CanvasMenuEntry
+        name="copy"
+        usable={selected || chained}
+        shortcut={COPY_SHORTCUT}
+        onSelect={onCopy}
+      />
+      {readOnly ? null : (
+        <CanvasMenuEntry
+          name="paste"
+          usable={clipboardFilled}
+          shortcut={PASTE_SHORTCUT}
+          onSelect={onPaste}
+        />
+      )}
+      {readOnly ? null : (
+        <CanvasMenuEntry
+          name="duplicate"
+          usable={selected || chained}
+          shortcut={DUPLICATE_SHORTCUT}
+          onSelect={onDuplicate}
+        />
+      )}
+      {(saveBlock === undefined && !saveBlockTooBig) || !selected ? null : (
+        <CanvasMenuEntry
+          name="saveAsBlock"
+          usable={saveBlock !== undefined}
+          shortcut={undefined}
+          onSelect={() => saveBlock?.()}
+        />
+      )}
+    </>
+  );
+}

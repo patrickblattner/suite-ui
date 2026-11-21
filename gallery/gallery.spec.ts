@@ -8804,7 +8804,7 @@ for (const [lng, room] of [
       probe.remove();
       return width;
     });
-    expect(cap).toBe(288);
+    expect(cap).toBe(256);
     // Unclamped, the longest text would make the trigger far wider than the cap.
     expect(await sizer.evaluate((el) => el.scrollWidth)).toBeGreaterThan(cap + 100);
 
@@ -8851,6 +8851,83 @@ for (const [lng, room] of [
     expect(listbox.x).toBeGreaterThanOrEqual(0);
     expect(listbox.x + listbox.width).toBeLessThanOrEqual(1920);
     await page.keyboard.press("Escape");
+  });
+}
+
+// `GL-UI-024` rev 15, cockpit #4120: the cockpit's System-Log FilterBar in German at 1920 px. Its bar is
+// 1618 px wide; four filters whose longest texts measure about 206, 228 and 221 px and one far past
+// the cap, reset and sort. Uncapped the row needs more than the bar (the search keeps its 20rem), so
+// it would wrap; capped at `--select-width-max` it stays one line.
+test("measured select width: the cockpit's System-Log FilterBar stays one line in de at 1920 px", async ({
+  page,
+}) => {
+  await page.goto("/?page=list&filters=cockpit&lng=de");
+  const bar = page.getByTestId("filterbar");
+  await expect(page.getByTestId("filter-cockpit-operation")).toBeVisible();
+  // Narrow the list frame until the bar is the cockpit's 1618 px.
+  const frame = page.locator("[data-slot=list-frame]");
+  const excess = (await box(bar)).width - 1618;
+  await frame.evaluate((el, by) => {
+    el.style.width = `${el.getBoundingClientRect().width - by}px`;
+    el.style.flex = "none";
+  }, excess);
+  await expect.poll(async () => Math.round((await box(bar)).width)).toBe(1618);
+
+  const cap = await page.evaluate(() => {
+    const probe = document.createElement("div");
+    probe.style.width = "var(--select-width-max)";
+    document.body.append(probe);
+    const width = probe.getBoundingClientRect().width;
+    probe.remove();
+    return width;
+  });
+  const ids = ["severity", "component", "outcome", "operation"].map((id) => `filter-cockpit-${id}`);
+  const widths = await Promise.all(ids.map(async (id) => (await box(page.getByTestId(id))).width));
+  // The fixture reproduces the cockpit's widths (±8 px) and one filter past the cap.
+  for (const [index, want] of [206, 228, 221].entries()) {
+    expect(Math.abs((widths[index] ?? 0) - want)).toBeLessThanOrEqual(8);
+  }
+  expect(Math.abs((widths[3] ?? 0) - cap)).toBeLessThanOrEqual(0.5);
+  const operationSizer = page.getByTestId("filter-cockpit-operation-sizer");
+  const uncapped = await operationSizer.evaluate((el) => el.scrollWidth);
+  expect(uncapped).toBeGreaterThan(cap + 32);
+
+  // Uncapped, the controls plus the search's 320 px and the 8 px gap would not fit the bar.
+  const controls = await page.getByTestId("filterbar-controls").evaluate((el) => el.scrollWidth);
+  expect(controls + (uncapped - cap) + 8 + 320).toBeGreaterThan(1618);
+
+  // Capped, every control shares the search field's row, and the search keeps at least 320 px.
+  const row = ["filter-haystack", ...ids, "filter-reset", "filter-sort"];
+  const boxes = await Promise.all(row.map((id) => box(page.getByTestId(id))));
+  const centre = (boxes[0]?.y ?? 0) + (boxes[0]?.height ?? 0) / 2;
+  for (const control of boxes) {
+    expect(Math.abs(control.y + control.height / 2 - centre)).toBeLessThanOrEqual(1);
+  }
+  expect(boxes[0]?.width ?? 0).toBeGreaterThanOrEqual(320);
+});
+
+// `GL-UI-024` rev 17: the sort keeps its measured width, past the filters' cap, so the German default
+// "Sortiert nach: Zuletzt bearbeitet ↓" shows whole, never truncated, on the list and the tiles.
+for (const query of ["page=list", "page=tiles"]) {
+  test(`measured select width: the German default sort is never truncated, ${query}`, async ({
+    page,
+  }) => {
+    await page.goto(`/?${query}&lng=de`);
+    const sort = page.getByTestId("filter-sort");
+    const value = sort.locator('[data-slot="select-value"]');
+    await expect(value).toHaveText("Zuletzt bearbeitet ↓");
+    await expect(sort).toContainText("Sortiert nach:");
+    expect(await value.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(0);
+    const cap = await page.evaluate(() => {
+      const probe = document.createElement("div");
+      probe.style.width = "var(--select-width-max)";
+      document.body.append(probe);
+      const width = probe.getBoundingClientRect().width;
+      probe.remove();
+      return width;
+    });
+    // Wider than the filters' cap, as the sort is exempt.
+    expect((await box(sort)).width).toBeGreaterThan(cap);
   });
 }
 
@@ -19385,16 +19462,18 @@ test("slide editor: a group's width beyond what its turned child allows takes th
   const height = await field("height").inputValue();
   await typeInto(page, field("width"), "50");
   await page.keyboard.press("Tab");
-  await expect(field("width")).toHaveValue("70.707");
+  // The limit on the 1/1000 px grain inside the exact range (70.7071 up), so it can be stored (#881).
+  await expect(field("width")).toHaveValue("70.708");
   await expect(editor.getByTestId("slide-editor-width-limit")).toHaveText(
-    "The group's rotated elements keep it at least 70.707 px.",
+    "The group's rotated elements keep it at least 70.708 px.",
   );
   await expect(field("height")).toHaveValue(height);
   await typeInto(page, field("width"), "400");
   await page.keyboard.press("Tab");
-  // The limit as stored, to the 1/1000 px grain (finding #511: no refit trims it to 304.33).
-  await expect(field("width")).toHaveValue("304.331");
-  await expect(editor.getByTestId("slide-editor-width-limit")).toContainText("at most 304.331 px");
+  // The limit as stored, on the 1/1000 px grain inside the exact range (304.3308 down, #881), and kept
+  // as stored by every refit (finding #511).
+  await expect(field("width")).toHaveValue("304.33");
+  await expect(editor.getByTestId("slide-editor-width-limit")).toContainText("at most 304.33 px");
   await expect(field("height")).toHaveValue(height);
   // A width it reaches clears the note.
   await typeInto(page, field("width"), "200");

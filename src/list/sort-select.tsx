@@ -60,6 +60,8 @@ function SortSelect({ value, onChange, options, "data-testid": testId }: SortSel
     <MeasuredCell
       texts={options.map((option) => option.label)}
       prefix={`${t("sort.label")}:`}
+      // The sort keeps its measured width: no cap (`GL-UI-024` rev 17).
+      capped={false}
       data-testid={testId ?? "filter-sort"}
     >
       {select}

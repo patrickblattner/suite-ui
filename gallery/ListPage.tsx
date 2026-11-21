@@ -145,6 +145,25 @@ const topUpLink = (labels: (typeof LABELS)[keyof typeof LABELS], id: number) =>
 // `?filters=node` passes the filters as one node, ordered by the page, with a third filter so the
 // controls group wraps at narrow widths; without it a list of one dynamic and one static filter.
 const NODE_FILTERS = new URLSearchParams(window.location.search).get("filters") === "node";
+// `?filters=cockpit` (with `lng=de`) rebuilds the cockpit's System-Log FilterBar (cockpit #4120): four
+// filters whose longest texts measure about 206, 228 and 221 px and one far past the cap of every
+// measured select (`GL-UI-024` rev 15), so the gallery checks that the row stays one line at the
+// cockpit's bar width.
+const COCKPIT_FILTERS = new URLSearchParams(window.location.search).get("filters") === "cockpit";
+const COCKPIT = [
+  { id: "severity", field: "Schweregrad", options: ["Info", "Warnung", "Störung"] },
+  { id: "component", field: "Komponente", options: ["API", "Worker", "Transkodierer"] },
+  { id: "outcome", field: "Ergebnis", options: ["Erfolg", "Fehler", "Zurückgewiesen"] },
+  {
+    id: "operation",
+    field: "Vorgang",
+    options: [
+      "Import",
+      "Export",
+      "Medienpaket für die Ausspielung neu berechnen und veröffentlichen",
+    ],
+  },
+] as const;
 // `?toast=1` mounts the Toaster with a held success toast whose description reaches down over the
 // FilterBar's right end (`SUI-FEATURE-101`).
 const TOAST = new URLSearchParams(window.location.search).get("toast") === "1";
@@ -203,7 +222,22 @@ export function ListPage() {
         ],
       }}
       filters={
-        NODE_FILTERS ? (
+        COCKPIT_FILTERS ? (
+          <>
+            {COCKPIT.map((filter) => (
+              <FilterSelect
+                key={filter.id}
+                field={filter.field}
+                value="all"
+                allValue="all"
+                onValueChange={() => {}}
+                options={filter.options.map((value) => ({ value, label: value }))}
+                hint="Shows only the matching log entries."
+                data-testid={`filter-cockpit-${filter.id}`}
+              />
+            ))}
+          </>
+        ) : NODE_FILTERS ? (
           <>
             {ownerFilter(OWNERS)}
             {severityFilter(SEVERITIES)}

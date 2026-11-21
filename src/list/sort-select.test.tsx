@@ -48,11 +48,13 @@ describe("SortSelect select width (SUI-FEATURE-026)", () => {
     expect(screen.getByTestId("filter-sort")).toHaveClass("col-start-1", "row-start-1", "w-full");
   });
 
-  it("shares the one cap of every measured select (GL-UI-024 rev 15)", () => {
+  // `GL-UI-024` rev 17: the filter dropdowns' cap does not apply to the sort, so the German default
+  // "Sortiert nach: Zuletzt bearbeitet ↓" is never truncated; the gallery measures it.
+  it("keeps its measured width: no cap on the sort (GL-UI-024 rev 17)", () => {
     renderSort();
-    expect(screen.getByTestId("filter-sort-sizer").parentElement).toHaveClass(
-      "max-w-(--select-width-max)",
-    );
+    const cell = screen.getByTestId("filter-sort-sizer").parentElement;
+    expect(cell).not.toHaveClass("max-w-(--select-width-max)");
+    expect(cell?.className).not.toMatch(/max-w-/);
   });
 });
 

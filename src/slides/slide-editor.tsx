@@ -3,25 +3,19 @@ import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
 import { cn } from "../lib/cn.js";
-import { Button } from "../ui/button.js";
 import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from "../ui/context-menu.js";
 import { CanvasOverlay, type CanvasTarget, type CanvasZoomMode } from "../ui/canvas.js";
-import { formatDecimal } from "../ui/decimal-number.js";
-import { type DrawerId, DrawerRail, type DrawerRailProps } from "../ui/drawer-rail.js";
+import { type DrawerId, type DrawerRailProps } from "../ui/drawer-rail.js";
 import { EditorHeader, useEditorLeaveGuard } from "../ui/editor-header.js";
 import { Field } from "../ui/field.js";
 import { pageDrafts, useHasFieldDrafts } from "../ui/field-drafts-internal.js";
 import { GridOverlay } from "../ui/grid.js";
-import { FlipToggle } from "../ui/flip-toggle.js";
-import { Hint } from "../ui/hint.js";
 import { helpIdFor } from "../ui/label-with-help.js";
 import { useLeaveGuard } from "../ui/leave-guard.js";
-import { OperationIndicator, OperationLabel } from "../ui/operation-status.js";
 import { PropertyPanel } from "../ui/property-panel.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select.js";
 import { SubgroupTitle } from "../ui/subgroup-title.js";
 import { toast } from "../ui/toaster.js";
-import { OverflowTooltip } from "../ui/tooltip.js";
 import { ElementLockedContext, LockedTrigger } from "./element-lock-internal.js";
 import { type SlideDocumentError, safeParseSlideDocument } from "./document.js";
 import {
@@ -40,63 +34,39 @@ import {
   findElement,
   groupChain,
   groupElements,
-  groupSizeRange,
   holdsProtected,
   insertElement,
   intoGroups,
   type LayerMove,
   type LibraryEntry,
-  libraryElement,
   clampCrop,
   cropArea,
   croppedImageBox,
   type ImageCrop,
-  type ImageSize,
   mirroredCrop,
   moveLayer,
   nextAnimationOrder,
   pageBox,
   placedBox,
   setAnimation,
-  setBox,
-  setFollow,
   setPayload,
-  setRotation,
-  setTransition,
   sharedTurnedFrame,
-  transferFormat,
   ungroupElement,
-  uniqueId,
   updateElements,
   withoutNested,
   zoomCrop,
 } from "./editor-ops.js";
+import { containsPoint, type Handle, type Point } from "./editor-geometry.js";
 import {
-  columnBorderCursor,
-  containsPoint,
-  type Handle,
-  HANDLES,
-  type Point,
-  resizeCursor,
-} from "./editor-geometry.js";
-import { deletePage, duplicatePage, movePage, newPage, setPageHidden } from "./editor-pages.js";
-import {
-  intoPlaceholder,
-  roleTextRun,
   type OpenPlaceholder,
   offeredLayouts,
   openPlaceholders,
   setPageLayout,
   withLayout,
 } from "./editor-layouts.js";
-import { setCell } from "./editor-table.js";
-import { formatRange, insertRuns } from "./editor-text.js";
-import { offersHandle, unfollowsBy } from "./text-follow.js";
-import { paragraphCount } from "./paragraph-count.js";
-import { cssColor, stackOrder } from "./render-style.js";
+import { stackOrder } from "./render-style.js";
 import {
   type ColorValue,
-  type Run,
   SLIDE_LIMITS,
   type SlideDocument,
   slideElementSchema,
@@ -110,46 +80,15 @@ import {
   type SlideMaster,
   slideMasterSchema,
   type SlideMasterInput,
-  type SlidePage,
 } from "./schema.js";
-import { insertColor } from "./editor-color.js";
-import { NumberField, storedNumber } from "./number-field.js";
+import { NumberField } from "./number-field.js";
 import { ChartData } from "./slide-editor-chart.js";
-import {
-  type AppLibraryEntry,
-  ElementLibrary,
-  iconLabel,
-  LIBRARY_DRAG_TYPE,
-  parseLibraryEntry,
-  type PickedMedia,
-} from "./slide-editor-library.js";
+import { LIBRARY_DRAG_TYPE, parseLibraryEntry, type PickedMedia } from "./slide-editor-library.js";
 import { RecentColorsContext, withRecentColor } from "./brand-color-items-internal.js";
-import { CropFields } from "./crop-fields.js";
-import { BackgroundFields, type ImageBackground } from "./slide-editor-background.js";
-import { LineFields } from "./slide-editor-line.js";
-import { ShadowFields } from "./slide-editor-shadow.js";
-import { ShapeFields } from "./slide-editor-shape.js";
+import { type CellAt, nextCell, type TableLayout, tableLayout } from "./slide-editor-table.js";
+import type { TextBody } from "./slide-editor-text.js";
 import {
-  type CellAt,
-  cellBox,
-  nextCell,
-  TableFields,
-  type TableLayout,
-  tableLayout,
-} from "./slide-editor-table.js";
-import {
-  FollowTextField,
-  formatSpan,
-  InlineTextEditor,
-  type TextBody,
-  TextFormatFields,
-  type TextRange,
-  TextSizingField,
-  toggledFormat,
-} from "./slide-editor-text.js";
-import { NumberedListFields } from "./slide-editor-numbered.js";
-import {
-  CanvasMenuEntry,
+  CanvasMenuItems,
   selectionCommands,
   useAdoptingFits,
   useCommandQueue,
@@ -168,18 +107,70 @@ import {
   startHandle as startHandleGesture,
 } from "./slide-editor-gesture-internal.js";
 import { editorKeyDown } from "./slide-editor-keys-internal.js";
+import { travelStep } from "./slide-editor-travel-internal.js";
+import { readOnlyPanelTabs } from "./slide-editor-readonly-panel-internal.js";
+import { StyleSections } from "./slide-editor-style-fields-internal.js";
 import {
-  ArrangeSections,
-  DocumentPanel,
-  GroupButton,
-  LayerList,
-  SelectionActions,
-} from "./slide-editor-panels-internal.js";
+  otherFormatsOf,
+  saveDraft,
+  transferCopy,
+  useHostReset,
+  withCrop,
+} from "./slide-editor-save-internal.js";
+import { AdoptingLive, AdoptingStatus, SaveErrorNote } from "./slide-editor-header-internal.js";
+import { EditorDrawers, pageSorterActions } from "./slide-editor-drawers-internal.js";
+import {
+  AppOverlays,
+  gestureCursorOf,
+  GuideLines,
+  Marquee,
+  PlaceholderHints,
+  SelectionHandles,
+} from "./slide-editor-canvas-internal.js";
+import { ArrangeSections, GroupButton, SelectionActions } from "./slide-editor-panels-internal.js";
+import {
+  BoxFields,
+  type FieldContext,
+  IconStrokeField,
+  ImageFlips,
+  type SizeLimit,
+  sizeNoteOf,
+} from "./slide-editor-fields-internal.js";
+import {
+  CropBar,
+  CropPanelFields,
+  CropRest,
+  cropRestOf,
+} from "./slide-editor-crop-fields-internal.js";
+import { sameCrop, shownCrop, useCropState } from "./slide-editor-crop-internal.js";
+import {
+  AddOnFields,
+  addOnsWithFields,
+  bodyOf,
+  withBody,
+  FollowField,
+  followTextsOf,
+  InlineTextField,
+  NumberedFields,
+  SizingField,
+  TableContentFields,
+  TextFields,
+} from "./slide-editor-text-fields-internal.js";
+import { useTextEditState } from "./slide-editor-text-state-internal.js";
+import {
+  appLibraryEntries,
+  entryLabelOf,
+  insertFitsWith,
+  insertLibraryEntry,
+  pageGround,
+  pickToInsert,
+  placeholderText,
+} from "./slide-editor-insert-internal.js";
+import { ANIMATION_MS, PageSections, withBackground } from "./slide-editor-page-fields-internal.js";
 import { EditorToolbar } from "./slide-editor-toolbar-internal.js";
 import { ANIMATION_MAX_MS } from "./slide-editor-preview.js";
 import type { TransferScope } from "./slide-editor-transfer.js";
 import {
-  CELL_PADDING,
   carriesUnloadedAddOn,
   checkSlideExtensions,
   type SlideOverlay,
@@ -188,12 +179,6 @@ import {
 } from "./slide-view.js";
 import { type SlideHistory, type SlideHostStep, useSlideHistory } from "./use-slide-history.js";
 import { elementClipboard } from "./element-clipboard-internal.js";
-import {
-  hasReadOnlyContent,
-  ReadOnlyContent,
-  ReadOnlyLayout,
-  ReadOnlyPage,
-} from "./slide-editor-readonly.js";
 
 // Read-only all the way down: the document `onChange` reports is the app's to read, not to change.
 type DeepReadonly<T> = T extends (...args: never[]) => unknown
@@ -331,9 +316,6 @@ type ViewProps = Pick<
   "brand" | "fonts" | "fontOrigins" | "resolveMedia" | "extensions" | "renderPlaceholder"
 >;
 
-// The rotate handle's distance above the box, a handle's size.
-const ROTATE_OFFSET = 32;
-const HANDLE_PX = 10;
 // The wheel's zoom per 100 px of scrolling while cropping.
 const CROP_ZOOM_STEP = 1.1;
 // The canvas area's width below which the crop bar leaves its hint out.
@@ -345,53 +327,8 @@ const PAGE_GUTTER_PX = 24;
 // What a number field takes: a box at most twice the largest format side off the page and as large,
 // so nothing typed loses an element or overflows the document's numbers.
 const FIELD_RANGE = 2 * SLIDE_LIMITS.maxFormatSide;
-// The one error toast of a refused insert: a repeated press replaces it (#365).
-const INSERT_REFUSED_TOAST = "slide-editor-insert-refused";
-// The one error toast of text refused at input: a repeated key replaces it.
-const TEXT_REFUSED_TOAST = "slide-editor-text-refused";
-// The element clipboard's keys (`SUI-FEATURE-191`), on the canvas and named in its menu.
-const CUT_SHORTCUT = ["Ctrl+X", "Meta+X"] as const;
-const COPY_SHORTCUT = ["Ctrl+C", "Meta+C"] as const;
-const PASTE_SHORTCUT = ["Ctrl+V", "Meta+V"] as const;
-const DUPLICATE_SHORTCUT = ["Ctrl+D", "Meta+D"] as const;
-// How long a new entrance, exit or transition plays (ms); the most a duration or delay field takes
-// is `ANIMATION_MAX_MS`, shared with the preview.
-const ANIMATION_MS = 500;
 const EFFECTS = ["fade", "slide", "zoom"] as const;
 const DIRECTIONS = ["left", "right", "top", "bottom"] as const;
-const TRANSITIONS = ["none", "fade", "slide"] as const;
-
-// The document with an image's crop set; the same document when nothing changed.
-const withCrop = (document: SlideDocument, page: number, id: string, crop: ImageCrop) =>
-  updateElements(document, page, [id], (element) =>
-    element.type === "image" ? { ...element, crop } : element,
-  );
-
-// The document with a page's background set (`SUI-DESIGN-002` rev 10).
-const withBackground = (document: SlideDocument, pageId: string, background: ImageBackground) => ({
-  ...document,
-  pages: document.pages.map((one) => (one.id === pageId ? { ...one, background } : one)),
-});
-
-// The text a text field or a table cell holds; `undefined` for any other element or a cell not there.
-const bodyOf = (element: SlideElement, cell: CellAt | undefined): TextBody | undefined =>
-  element.type === "text" && cell === undefined
-    ? element
-    : element.type === "table" && cell !== undefined
-      ? element.rows[cell.row]?.[cell.column]
-      : undefined;
-
-// The element with the text of its field or cell changed.
-const withBody = (
-  element: SlideElement,
-  cell: CellAt | undefined,
-  change: (body: TextBody) => TextBody,
-): SlideElement =>
-  element.type === "text" && cell === undefined
-    ? { ...element, ...change(element) }
-    : element.type === "table" && cell !== undefined
-      ? setCell(element, cell.row, cell.column, (one) => ({ ...one, ...change(one) }))
-      : element;
 
 // Text being edited is drawn by its editable field only: on the canvas it keeps its place but no ink.
 // An inline icon takes its paragraph's colour, so it goes with it (`SUI-FEATURE-164`).
@@ -415,20 +352,6 @@ const inkless = (body: TextBody): TextBody => ({
 // The parts of an app that pass the schema, those past the structural limits left out before the
 // recursive parse: each element first passes the element schema with its preflight (Codex #389 CX1).
 const fitsLimits = (element: unknown) => slideElementSchema.safeParse(element).success;
-// Whether a field's new runs stay within `SLIDE_LIMITS` (runs, a run's text length, paragraphs): text typed or
-// pasted past them is refused at input, never first at Save (`SUI-FEATURE-114`). A field already past
-// a bound takes an edit that makes it no worse there, so deleting stays possible.
-// An inline run counts as one run and has no text of its own (`SUI-FEATURE-164`).
-const longest = (runs: readonly Run[]) =>
-  runs.reduce((most, run) => Math.max(most, run.inline === undefined ? run.text.length : 0), 0);
-const partsFit = (runs: readonly Run[], before: readonly Run[]) =>
-  (runs.length <= SLIDE_LIMITS.maxRuns || runs.length <= before.length) &&
-  (longest(runs) <= SLIDE_LIMITS.maxTextLength || longest(runs) <= longest(before));
-const paragraphsFit = (runs: readonly Run[], before: readonly Run[]) =>
-  paragraphCount(runs) <= SLIDE_LIMITS.maxParagraphs ||
-  paragraphCount(runs) <= paragraphCount(before);
-const runsFit = (runs: readonly Run[], before: readonly Run[]) =>
-  partsFit(runs, before) && paragraphsFit(runs, before);
 const validLayouts = (list: readonly SlideLayoutInput[] | undefined): SlideLayout[] =>
   (list ?? []).flatMap((one) => {
     if (!(one.elements ?? []).every(fitsLimits)) return [];
@@ -661,91 +584,47 @@ function AnimationFields({
   );
 }
 
-// The page's transition (`SUI-FEATURE-162` §Animationen): none, a cross-fade or a slide, with its
-// duration.
-function TransitionFields({
-  transition,
-  revision,
-  onTransition,
+// The selected element's entrance and exit in their own section (`SUI-FEATURE-234` §Felder), each a
+// step of the history; `titleId` names the section.
+function AnimationSection({
+  element,
+  titleId,
+  nextOrder,
+  ctx,
 }: {
-  transition: SlidePage["transition"];
-  revision: number;
-  onTransition: (transition: SlidePage["transition"], merge?: string) => void;
+  element: SlideElement;
+  titleId: string;
+  nextOrder: number;
+  ctx: FieldContext;
 }) {
   const { t } = useTranslation("suite");
-  // Per instance, so two mounted editors never share a field id (#566).
-  const id = React.useId();
   return (
-    <section className="flex flex-col gap-2" data-testid="slide-editor-transition">
-      <h3 className="text-base font-semibold">{t("slides.editor.transition")}</h3>
+    <section
+      className="flex flex-col gap-2"
+      aria-labelledby={titleId}
+      data-testid="slide-editor-animation"
+    >
+      <h3 id={titleId} className="text-base font-semibold">
+        {t("slides.editor.animation")}
+      </h3>
       <div className="flex flex-col gap-4">
-        <div className="grid grid-cols-2 gap-4" data-tooltip-row="">
-          <Field
-            label={t("slides.editor.transitionType")}
-            htmlFor={`${id}-type`}
-            hint={t("slides.editor.transitionTypeHint")}
-            valueHint={t("slides.editor.transitionTypeValueHint", {
-              none: t("slides.editor.transitionNone"),
-              fade: t("slides.editor.transitionFade"),
-              slide: t("slides.editor.transitionSlide"),
-              interpolation: { escapeValue: false },
-            })}
-          >
-            <Select
-              value={transition.type}
-              onValueChange={(type) =>
-                onTransition({
-                  type: type as SlidePage["transition"]["type"],
-                  duration:
-                    type === "none"
-                      ? 0
-                      : transition.duration === 0
-                        ? ANIMATION_MS
-                        : transition.duration,
-                })
-              }
-            >
-              <SelectTrigger
-                id={`${id}-type`}
-                aria-describedby={helpIdFor(`${id}-type`)}
-                fieldName={t("slides.editor.transitionType")}
-                className="w-full"
-                data-testid="slide-editor-transition-type"
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {TRANSITIONS.map((type) => (
-                  <SelectItem key={type} value={type}>
-                    {t(`slides.editor.transition${type[0]!.toUpperCase()}${type.slice(1)}`)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-          {transition.type === "none" ? null : (
-            <NumberField
-              id={`${id}-duration`}
-              label={t("slides.editor.animationDuration")}
-              hint={t("slides.editor.transitionDurationHint")}
-              valueHint={t("slides.editor.msValueHint")}
-              help={
-                transition.duration === 0 ? t("slides.editor.transitionZeroDuration") : undefined
-              }
-              value={transition.duration}
-              unit={t("slides.editor.ms")}
-              readOnly={false}
-              revision={revision}
-              onValue={(value) =>
-                onTransition(
-                  { ...transition, duration: clamp(Math.round(value), 0, ANIMATION_MAX_MS) },
-                  "transition:duration",
-                )
-              }
-              testId="slide-editor-transition-duration"
-            />
-          )}
-        </div>
+        {(["entrance", "exit"] as const).map((kind) => (
+          <AnimationFields
+            key={`${element.id}-${kind}`}
+            kind={kind}
+            step={element.animation?.[kind]}
+            nextOrder={nextOrder}
+            otherOrder={element.animation?.[kind === "exit" ? "entrance" : "exit"]?.order}
+            readOnly={element.locked}
+            revision={ctx.travels}
+            onStep={(step, merge) =>
+              ctx.apply(
+                (current) => setAnimation(current, ctx.page, element.id, kind, step),
+                merge === undefined ? undefined : `${element.id}:${merge}`,
+              )
+            }
+          />
+        ))}
       </div>
     </section>
   );
@@ -759,20 +638,6 @@ function TransitionFields({
 // panel. Every change of the document is a step of the history (`useSlideHistory`); Save hands the
 // validated document to the app, and leaving with a draft asks first (`GL-UI-007`). `Esc` goes from
 // the inside out: a child's group, no selection, an open drawer, then leaving.
-// An image's crop clamped to the area it refers to, as the view draws it (`SUI-FEATURE-230` rev 5),
-// within the reach of the image's proportions; while they are not known (`null`), its shift as
-// stored (`SUI-FEATURE-280`).
-function shownCrop(
-  image: Extract<SlideElement, { type: "image" }>,
-  natural: ImageSize | null | undefined,
-): ImageCrop {
-  const { width, height } = cropArea(image);
-  return clampCrop(width, height, image.crop, natural);
-}
-
-const sameCrop = (a: ImageCrop, b: ImageCrop) =>
-  a.zoom === b.zoom && a.offsetX === b.offsetX && a.offsetY === b.offsetY;
-
 export function SlideEditor({
   document: source,
   title,
@@ -1053,64 +918,41 @@ function Editor({
   const [hovered, setHovered] = React.useState<string | undefined>(undefined);
   const [drag, setDrag] = React.useState<Drag | undefined>(undefined);
   const [preview, setPreview] = React.useState<SlideDocument | undefined>(undefined);
-  // The crop mode of an image (`SUI-FEATURE-162`): its crop as it is being set, shown on the canvas
-  // and taken into the document only with Enter.
-  // It holds the selection it began with: any other selection ends it.
-  // What ending a crop said ("applied", "cancelled"), announced while its selection stands.
-  const [cropNote, setCropNote] = React.useState<
-    { text: string; selection: readonly string[] } | undefined
-  >(undefined);
-  const [cropState, setCropping] = React.useState<
-    { id: string; crop: ImageCrop; selection: readonly string[] } | undefined
-  >(undefined);
-  // The medium of the dimmed crop rest that did not load: no rest for it.
-  const [brokenCropSrc, setBrokenCropSrc] = React.useState<string | undefined>(undefined);
-  // The natural size of the medium being cropped, taken from the canvas's image as cropping starts or
-  // from the dimmed rest once it loads: the crop's reach follows the image's proportions
-  // (`SUI-FEATURE-280`).
-  const [loadedCropSrc, setLoadedCropSrc] = React.useState<
-    { src: string; size: ImageSize } | undefined
-  >(undefined);
-  // The size the crop functions take: `null` while it is not known (nothing clamped), none for a
-  // medium that did not load (the area's own proportions, as before).
-  const naturalSize = (image: Extract<SlideElement, { type: "image" }>) => {
-    const src = view.resolveMedia?.(image.media.id);
-    if (src === undefined || src === brokenCropSrc) return undefined;
-    return loadedCropSrc?.src === src ? loadedCropSrc.size : null;
-  };
-  // The crop zoom % field's run (see `cropZoomRevision`): a count of the crop changes made elsewhere
-  // and the crop the field set last.
-  const [cropZoomRun, setCropZoomRun] = React.useState<{ count: number; crop?: ImageCrop }>({
-    count: 0,
-  });
-  // The crop the % field set in this event, over the crop it changed: leaving the field applies its
-  // clamped zoom, and when the same blur ends cropping, the crop fields hand it to `endCrop` before it
-  // renders (#495).
-  const cropByField = React.useRef<{ before: ImageCrop; crop: ImageCrop } | undefined>(undefined);
-  // Text editing on the canvas (`SUI-FEATURE-161` §Text): the text field or table cell being
-  // edited, while the selection it began with stands, and the range of its text the panel's format
-  // applies to. Each editing is a session of its own: what is typed in it folds into one step.
-  const [editState, setEditing] = React.useState<
-    | { id: string; cell: CellAt | undefined; selection: readonly string[]; session: number }
-    | undefined
-  >(undefined);
-  const [textRange, setTextRange] = React.useState<TextRange | undefined>(undefined);
-  // Counts the times the field being edited takes the focus back (an inline run put in from the
-  // library, `SUI-FEATURE-164`).
-  const [fieldFocus, setFieldFocus] = React.useState(0);
-  const sessions = React.useRef(0);
-  // The selected table's current cell (`SUI-FEATURE-161` §Tabellen), set by a click into it.
-  const [tableCell, setTableCell] = React.useState<{ id: string; cell: CellAt } | undefined>(
-    undefined,
-  );
+  // The crop mode of an image (`SUI-FEATURE-162`), its state in `slide-editor-crop-internal`: it holds
+  // the selection it began with, and any other selection ends it.
+  const frame = React.useRef<HTMLDivElement>(null);
+  const {
+    cropNote,
+    setCropNote,
+    cropState,
+    setCropping,
+    brokenCropSrc,
+    setBrokenCropSrc,
+    loadedCropSrc,
+    setLoadedCropSrc,
+    naturalSize,
+    cropZoomRun,
+    setCropZoomRun,
+    cropByFieldRef,
+    cropFrom,
+  } = useCropState(view.resolveMedia, frame);
+  // Text editing on the canvas (`SUI-FEATURE-161` §Text), its state in `slide-editor-text-state-internal`.
+  const {
+    editState,
+    setEditing,
+    textRange,
+    setTextRange,
+    fieldFocus,
+    setFieldFocus,
+    nextSession,
+    tableCell,
+    setTableCell,
+  } = useTextEditState();
   // The guides, in the frame of the turned groups they are drawn turned with.
   const [guides, setGuides] = React.useState<Guides>({});
   // A group's size typed beyond what its turned children reach (`SUI-FEATURE-190`): the size set
   // instead and which end it is, named at the field while the group keeps that size.
-  const [sizeLimit, setSizeLimit] = React.useState<
-    | { id: string; key: "width" | "height"; limit: number; edge: "min" | "max"; revision: number }
-    | undefined
-  >(undefined);
+  const [sizeLimit, setSizeLimit] = React.useState<SizeLimit | undefined>(undefined);
   // An icon's stroke width typed out of range (`SUI-FEATURE-166`): not taken, named at the field
   // until the selection or the history changes.
   const [strokeOut, setStrokeOut] = React.useState<
@@ -1317,118 +1159,60 @@ function Editor({
   };
   // Undo and redo show the page their step changed. While cropping, the crop being set is the newest
   // change: Undo takes it back (cropping ends, the image as it was), Redo has nothing to redo.
-  const travel = (step: "undo" | "redo") => {
-    // Under `readOnly` the history keeps its host steps, but no Undo or Redo reaches the host (#798).
-    if (readOnly) return;
-    // A step taken back or done again is no longer what the last crop said, nor what a number field
-    // holds typed.
-    setCropNote(undefined);
-    setTravels((count) => count + 1);
-    if (cropping !== undefined) {
-      if (step === "undo") {
-        setCropping(undefined);
-        setCropNote({ text: t("slides.editor.cropCancelled"), selection });
-      }
-      return;
-    }
-    const target = step === "undo" ? history.undoPage : history.redoPage;
-    // A step that adds or takes away rows or columns of the table whose cell is being edited moves
-    // that cell: editing ends (#740).
-    const to = step === "undo" ? history.undoDocument : history.redoDocument;
-    if (editing?.cell !== undefined && edited?.type === "table" && to !== undefined) {
-      const next = findElement(to.pages[page]?.elements ?? [], edited.id)?.element;
-      if (
-        next?.type !== "table" ||
-        next.rows.length !== edited.rows.length ||
-        next.columnWidths.length !== edited.columnWidths.length
-      )
-        leaveCell();
-    }
-    const hostStep = step === "undo" ? history.undoHost : history.redoHost;
-    if (step === "undo") history.undo();
-    else history.redo();
-    hostStep?.[step]();
-    if (target !== undefined && target !== page) {
-      setPage(target);
-      setSelection([]);
-    } else if (hostStep?.reveal === "page-panel") setSelection([]);
-  };
+  const travel = (step: "undo" | "redo") =>
+    travelStep(
+      {
+        t,
+        readOnly,
+        history,
+        page,
+        selection,
+        cropping,
+        editing,
+        edited,
+        setCropNote,
+        setTravels,
+        setCropping,
+        leaveCell,
+        setPage,
+        setSelection,
+      },
+      step,
+    );
 
   // Save and the leave question (`GL-UI-007`). A draft the schema refuses is not handed on; the rule
   // of its first issue is named under the header in plain words, never its code or path (#586).
-  const save = async () => {
-    if (readOnly) return;
-    setSaveRejected(false);
-    // A crop being set is part of what is saved: kept first, as Enter does (#349).
-    let current = history.document;
-    if (cropping !== undefined) {
-      const image = findElement(elements, cropping.id)?.element;
-      if (image !== undefined) {
-        const { width, height } = cropArea(image);
-        const crop = clampCrop(width, height, cropping.crop, cropNatural);
-        const next =
-          storedCrop !== undefined && sameCrop(crop, storedCrop)
-            ? current
-            : withCrop(current, page, cropping.id, crop);
-        if (next !== current) apply(() => next);
-        current = next;
-      }
-      setCropping(undefined);
-    }
-    const result = safeParseSlideDocument(current);
-    if (!result.ok) {
-      setSaveError(result.error.issues[0]?.code ?? "invalid-value");
-      return false;
-    }
-    setSaveError(undefined);
-    setSaveFailed(false);
-    setResetFailed(false);
-    setSaving(true);
-    let succeeded = false;
-    try {
-      const ok = await onSave(result.document);
-      // Only `true` is success (`GL-UI-007`); anything else keeps the draft.
-      if (ok !== true) return false;
-      setSaved(current);
-      succeeded = true;
-      return true;
-    } catch {
-      // A rejection is a failed save, never an unhandled rejection; unlike `false` the host's own
-      // handling did not run, so the editor says so, without the exception's text (#584).
-      setSaveRejected(true);
-      return false;
-    } finally {
-      // In the same update that ends `saving`, so the guard reads the result with it.
-      setSaveFailed(!succeeded);
-      setSaving(false);
-    }
-  };
+  const save = () =>
+    saveDraft({
+      readOnly,
+      document: history.document,
+      page,
+      elements,
+      cropping,
+      cropNatural,
+      storedCrop,
+      apply,
+      setCropping,
+      setSaveRejected,
+      setSaveError,
+      setSaveFailed,
+      setResetFailed,
+      setSaving,
+      setSaved,
+      onSave,
+    });
   // The app's other formats, and a transfer into one: a copy of the page shown or of all pages as a
   // new document for the app; this document and its draft stay as they are (`SUI-FEATURE-231`).
-  const otherFormats = (formats ?? []).filter(
-    (format) =>
-      format.width !== history.document.format.width ||
-      format.height !== history.document.format.height ||
-      format.name !== history.document.format.name,
-  );
-  // The outcome is a toast (`GL-UI-033`), announced by the toaster itself; a copy that fails the
-  // schema is named as an error, never dropped silently.
-  const transfer = (format: SlideFormat, scope: TransferScope) => {
-    const made = transferFormat(history.document, format, scope === "page" ? page : undefined);
-    const copy = safeParseSlideDocument(made.document);
-    const values = { format: format.name, interpolation: { escapeValue: false } };
-    if (!copy.ok) {
-      toast.error(t("slides.editor.transferFailed", values));
-      return;
-    }
-    onTransfer?.(copy.document, { overflowIds: made.overflowIds });
-    const count = made.overflowIds.length;
-    const text =
-      count === 0
-        ? t("slides.editor.transferred", values)
-        : t("slides.editor.transferredOverflow", { ...values, count });
-    toast.success(text);
-  };
+  const otherFormats = otherFormatsOf(formats, history.document.format);
+  // The outcome is a toast (`GL-UI-033`); a copy that fails the schema is named as an error.
+  const transfer = (format: SlideFormat, scope: TransferScope) =>
+    transferCopy({
+      t,
+      document: history.document,
+      format,
+      page: scope === "page" ? page : undefined,
+      onTransfer,
+    });
 
   // The element library's entry put on the page (`SUI-FEATURE-232`): at the page's centre, or centred
   // on the point it was dropped at; selected, and announced while it stays selected.
@@ -1437,173 +1221,38 @@ function Editor({
   >(undefined);
   // The search term of the library, kept while its drawer is closed.
   const [libraryTerm, setLibraryTerm] = React.useState("");
-  // The app's own types with a library entry and its blocks (`SUI-FEATURE-163`); one whose element
-  // breaks the schema (an over-long type id, a bad size, groups nested too deep) is left out. A block without a name of its
-  // own takes its label, so what was picked stays recognisable in the layers and the path.
-  const appEntries = React.useMemo((): AppLibraryEntry[] => {
-    const types = Object.entries(view.extensions?.types ?? {}).flatMap(([typeId, type]) => {
-      if (type.library === undefined) return [];
-      const size = type.defaultSize ?? { width: 1, height: 1 };
-      const probe = {
-        id: "probe",
-        type: "custom",
-        typeId,
-        x: 0,
-        y: 0,
-        ...size,
-        payload: type.library.payload,
-      };
-      return slideElementSchema.safeParse(probe).success
-        ? [
-            {
-              entry: {
-                kind: "custom" as const,
-                typeId,
-                size: type.defaultSize,
-                payload: type.library.payload,
-              },
-              label: type.label,
-            },
-          ]
-        : [];
-    });
-    const blocks = (view.extensions?.library ?? []).flatMap((block) => {
-      const parsed = slideElementSchema.safeParse(block.element);
-      if (!parsed.success) return [];
-      const element = parsed.data.name
-        ? parsed.data
-        : { ...parsed.data, name: block.label.slice(0, SLIDE_LIMITS.maxLabelLength) };
-      return [{ entry: { kind: "block" as const, id: block.id, element }, label: block.label }];
-    });
-    return [...types, ...blocks];
-  }, [view.extensions]);
-  // What people read for an entry: a shape's kind, an icon's name, a medium's alt text, an app entry's
-  // label.
-  const entryLabel = (entry: LibraryEntry): string =>
-    entry.kind === "custom" || entry.kind === "block"
-      ? (appEntries.find((one) => one.entry === entry)?.label ?? t("slides.editor.type.custom"))
-      : entry.kind === "icon"
-        ? iconLabel(entry.icon)
-        : entry.kind === "image"
-          ? entry.alt || t("slides.editor.type.image")
-          : entry.kind === "chart"
-            ? entry.name
-            : entry.kind === "text" || entry.kind === "table"
-              ? t(
-                  entry.kind === "text"
-                    ? "slides.editor.libraryText"
-                    : "slides.editor.libraryTable",
-                )
-              : t(
-                  `slides.editor.library${entry.kind === "line" ? "Line" : entry.shape[0]!.toUpperCase() + entry.shape.slice(1)}`,
-                );
-  // A new element's colour stands out on the page's own background (`GL-UX-001`, 3 : 1).
-  const ground = (() => {
-    const background = pageData?.background;
-    const value =
-      background?.type === "color"
-        ? background.color
-        : background?.type === "gradient"
-          ? background.stops[0]?.color
-          : undefined;
-    return (value === undefined ? undefined : cssColor(value, view.brand)) ?? "#ffffff";
-  })();
-  // An insert the document refuses is named in an error toast and nothing changes: a page at its
-  // element limit (Codex #362 CX1) says so, any other broken rule gets the generic error. The toast
-  // has one id, so repeated presses replace it rather than stack (#365). `count` picks the singular
-  // or plural form of keys that have both (#540): for the limit, the elements in groups counted.
-  const insertFits = (
-    next: SlideDocument,
-    {
-      refused = "slides.editor.insertRefused",
-      failed = "slides.editor.insertFailed",
-      count,
-    }: { refused?: string; failed?: string; count?: { refused: number; failed: number } } = {},
-  ) => {
-    const result = safeParseSlideDocument(next);
-    if (result.ok) return true;
-    const full = result.error.issues.some((issue) => issue.code === "too-many-elements");
-    toast.error(
-      t(
-        full ? refused : failed,
-        count === undefined ? {} : { count: full ? count.refused : count.failed },
-      ),
-      {
-        id: INSERT_REFUSED_TOAST,
-      },
-    );
-    return false;
-  };
-  // With a caret in the text being edited, an icon or a medium from the library goes into the text at
-  // the caret as an inline run, never a new element (`SUI-FEATURE-164`): past the run limit it is
-  // refused with its own hint, `inlineRefused` (`SUI-FEATURE-114`), a medium the schema refuses is named as a medium.
-  // The field takes the focus back with its caret after the new run. `false`: nothing being edited.
-  const insertInline = (entry: LibraryEntry): boolean => {
-    if (entry.kind !== "icon" && entry.kind !== "image") return false;
-    if (editing === undefined || edited === undefined || textRange === undefined) return false;
-    const body = bodyOf(edited, editing.cell);
-    if (body === undefined) return false;
-    const run: Run =
-      entry.kind === "icon"
-        ? { inline: "icon", icon: entry.icon, height: 1 }
-        : { inline: "media", media: { id: entry.media }, alt: entry.alt, height: 1 };
-    const runs = insertRuns(body.runs, textRange.start, textRange.end, [run]);
-    if (!runsFit(runs, body.runs)) {
-      toast.error(t("slides.editor.inlineRefused"), { id: TEXT_REFUSED_TOAST });
-      return true;
-    }
-    if (
-      !slideElementSchema.safeParse(withBody(edited, editing.cell, (one) => ({ ...one, runs })))
-        .success
-    ) {
-      toast.error(t("slides.editor.libraryMediaInvalid"), { id: INSERT_REFUSED_TOAST });
-      return true;
-    }
-    const caret = Math.min(textRange.start, textRange.end) + 1;
-    setTextRange({ start: caret, end: caret });
-    changeBody(editing.id, editing.cell, (one) => ({ ...one, runs }));
-    setFieldFocus((count) => count + 1);
-    return true;
-  };
-  // Put on the page of the document as it is when it lands (a picked medium arrives later). The
-  // element must pass the schema first: a medium it refuses (its id or alt text past their limits)
-  // is named as a medium, any other element by the generic error. Then the focus goes to the new
-  // element on the canvas; the drawer stays open (`SUI-FEATURE-232` rev 3).
-  // Dropped on an open placeholder (`into`), the element becomes its content: its box, turn and role
-  // (`SUI-FEATURE-192`); a block keeps its own box.
+  const appEntries = React.useMemo(() => appLibraryEntries(view.extensions), [view.extensions]);
+  const entryLabel = (entry: LibraryEntry) => entryLabelOf(entry, appEntries, t);
+  const insertFits = (next: SlideDocument, options?: Parameters<typeof insertFitsWith>[2]) =>
+    insertFitsWith(t, next, options);
+  // What a library insert reads and changes (`slide-editor-insert-internal`), read when it runs.
+  const insertContext = () => ({
+    t,
+    document: history.document,
+    page,
+    pageWidth,
+    pageHeight,
+    brand: view.brand,
+    // A new element's colour stands out on the page's own background (`GL-UX-001`, 3 : 1).
+    ground: pageGround(pageData?.background, view.brand),
+    editing,
+    edited,
+    textRange,
+    setTextRange,
+    changeBody,
+    setFieldFocus,
+    apply,
+    canvasRef: canvas,
+    setSelection,
+    setInsertNote,
+    entryLabel,
+  });
   const insertEntry = (
     entry: LibraryEntry,
     at?: Point,
-    label = entryLabel(entry),
+    label?: string,
     into?: OpenPlaceholder,
-  ): void => {
-    if (at === undefined && into === undefined && insertInline(entry)) return;
-    const point = at ?? { x: pageWidth / 2, y: pageHeight / 2 };
-    const color = insertColor(view.brand, ground);
-    const made = libraryElement(history.document, page, entry, point, color);
-    const element =
-      into === undefined || made.type === "group" ? made : intoPlaceholder(made, into);
-    if (!slideElementSchema.safeParse(element).success) {
-      toast.error(
-        t(
-          entry.kind === "image"
-            ? "slides.editor.libraryMediaInvalid"
-            : "slides.editor.insertFailed",
-        ),
-        { id: INSERT_REFUSED_TOAST },
-      );
-      return;
-    }
-    if (!insertFits(insertElement(history.document, page, element))) return;
-    apply((current) => insertElement(current, page, element));
-    canvas.current?.focus();
-    const ids = [element.id];
-    setSelection(ids);
-    setInsertNote({
-      text: t("slides.editor.inserted", { name: label, interpolation: { escapeValue: false } }),
-      selection: ids,
-    });
-  };
+  ): void => insertLibraryEntry(insertContext(), entry, { at, label, into });
   // A library entry dragged onto the canvas lands centred under the pointer; anything else dropped
   // (not an entry of the library) is left alone.
   const onLibraryDrop = (event: React.DragEvent) => {
@@ -1639,60 +1288,13 @@ function Editor({
   // resets in the same call as before.
   // While the host's promise runs the editor locks as for the guard's `pending`, and a further Reset
   // or Discard calls nothing; once it settles it resets to the saved state of that moment.
-  const savedRef = React.useRef(saved);
-  React.useEffect(() => {
-    savedRef.current = saved;
+  const { reset, resetting, resetFailed, setResetFailed } = useHostReset({
+    saved,
+    onReset: host.onReset,
+    history,
+    setCropping,
+    setSaveFailed,
   });
-  const resettingRef = React.useRef(false);
-  const [resetting, setResetting] = React.useState(false);
-  // The waiting reset failed: a way out held meanwhile is then dropped, as after a failed save (#858).
-  const [resetFailed, setResetFailed] = React.useState(false);
-  const reset = () => {
-    if (resettingRef.current) return false;
-    const done = (result: void | boolean) => {
-      if (result === false) return false;
-      setCropping(undefined);
-      history.reset(savedRef.current);
-      return true;
-    };
-    // A throw is a failure, as a rejection is: nothing changes. Only a thenable is awaited; any other
-    // value (a JS host's `null` included) counts as a synchronous one (#858).
-    let result: unknown;
-    try {
-      result = host.onReset?.();
-    } catch {
-      return false;
-    }
-    if (typeof (result as { then?: unknown } | null)?.then !== "function") {
-      return done(result as void | boolean);
-    }
-    resettingRef.current = true;
-    // The guard reads the outcome of the operation that just ended: an earlier failed save does not
-    // drop Back held during this reset (#859).
-    setSaveFailed(false);
-    setResetting(true);
-    // The reset document and the end of `resetting` come in one update, so the guard reads the
-    // new draft as the reset's own, not as an edit that takes a held way out back.
-    let ok = false;
-    const end = () => {
-      resettingRef.current = false;
-      setResetFailed(!ok);
-      setResetting(false);
-    };
-    return Promise.resolve(result as PromiseLike<void | boolean>).then(
-      (value) => {
-        try {
-          return (ok = done(value));
-        } finally {
-          end();
-        }
-      },
-      () => {
-        end();
-        return false;
-      },
-    );
-  };
   // The header's pair follows the guard's one dirty state, field drafts on the page included
   // (`SUI-FEATURE-118` rev 8).
   // `pending`: the guard's `onSave`/`onReset` still runs; the head works and the editing area takes no
@@ -1757,25 +1359,6 @@ function Editor({
   });
   const headerDirty = styleDirty ? dirty || fieldDrafts : guardDirty;
 
-  const frame = React.useRef<HTMLDivElement>(null);
-  // Cropping an image starts from the size its view on the canvas has already loaded, so the first
-  // shift is clamped to the image's own reach (`SUI-FEATURE-280`).
-  const cropFrom = (image: Extract<SlideElement, { type: "image" }>): ImageCrop => {
-    const src = view.resolveMedia?.(image.media.id);
-    const drawn = [
-      ...(frame.current?.querySelectorAll<HTMLImageElement>("[data-slide-element] img") ?? []),
-    ].find(
-      (node) =>
-        node.closest("[data-slide-element]")?.getAttribute("data-slide-element") === image.id &&
-        node.getAttribute("src") === src,
-    );
-    if (src === undefined || drawn === undefined || !drawn.complete || drawn.naturalWidth === 0) {
-      return shownCrop(image, naturalSize(image));
-    }
-    const size = { width: drawn.naturalWidth, height: drawn.naturalHeight };
-    setLoadedCropSrc({ src, size });
-    return shownCrop(image, src === brokenCropSrc ? undefined : size);
-  };
   const canvas = React.useRef<HTMLDivElement>(null);
   // A delete down to the one page under a cap of 1 takes the page list away with its confirm dialog,
   // whose focus would fall to the body: the canvas takes it, after the dialog's own focus return.
@@ -1849,7 +1432,7 @@ function Editor({
     };
     node.addEventListener("wheel", onWheel, { passive: false });
     return () => node.removeEventListener("wheel", onWheel);
-  }, [croppedWidth, croppedHeight, naturalWidth, naturalHeight, naturalUnknown]);
+  }, [croppedWidth, croppedHeight, naturalWidth, naturalHeight, naturalUnknown, setCropping]);
   const toPage = (event: { clientX: number; clientY: number }): Point => {
     const rect = frame.current?.getBoundingClientRect();
     return {
@@ -1955,31 +1538,15 @@ function Editor({
     cropSrc === undefined ||
     cropSrc === brokenCropSrc
       ? undefined
-      : (() => {
-          const { width, height } = cropWhole.box;
-          const shown = mirroredCrop(
-            cropping.crop,
-            croppedImage.flipped,
-            croppedImage.flippedVertical,
-          );
-          const left = (width - cropFrame.width) / 2 - shown.offsetX - cropBorder;
-          const top = (height - cropFrame.height) / 2 - shown.offsetY - cropBorder;
-          const [x0, y0] = [left * zoom, top * zoom];
-          const [x1, y1] = [(left + croppedImage.width) * zoom, (top + croppedImage.height) * zoom];
-          const r =
-            Math.min(croppedImage.cornerRadius, croppedImage.width / 2, croppedImage.height / 2) *
-            zoom;
-          const arc = (x: number, y: number) => `A ${r} ${r} 0 0 1 ${x} ${y}`;
-          const outer = `M 0 0 H ${width * zoom} V ${height * zoom} H 0 Z`;
-          const hole = `M ${x0 + r} ${y0} H ${x1 - r} ${arc(x1, y0 + r)} V ${y1 - r} ${arc(x1 - r, y1)} H ${x0 + r} ${arc(x0, y1 - r)} V ${y0 + r} ${arc(x0 + r, y0)} Z`;
-          return {
-            whole: cropWhole,
-            src: cropSrc,
-            flipped: croppedImage.flipped,
-            flippedVertical: croppedImage.flippedVertical,
-            clip: `path(evenodd, "${outer} ${hole}")`,
-          };
-        })();
+      : cropRestOf({
+          whole: cropWhole,
+          frame: cropFrame,
+          crop: cropping.crop,
+          image: croppedImage,
+          src: cropSrc,
+          border: cropBorder,
+          zoom,
+        });
   // Where the dimmed rest may show, around the page: the canvas area's content with its padding,
   // in the page's px at the canvas zoom; the page stands centred in it (`SUI-FEATURE-230` rev 4).
   // An overlay's bleed shown moves the page in by that room (`frameMargin`).
@@ -2013,33 +1580,12 @@ function Editor({
   const placeholderAt = (point: Point) =>
     [...placeholders].reverse().find((one) => containsPoint(one.box, one.rotation, point));
   const fillWithText = (open: OpenPlaceholder) => {
-    const id = uniqueId(history.document, "text");
-    const made: SlideElement = {
-      id,
-      type: "text",
-      x: 0,
-      y: 0,
-      width: 0,
-      height: 0,
-      rotation: 0,
-      layer: elements.reduce((top, element) => Math.max(top, element.layer), 0),
-      locked: false,
-      deletable: true,
-      hidden: false,
-      opacity: 100,
-      runs: [roleTextRun(open.placeholder.role, pageWidth, pageHeight)],
-      align: "left",
-      lineHeight: 1.2,
-      list: "none",
-      verticalAlign: "top",
-      sizing: "fixed",
-    };
-    const element = intoPlaceholder(made, open);
+    const element = placeholderText(history.document, elements, open, pageWidth, pageHeight);
     const next = insertElement(history.document, page, element);
     // No other element to choose here, so the generic error's advice does not apply (#446).
     if (!insertFits(next, { failed: "slides.editor.placeholderFillFailed" })) return;
     apply(() => next);
-    startEditing(id);
+    startEditing(element.id);
   };
   // Any other way out of cropping — another selection, another page — keeps the crop, as Enter does;
   // only Esc, Cancel and Undo drop it (#349). No selection holds a group together with its own
@@ -2102,8 +1648,7 @@ function Editor({
     const ids = [id];
     setSelection(ids);
     if (cell !== undefined) setTableCell({ id, cell });
-    sessions.current += 1;
-    setEditing({ id, cell, selection: ids, session: sessions.current });
+    setEditing({ id, cell, selection: ids, session: nextSession() });
     // The text's format is on the Content tab: editing shows it.
     setBuiltInTab("content");
     setTextRange(undefined);
@@ -2176,7 +1721,7 @@ function Editor({
     cropping,
     cropWhole,
     cropNatural,
-    cropByField,
+    cropByField: cropByFieldRef,
     editing: editing !== undefined,
     document: history.document,
     page,
@@ -2257,26 +1802,7 @@ function Editor({
   // The app's picker: a cancel inserts nothing; a picker that fails, or a medium the page cannot
   // take, is named in an error toast with what to do next.
   const pickFromMedia =
-    pickMedia === undefined
-      ? undefined
-      : () => {
-          pickMedia({ purpose: "insert" }).then(
-            (picked) => {
-              if (picked === undefined) return;
-              const aspect =
-                picked.width !== undefined && picked.height !== undefined && picked.height > 0
-                  ? picked.width / picked.height
-                  : Number.NaN;
-              latestInsert.current({
-                kind: "image",
-                media: picked.id,
-                alt: picked.alt ?? "",
-                aspect,
-              });
-            },
-            () => toast.error(t("slides.editor.libraryMediaFailed")),
-          );
-        };
+    pickMedia === undefined ? undefined : () => pickToInsert(pickMedia, latestInsert, t);
   // "Change image" of the page's background image (`SUI-DESIGN-002` rev 10, `GL-UI-035`): another
   // medium resets the crop and the flip; a cancel changes nothing, a failing picker or a medium the
   // page cannot take is named as the Add drawer's is. The page is the one shown as the picker opens,
@@ -2358,60 +1884,14 @@ function Editor({
     if (event.key !== "Escape") return;
     event.preventDefault();
     canvas.current?.focus();
-    cropByField.current = undefined;
+    cropByFieldRef.current = undefined;
     endCrop(false);
   };
+  // How the crop bar and the crop fields end cropping (`slide-editor-crop-fields-internal`).
+  const cropEnd = { canvasRef: canvas, endCrop, keepCropOnLeave, dropCropOnEscape };
   const cropBar =
     cropping === undefined ? undefined : (
-      <div
-        className="flex min-w-0 flex-wrap items-center justify-end gap-1"
-        data-crop-bar=""
-        onBlur={keepCropOnLeave}
-        // Esc on a button of the bar drops the crop too, before the overlay's own `Esc`.
-        onKeyDown={dropCropOnEscape}
-      >
-        {/* Narrower than the bar's room, the hint ends in "…" and shows itself whole on hover; on a
-            narrow canvas it is left out (the canvas's description still says it, #349). */}
-        {areaSize.width < CROP_HINT_ROOM ? null : (
-          <OverflowTooltip>
-            <span
-              className="min-w-0 truncate px-1 text-sm text-muted-foreground"
-              data-testid="slide-editor-crop-hint"
-            >
-              {t("slides.editor.cropHint")}
-            </span>
-          </OverflowTooltip>
-        )}
-        <Hint text={t("slides.editor.cropCancelHint")}>
-          <Button
-            size="sm"
-            variant="outline"
-            // The canvas keeps the focus (a press elsewhere would move it).
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={() => {
-              endCrop(false);
-              canvas.current?.focus();
-            }}
-            data-testid="slide-editor-crop-cancel"
-          >
-            {t("slides.editor.cropCancel")}
-          </Button>
-        </Hint>
-        <Hint text={t("slides.editor.cropApplyHint")}>
-          <Button
-            variant="default"
-            size="sm"
-            onMouseDown={(event) => event.preventDefault()}
-            onClick={() => {
-              endCrop(true);
-              canvas.current?.focus();
-            }}
-            data-testid="slide-editor-crop-apply"
-          >
-            {t("slides.editor.cropApply")}
-          </Button>
-        </Hint>
-      </div>
+      <CropBar hintShown={areaSize.width >= CROP_HINT_ROOM} ctx={cropEnd} />
     );
 
   // The canvas's keys (`editorKeyDown`), reading the state as it is when pressed.
@@ -2567,58 +2047,7 @@ function Editor({
         onChange={(payload) => changePayload(single.id, () => payload, `payload:${single.id}`)}
       />
     );
-  const addOnFields =
-    single === undefined || single.type === "custom"
-      ? []
-      : (view.extensions?.addOns ?? []).flatMap((addOn) => {
-          if (addOn.type !== single.type || addOn.fields === undefined) return [];
-          // The add-on's type is the element's (checked above).
-          const Fields = addOn.fields as (props: {
-            element: SlideElement;
-            value: unknown;
-            onChange: (value: unknown) => void;
-            readOnly: boolean;
-            lockedReason: string | undefined;
-          }) => React.ReactNode;
-          const payload = single.payload;
-          return [
-            // Fields that render nothing leave no heading behind.
-            <section
-              key={addOn.id}
-              className="flex flex-col gap-2 has-[>div:empty]:hidden"
-              data-testid={`slide-editor-add-on-${addOn.id}`}
-            >
-              {addOn.label === undefined ? null : (
-                <h3 className="text-base font-semibold">{addOn.label}</h3>
-              )}
-              <div className="flex flex-col gap-4">
-                <Fields
-                  key={single.id}
-                  element={single}
-                  value={
-                    payload !== undefined && Object.hasOwn(payload, addOn.id)
-                      ? payload[addOn.id]
-                      : undefined
-                  }
-                  readOnly={single.locked}
-                  lockedReason={lockedReason}
-                  onChange={(value) =>
-                    changePayload(
-                      single.id,
-                      (old) => {
-                        const next = { ...old };
-                        if (value === undefined) delete next[addOn.id];
-                        else next[addOn.id] = value;
-                        return next;
-                      },
-                      `addOn:${single.id}:${addOn.id}`,
-                    )
-                  }
-                />
-              </div>
-            </section>,
-          ];
-        });
+  const addOns = addOnsWithFields(single, view.extensions?.addOns);
   // A dead key or an IME composing in the field being edited (GL-UI-039 rev 2, #736): the panel's
   // formats and table rows and columns, whose buttons leave the focus in the field, do nothing until `compositionend` (or the blur
   // that takes the composed text in), so the field is not redrawn while composing.
@@ -2637,243 +2066,51 @@ function Editor({
     editing.cell?.column === textCell?.column
       ? textRange
       : undefined;
+  // What the property fields read and change with (`slide-editor-fields-internal`).
+  const fieldContext = { page, travels, fieldId, apply };
+  // What the text fields read and change with (`slide-editor-text-fields-internal`).
+  const textFieldContext = {
+    ...fieldContext,
+    brand: view.brand,
+    composingRef: composingText,
+    changeBody,
+  };
   const textFields =
     single === undefined || textBody === undefined ? null : (
-      <TextFormatFields
-        testIdPrefix="slide-editor-text"
+      <TextFields
+        element={single}
         body={textBody}
+        cell={textCell}
         range={formatRangeOf}
-        // The element, cell and range the format is of: the colour field's entry belongs to them.
-        target={[
-          single.id,
-          textCell?.row,
-          textCell?.column,
-          formatRangeOf?.start,
-          formatRangeOf?.end,
-        ].join(":")}
-        brand={view.brand}
-        readOnly={single.locked}
-        revision={travels}
-        onFormat={(patch, merge) => {
-          if (composingText.current) return;
-          // A format that splits the runs past a limit is refused like text (`SUI-FEATURE-114`).
-          const span = formatSpan(textBody, formatRangeOf);
-          const runs = formatRange(textBody.runs, span.start, span.end, patch);
-          if (!runsFit(runs, textBody.runs)) {
-            toast.error(t("slides.editor.formatRefused"), { id: TEXT_REFUSED_TOAST });
-            return;
-          }
-          changeBody(
-            single.id,
-            textCell,
-            (one) => ({ ...one, runs }),
-            merge === undefined ? undefined : `format:${single.id}:${merge}`,
-          );
-        }}
-        onBody={(patch) => {
-          if (!composingText.current)
-            changeBody(single.id, textCell, (one) => ({ ...one, ...patch }));
-        }}
-        onInline={(index, patch, merge) =>
-          changeBody(
-            single.id,
-            textCell,
-            (one) => ({
-              ...one,
-              runs: one.runs.map((run, at) =>
-                at === index && run.inline !== undefined ? { ...run, ...patch } : run,
-              ),
-            }),
-            `inline:${single.id}:${index}:${merge}`,
-          )
-        }
+        ctx={textFieldContext}
       />
     );
-  // A numbered text field's list properties (`SUI-FEATURE-124` §Editor), one history step per field.
   const numberedFields =
     single?.type !== "text" || single.list !== "numbered" ? null : (
-      <NumberedListFields
-        key={single.id}
-        numbered={single.numbered}
-        brand={view.brand}
-        readOnly={single.locked}
-        revision={travels}
-        onNumbered={(next, merge) =>
-          apply(
-            (current) =>
-              updateElements(current, page, [single.id], (one) => {
-                if (one.type !== "text") return one;
-                const plain = { ...one };
-                delete plain.numbered;
-                return next === undefined ? plain : { ...plain, numbered: next };
-              }),
-            merge === undefined ? undefined : `field:${single.id}:numbered-${merge}`,
-          )
-        }
-      />
+      <NumberedFields key={single.id} text={single} brand={view.brand} ctx={fieldContext} />
     );
-  // A text field's size: fixed or following its text (`SUI-FEATURE-165`).
   const sizingField =
-    single?.type !== "text" ? null : (
-      <TextSizingField
-        value={single.sizing}
-        readOnly={single.locked}
-        onValue={(sizing) =>
-          apply((current) =>
-            updateElements(current, page, [single.id], (element) =>
-              element.type === "text" ? { ...element, sizing } : element,
-            ),
-          )
-        }
-      />
-    );
-  // A shape in a group with a text field may follow one of them: its box is the field's grown by
-  // the insets (`SUI-FEATURE-165` §Editor).
-  const followTexts =
-    single?.type === "shape"
-      ? (findElement(elements, single.id)?.group?.children.filter(
-          (one): one is Extract<SlideElement, { type: "text" }> => one.type === "text",
-        ) ?? [])
-      : [];
+    single?.type !== "text" ? null : <SizingField text={single} ctx={fieldContext} />;
+  const followTexts = single?.type === "shape" ? followTextsOf(elements, single) : [];
   const followField =
     single?.type !== "shape" || followTexts.length === 0 ? null : (
-      <FollowTextField
-        key={single.id}
-        follow={single.follow}
-        texts={followTexts}
-        readOnly={single.locked}
-        revision={travels}
-        onFollow={(id) => apply((current) => setFollow(current, page, single.id, id))}
-        onInset={(side, value) =>
-          apply(
-            (current) =>
-              updateElements(current, page, [single.id], (element) =>
-                element.type !== "shape" || element.follow === undefined
-                  ? element
-                  : {
-                      ...element,
-                      follow: {
-                        ...element.follow,
-                        inset: { ...element.follow.inset, [side]: Math.max(0, value) },
-                      },
-                    },
-              ),
-            `field:${single.id}:inset-${side}`,
-          )
-        }
-      />
+      <FollowField key={single.id} shape={single} texts={followTexts} ctx={fieldContext} />
     );
   // An icon's stroke width in format px (`SUI-FEATURE-166`): empty is the library's own; a value out of
   // range is not taken and named at the field.
   const iconFields =
     single?.type !== "icon" ? undefined : (
-      <NumberField
+      <IconStrokeField
         key={`${single.id}-strokeWidth`}
-        id={`${fieldId}-strokeWidth`}
-        label={t("slides.editor.strokeWidth")}
-        hint={t("slides.editor.strokeWidthHint")}
-        valueHint={t("slides.editor.strokeWidthValueHint")}
-        value={single.strokeWidth}
-        unit="px"
-        min={0.5}
-        max={SLIDE_LIMITS.maxIconStrokeWidth}
-        readOnly={single.locked}
-        revision={travels}
-        error={
+        icon={single}
+        ctx={fieldContext}
+        outOfRange={
           strokeOut?.id === single.id &&
           strokeOut.revision === travels &&
           strokeOut.selection === selection
-            ? t("slides.editor.strokeWidthRange", { max: SLIDE_LIMITS.maxIconStrokeWidth })
-            : undefined
         }
-        onValue={(value) => {
-          const out = !(value > 0 && value <= SLIDE_LIMITS.maxIconStrokeWidth);
-          setStrokeOut(out ? { id: single.id, revision: travels, selection } : undefined);
-          if (out) return;
-          apply(
-            (current) =>
-              updateElements(current, page, [single.id], (one) =>
-                one.type === "icon" ? { ...one, strokeWidth: value } : one,
-              ),
-            `field:${single.id}:strokeWidth`,
-          );
-        }}
-        onEmpty={() => {
-          setStrokeOut(undefined);
-          apply(
-            (current) =>
-              updateElements(current, page, [single.id], (one) => {
-                if (one.type !== "icon") return one;
-                const plain = { ...one };
-                delete plain.strokeWidth;
-                return plain;
-              }),
-            `field:${single.id}:strokeWidth`,
-          );
-        }}
-        testId="slide-editor-strokeWidth"
-      />
-    );
-  // The selected element replaced by a panel (a line's, a shape's); `merge` names the field whose
-  // changes in a row are one step.
-  const replaceSingle = (next: SlideElement, merge?: string) => {
-    if (single === undefined) return;
-    apply(
-      (current) => updateElements(current, page, [single.id], () => next),
-      merge === undefined ? undefined : `field:${single.id}:${merge}`,
-    );
-  };
-  // A line's colour, width and ends, and the one shadow section of text, shapes, images and lines
-  // (`SUI-FEATURE-135` rev 3): a choice or the switch is one step, typing in a row in one field is one.
-  const lineFields =
-    single?.type !== "line" ? undefined : (
-      <LineFields
-        key={single.id}
-        line={single}
-        brand={view.brand}
-        readOnly={single.locked}
-        revision={travels}
-        onLine={replaceSingle}
-      />
-    );
-  // A shape's fill and border (`SUI-FEATURE-137` rev 3 §Shape); a border first drawn takes a table's
-  // width for the page format (`borderWidthFor`).
-  const shapeFields =
-    single?.type !== "shape" ? undefined : (
-      <ShapeFields
-        key={single.id}
-        shape={single}
-        brand={view.brand}
-        readOnly={single.locked}
-        revision={travels}
-        borderWidth={borderWidthFor(history.document.format)}
-        onShape={replaceSingle}
-      />
-    );
-  const shadowFields =
-    single === undefined ||
-    (single.type !== "text" &&
-      single.type !== "shape" &&
-      single.type !== "image" &&
-      single.type !== "line") ? undefined : (
-      <ShadowFields
-        elementId={single.id}
-        shadow={single.shadow}
-        brand={view.brand}
-        readOnly={single.locked}
-        revision={travels}
-        onShadow={(shadow, merge) =>
-          apply(
-            (current) =>
-              updateElements(current, page, [single.id], (one) => {
-                if (one.type !== single.type) return one;
-                if (shadow !== undefined) return { ...one, shadow };
-                const plain = { ...one };
-                delete plain.shadow;
-                return plain;
-              }),
-            merge === undefined ? undefined : `field:${single.id}:${merge}`,
-          )
+        onRange={(out) =>
+          setStrokeOut(out ? { id: single.id, revision: travels, selection } : undefined)
         }
       />
     );
@@ -2882,7 +2119,7 @@ function Editor({
     single?.type === "chart" ||
     textBody !== undefined ||
     typeFields !== undefined ||
-    addOnFields.length > 0;
+    addOns.length > 0;
   // A chart and an app type open on Content; a built-in type keeps opening on Layout, add-on fields or
   // not (an extension never changes a built-in tool, `SUI-FEATURE-163` §Grenzen).
   const contentFirst = single?.type === "chart" || typeFields !== undefined;
@@ -2893,20 +2130,7 @@ function Editor({
   const inTurnedGroup =
     single !== undefined && groupChain(elements, single.id).some((group) => group.rotation !== 0);
   // The size-limit note while the group keeps the size it names; also announced on the canvas.
-  const sizeNote =
-    single !== undefined &&
-    sizeLimit?.id === single.id &&
-    sizeLimit.revision === travels &&
-    Math.abs(single[sizeLimit.key] - sizeLimit.limit) < 0.01
-      ? {
-          key: sizeLimit.key,
-          text: t(`slides.editor.${sizeLimit.edge === "min" ? "sizeAtLeast" : "sizeAtMost"}`, {
-            // The size as its field shows it: the stored value, only float noise removed
-            // (SUI-FEATURE-411 rev 3).
-            value: formatDecimal(storedNumber(single[sizeLimit.key]), i18n.resolvedLanguage),
-          }),
-        }
-      : undefined;
+  const sizeNote = sizeNoteOf(single, sizeLimit, travels, t, i18n.resolvedLanguage);
   // While cropping, the panel sets the crop too, without a drag (`SUI-FEATURE-230`, WCAG 2.5.7): a zoom
   // slider about the frame's centre and the shift in the image's own px, each clamped as a drag is.
   // Focus moving between them and the canvas keeps cropping; Esc in them drops the crop.
@@ -2922,48 +2146,21 @@ function Editor({
     cropping === undefined ? "" : `${travels}:${cropping.id}:${cropZoomRun.count}`;
   const cropFields =
     cropping === undefined || cropFrame === undefined ? null : (
-      <section
-        className="flex flex-col gap-2"
-        data-crop-fields=""
-        data-testid="slide-editor-crop-fields"
-        onBlur={(event) => {
-          const byField = cropByField.current;
-          // Focus going to the canvas leaves the field's crop to the canvas press that took it.
-          if (event.relatedTarget !== canvas.current) cropByField.current = undefined;
-          keepCropOnLeave(event, byField?.before === cropping.crop ? byField.crop : undefined);
-        }}
-        onKeyDown={dropCropOnEscape}
-      >
-        <h3 className="text-base font-semibold">{t("slides.editor.cropFields")}</h3>
-        <div className="flex flex-col gap-4">
-          <CropFields
-            id={`${fieldId}-crop`}
-            testId="slide-editor-crop"
-            width={cropFrame.width}
-            height={cropFrame.height}
-            // Flipped, the shift reads and steps the way the image goes on screen (#772).
-            crop={mirroredCrop(cropping.crop, croppedFlipped, croppedFlippedVertical)}
-            natural={cropNatural}
-            hints={{
-              zoom: "cropZoomHint",
-              zoomValue: "cropZoomValueHint",
-              offsetX: "cropOffsetXHint",
-              offsetY: "cropOffsetYHint",
-              offsetValue: "cropOffsetValueHint",
-            }}
-            zoomRevision={cropZoomRevision}
-            offsetRevision={travels}
-            onCrop={(shown, field) => {
-              const crop = mirroredCrop(shown, croppedFlipped, croppedFlippedVertical);
-              setCropping({ ...cropping, crop });
-              if (field !== "percent") return;
-              // The field's own crop: its typed text stands.
-              setCropZoomRun({ count: cropZoomRun.count, crop });
-              cropByField.current = { before: cropping.crop, crop };
-            }}
-          />
-        </div>
-      </section>
+      <CropPanelFields
+        cropping={cropping}
+        frame={cropFrame}
+        natural={cropNatural}
+        flipped={croppedFlipped}
+        flippedVertical={croppedFlippedVertical}
+        fieldId={fieldId}
+        travels={travels}
+        zoomRevision={cropZoomRevision}
+        zoomRun={cropZoomRun}
+        setCropping={setCropping}
+        setZoomRun={setCropZoomRun}
+        cropByFieldRef={cropByFieldRef}
+        ctx={cropEnd}
+      />
     );
   // The host's section below the page's properties, with nothing selected (`SUI-FEATURE-134`); its
   // content is the host's, read-only under `readOnly` as the host passes it.
@@ -2985,139 +2182,31 @@ function Editor({
       {unloadedNote}
       {/* An image's flips (`GL-UI-035`, `SUI-FEATURE-311`, `SUI-FEATURE-135`): one step each, undone as any other. Above
           the crop fields, so a press that ends cropping leaves the toggle where it was (#767). */}
-      {single?.type !== "image" ? null : (
-        <div className="grid grid-cols-2 gap-2">
-          <Hint text={t("slides.editor.imageFlipHint")} disabledText={t("slides.lockedElement")}>
-            <FlipToggle
-              axis="horizontal"
-              flipped={single.flipped}
-              disabled={single.locked}
-              onFlippedChange={(flipped) =>
-                apply((current) =>
-                  updateElements(current, page, [single.id], (one) =>
-                    one.type === "image" ? { ...one, flipped } : one,
-                  ),
-                )
-              }
-              data-testid="slide-editor-image-flip"
-            />
-          </Hint>
-          <Hint
-            text={t("slides.editor.imageFlipVerticalHint")}
-            disabledText={t("slides.lockedElement")}
-          >
-            <FlipToggle
-              axis="vertical"
-              flipped={single.flippedVertical}
-              disabled={single.locked}
-              onFlippedChange={(flippedVertical) =>
-                apply((current) =>
-                  updateElements(current, page, [single.id], (one) =>
-                    one.type === "image" ? { ...one, flippedVertical } : one,
-                  ),
-                )
-              }
-              data-testid="slide-editor-image-flip-vertical"
-            />
-          </Hint>
-        </div>
-      )}
+      {single?.type !== "image" ? null : <ImageFlips image={single} ctx={fieldContext} />}
       {cropFields}
       {single === undefined ? null : (
-        <div className="grid grid-cols-2 gap-4" data-tooltip-row="">
-          {(["x", "y", "width", "height"] as const).map((key) => (
-            <NumberField
-              key={`${single.id}-${key}`}
-              id={`${fieldId}-${key}`}
-              label={t(`slides.editor.${key}`)}
-              hint={t(`slides.editor.${key}Hint`)}
-              valueHint={t(`slides.editor.${key}ValueHint`)}
-              value={single[key]}
-              unit="px"
-              readOnly={single.locked}
-              revision={travels}
-              help={
-                sizeNote?.key === key ? (
-                  <span data-testid={`slide-editor-${key}-limit`}>{sizeNote.text}</span>
-                ) : undefined
-              }
-              onValue={(value) => {
-                // Each keystroke from the document before the typing, so a number on the way to
-                // the one typed changes nothing (#327).
-                const merge = `field:${single.id}:${key}`;
-                const base = history.before(merge);
-                const found = findElement(base.pages[page]?.elements ?? [], single.id);
-                if (found === undefined) return;
-                let wanted = fieldValue(key, value);
-                let limit: typeof sizeLimit;
-                const range =
-                  found.element.type === "group" && (key === "width" || key === "height")
-                    ? groupSizeRange(found.element, key)
-                    : undefined;
-                if (range !== undefined && (wanted < range.min || wanted > range.max)) {
-                  const edge = wanted < range.min ? "min" : "max";
-                  wanted = edge === "min" ? range.min : range.max;
-                  limit = {
-                    id: single.id,
-                    key: key as "width" | "height",
-                    limit: wanted,
-                    edge,
-                    revision: travels,
-                  };
-                }
-                setSizeLimit(limit);
-                // A typed side the text sets makes the field `fixed`, a typed box frees a shape that
-                // follows its text, in the same step, as a handle does (`SUI-FEATURE-165`).
-                const element = found.element;
-                const unfollows =
-                  (key === "width" || key === "height") &&
-                  unfollowsBy(element, key === "width" ? "e" : "s");
-                const freed = element.type === "shape" && element.follow !== undefined;
-                const start =
-                  unfollows || freed
-                    ? updateElements(base, page, [single.id], (one) => {
-                        if (one.type === "text") return { ...one, sizing: "fixed" };
-                        if (one.type !== "shape") return one;
-                        const free = { ...one };
-                        delete free.follow;
-                        return free;
-                      })
-                    : base;
-                apply(
-                  () => setBox(start, page, single.id, { ...boxOf(element), [key]: wanted }),
-                  merge,
-                );
-              }}
-              testId={`slide-editor-${key}`}
-            />
-          ))}
-          <NumberField
-            key={`${single.id}-rotation`}
-            id={`${fieldId}-rotation`}
-            label={t("slides.editor.rotation")}
-            hint={t("slides.editor.rotationHint")}
-            valueHint={t("slides.editor.rotationValueHint")}
-            value={inTurnedGroup ? (((single.rotation + turn) % 360) + 360) % 360 : single.rotation}
-            unit={t("slides.editor.degrees")}
-            readOnly={single.locked}
-            revision={travels}
-            onValue={(value) =>
-              apply(
-                (current) => setRotation(current, page, single.id, (value - turn) % 360),
-                `field:${single.id}:rotation`,
-              )
-            }
-            testId="slide-editor-rotation"
-          />
-          {/* Directly under X/Y/W/H and Rotation, at the width of the panel's other single selects
-              (`SUI-FEATURE-165` AC9, #630). */}
-          {sizingField === null ? null : <div className="col-start-1">{sizingField}</div>}
-          {followField}
-        </div>
+        <BoxFields
+          element={single}
+          ctx={fieldContext}
+          history={history}
+          sideValue={fieldValue}
+          sizeNote={sizeNote}
+          onLimit={setSizeLimit}
+          turn={turn}
+          inTurnedGroup={inTurnedGroup}
+          sizingField={sizingField}
+          followField={followField}
+        />
       )}
-      {lineFields}
-      {shapeFields}
-      {shadowFields}
+      {/* A line's, a shape's look and the shadow (`SUI-FEATURE-135` rev 3). */}
+      {single === undefined ? null : (
+        <StyleSections
+          element={single}
+          brand={view.brand}
+          borderWidth={borderWidthFor(history.document.format)}
+          ctx={fieldContext}
+        />
+      )}
       <ArrangeSections
         single={single}
         selectedCount={selected.length}
@@ -3127,185 +2216,38 @@ function Editor({
         onAlign={align}
         onDistribute={distribute}
       />
-      {/* The page's layout (`SUI-FEATURE-192`): the document's and the app's; what fills a
-          placeholder follows into the new layout's placeholder of its role. */}
-      {selected.length === 0 && pageData !== undefined && offered.length > 0 ? (
-        <Field
-          label={t("slides.editor.pageLayout")}
-          htmlFor={`${fieldId}-page-layout`}
-          hint={t("slides.editor.pageLayoutHint")}
-          valueHint={t("slides.editor.pageLayoutValueHint", {
-            none: t("slides.editor.noLayout"),
-            interpolation: { escapeValue: false },
-          })}
-        >
-          <Select
-            value={pageData.layoutId ?? "none"}
-            onValueChange={(value) => {
-              const id = value === "none" ? undefined : value;
-              const next = setPageLayout(holding(history.document, id), page, id);
-              if (fits(next, "slides.editor.layoutRefused")) apply(() => next);
-            }}
-          >
-            <SelectTrigger
-              id={`${fieldId}-page-layout`}
-              aria-describedby={helpIdFor(`${fieldId}-page-layout`)}
-              fieldName={t("slides.editor.pageLayout")}
-              className="w-full"
-              data-testid="slide-editor-page-layout"
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">{t("slides.editor.noLayout")}</SelectItem>
-              {offered.map((layout) => (
-                <SelectItem key={layout.id} value={layout.id}>
-                  {layout.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-      ) : null}
-      {/* The keyboard's way to fill an open placeholder, as a double click on it does. */}
-      {selected.length === 0 && fillable.length > 0 ? (
-        <section className="flex flex-col gap-2" data-testid="slide-editor-placeholders">
-          <h3 className="text-base font-semibold">{t("slides.editor.placeholders")}</h3>
-          <div className="flex flex-wrap gap-1">
-            {fillable.map((open) => (
-              <Hint key={open.placeholder.id} text={t("slides.editor.placeholderFillHint")}>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => fillWithText(open)}
-                  data-testid="slide-editor-placeholder-fill"
-                >
-                  {t("slides.editor.placeholderFill", {
-                    name: placeholderName(open.placeholder),
-                    interpolation: { escapeValue: false },
-                  })}
-                </Button>
-              </Hint>
-            ))}
-          </div>
-        </section>
-      ) : null}
-      {selected.length === 0 && pageData?.background.type === "image" ? (
-        <BackgroundFields
-          // Its own key beside the transition's: siblings never share one.
-          key={`${pageData.id}:background`}
-          background={pageData.background}
+      {selected.length === 0 ? (
+        <PageSections
+          pageData={pageData}
+          offered={offered}
+          fillable={fillable}
+          placeholderName={placeholderName}
+          formatName={document.format.name}
           pageWidth={pageWidth}
           pageHeight={pageHeight}
-          src={view.resolveMedia?.(pageData.background.media.id)}
-          revision={travels}
-          onBackground={(background, merge) =>
-            apply(
-              (current) => withBackground(current, pageData.id, background),
-              merge === undefined ? undefined : `${pageData.id}:${merge}`,
-            )
-          }
-          onReplace={replaceBackground}
+          resolveMedia={view.resolveMedia}
+          ctx={fieldContext}
+          onLayout={(id) => {
+            const next = setPageLayout(holding(history.document, id), page, id);
+            if (fits(next, "slides.editor.layoutRefused")) apply(() => next);
+          }}
+          onFill={fillWithText}
+          onReplaceBackground={replaceBackground}
         />
-      ) : null}
-      {selected.length === 0 && pageData !== undefined ? (
-        <TransitionFields
-          key={pageData.id}
-          transition={pageData.transition}
-          revision={travels}
-          onTransition={(transition, merge) =>
-            apply(
-              (current) => setTransition(current, page, transition),
-              merge === undefined ? undefined : `${pageData.id}:${merge}`,
-            )
-          }
-        />
-      ) : null}
-      {selected.length === 0 ? (
-        <p className="text-sm text-muted-foreground" data-testid="slide-editor-format">
-          {t("slides.editor.format", {
-            name: document.format.name,
-            width: pageWidth,
-            height: pageHeight,
-            interpolation: { escapeValue: false },
-          })}
-        </p>
       ) : null}
       {pagePanel}
       {/* The element's animations in their own section at the end of the tab (`SUI-FEATURE-234`
           §Felder); the page's transition stands with the page's properties above. */}
       {single === undefined ? null : (
-        <section
-          className="flex flex-col gap-2"
-          aria-labelledby={animationTitle}
-          data-testid="slide-editor-animation"
-        >
-          <h3 id={animationTitle} className="text-base font-semibold">
-            {t("slides.editor.animation")}
-          </h3>
-          <div className="flex flex-col gap-4">
-            {(["entrance", "exit"] as const).map((kind) => (
-              <AnimationFields
-                key={`${single.id}-${kind}`}
-                kind={kind}
-                step={single.animation?.[kind]}
-                nextOrder={nextAnimationOrder(document, page)}
-                otherOrder={single.animation?.[kind === "exit" ? "entrance" : "exit"]?.order}
-                readOnly={single.locked}
-                revision={travels}
-                onStep={(step, merge) =>
-                  apply(
-                    (current) => setAnimation(current, page, single.id, kind, step),
-                    merge === undefined ? undefined : `${single.id}:${merge}`,
-                  )
-                }
-              />
-            ))}
-          </div>
-        </section>
+        <AnimationSection
+          element={single}
+          titleId={animationTitle}
+          nextOrder={nextAnimationOrder(document, page)}
+          ctx={fieldContext}
+        />
       )}
     </div>
   );
-
-  // Under `readOnly` the inspector's tabs (`SUI-FEATURE-133` rev 4), as the editable one's: the
-  // selected element's text format under Content, its flip, box, line, shadow and animation under
-  // Layout; the page's flip, transition and format without a selection; a line naming the count
-  // for several.
-  const readOnlyBody = single === undefined ? undefined : bodyOf(single, undefined);
-  const readOnlyContent =
-    single !== undefined && hasReadOnlyContent(single, readOnlyBody) ? (
-      <ReadOnlyContent element={single} body={readOnlyBody} brand={view.brand} />
-    ) : undefined;
-  const readOnlyLayout =
-    single !== undefined ? (
-      <ReadOnlyLayout
-        element={single}
-        rotation={inTurnedGroup ? (((single.rotation + turn) % 360) + 360) % 360 : single.rotation}
-        brand={view.brand}
-      />
-    ) : selected.length === 0 ? (
-      // Spaced as the editable inspector's layout tab.
-      <div className="flex flex-col gap-4">
-        {pageData === undefined ? null : (
-          <ReadOnlyPage
-            background={pageData.background}
-            transition={pageData.transition}
-            format={t("slides.editor.format", {
-              name: document.format.name,
-              width: pageWidth,
-              height: pageHeight,
-              interpolation: { escapeValue: false },
-            })}
-          />
-        )}
-        {pagePanel}
-      </div>
-    ) : (
-      <p className="text-sm text-muted-foreground" data-testid="slide-editor-readonly-count">
-        {t("slides.editor.selectedCount", { count: selected.length })}
-      </p>
-    );
 
   // The selection's actions floating at it (`GL-UI-040` §5).
   const actions =
@@ -3339,20 +2281,7 @@ function Editor({
   // The pointer a gesture shows from the press to the release, wherever it goes — over other
   // elements, the canvas or outside the page (`SUI-FEATURE-099`): the dragged handle's arrow, the
   // rotate handle's, "move", a column border's.
-  const gestureCursor =
-    drag === undefined
-      ? undefined
-      : drag.kind === "resize"
-        ? resizeCursor(drag.handle, handlesBox?.rotation ?? drag.rotation)
-        : drag.kind === "rotate"
-          ? "grab"
-          : drag.kind === "move"
-            ? "move"
-            : drag.kind === "column"
-              ? columnBorderCursor(handlesBox?.rotation ?? 0)
-              : drag.kind === "crop"
-                ? "grabbing"
-                : "default";
+  const gestureCursor = gestureCursorOf(drag, handlesBox?.rotation);
   const hoveredElement =
     hovered === undefined ? undefined : findElement(elements, hovered)?.element;
 
@@ -3376,19 +2305,21 @@ function Editor({
         }))),
   ];
 
-  // A guide: 1 px above the grid in the primary colour with a 1 px `--background` halo
-  // (`SUI-FEATURE-161` rev 5): a dark and a light line, so one of them stands out at 3 : 1 on any
-  // slide and beside any grid line, in either theme (#332).
-  const guideClass = "pointer-events-none absolute bg-primary shadow-[0_0_0_1px_var(--background)]";
-  const guideTurn =
-    (guides.frame ?? [])
-      .filter((group) => group.rotation !== 0)
-      .map((group) => {
-        const cx = (group.x + group.width / 2) * zoom;
-        const cy = (group.y + group.height / 2) * zoom;
-        return `translate(${cx}px, ${cy}px) rotate(${group.rotation}deg) translate(${-cx}px, ${-cy}px)`;
-      })
-      .join(" ") || undefined;
+  // What the field editing a text on the canvas reads and changes with
+  // (`slide-editor-text-fields-internal`).
+  const inlineTextContext = {
+    brand: view.brand,
+    resolveMedia: view.resolveMedia,
+    zoom,
+    range: textRange,
+    focusRequest: fieldFocus,
+    setTextRange,
+    changeBody,
+    onEnd: endEditing,
+    travel,
+    tabToCell,
+    onComposing,
+  };
 
   return (
     <div
@@ -3418,37 +2349,9 @@ function Editor({
           onSave={() => void save()}
           onReset={() => void reset()}
           layout={headLayout}
-          // From 300 ms on the head's status slot shows why (`SUI-FEATURE-106` rev 7, `GL-UI-033`):
-          // spinner and label where the head has the room, else the spinner alone with the label as
-          // its hint (`SUI-FEATURE-104`), so the head neither folds further nor wraps.
+          // From 300 ms on the head's status slot shows why (`SUI-FEATURE-106` rev 7, `GL-UI-033`).
           {...(adopting === "slow"
-            ? {
-                status: (
-                  <span
-                    ref={adoptingStatus}
-                    className="flex items-center gap-2"
-                    data-testid="slide-editor-adopting-status"
-                  >
-                    {adoptingFits ? (
-                      <>
-                        <OperationIndicator />
-                        <OperationLabel label={t("slides.editor.adoptingMedia")} />
-                      </>
-                    ) : (
-                      <Hint text={t("slides.editor.adoptingMedia")} describe={false}>
-                        <span
-                          role="img"
-                          aria-label={t("slides.editor.adoptingMedia")}
-                          tabIndex={0}
-                          className="relative inline-flex rounded-full outline-none after:absolute after:top-1/2 after:left-1/2 after:size-6 after:-translate-x-1/2 after:-translate-y-1/2 focus-visible:focus-ring"
-                        >
-                          <OperationIndicator />
-                        </span>
-                      </Hint>
-                    )}
-                  </span>
-                ),
-              }
+            ? { status: <AdoptingStatus fits={adoptingFits} statusRef={adoptingStatus} /> }
             : // The host's state in the same place (`SUI-FEATURE-134`), while no paste waits.
               host.status === undefined
               ? {}
@@ -3457,161 +2360,73 @@ function Editor({
         {/* Outside the head's row, from the paste's start: the live region is there before its text,
             so it announces it once; beside it the label's width, read for the room it needs. */}
         {adopting === undefined ? null : (
-          <span ref={adoptingBox} className="sr-only">
-            <span role="status" aria-live="polite" data-testid="slide-editor-adopting">
-              {adopting === "slow" ? t("slides.editor.adoptingMedia") : null}
-            </span>
-            <span aria-hidden="true" className="text-sm" data-slot="slide-editor-adopting-measure">
-              {t("slides.editor.adoptingMedia")}
-            </span>
-          </span>
+          <AdoptingLive slow={adopting === "slow"} boxRef={adoptingBox} />
         )}
       </div>
-      {saveError === undefined && !saveRejected ? null : (
-        <p
-          role="alert"
-          className="border-b bg-destructive-soft px-4 py-2 text-sm text-destructive-soft-foreground"
-          data-testid="slide-editor-save-error"
-        >
-          {saveError === undefined
-            ? t("slides.editor.saveRejected")
-            : t("slides.editor.saveFailed", { rule: t(`slides.editor.saveRule.${saveError}`) })}
-        </p>
-      )}
+      {saveError === undefined && !saveRejected ? null : <SaveErrorNote error={saveError} />}
       <div className="flex min-h-0 flex-1" inert={pending || resetting}>
-        <DrawerRail
-          items={[
-            ...(readOnly
-              ? []
-              : [
-                  {
-                    id: "add" as const,
-                    content: (
-                      <ElementLibrary
-                        term={libraryTerm}
-                        onTerm={setLibraryTerm}
-                        onInsert={(entry, label) => insertEntry(entry, undefined, label)}
-                        onPickMedia={pickFromMedia}
-                        appEntries={appEntries}
-                        atCaret={editing !== undefined && textRange !== undefined}
-                        onSaveBlock={onSaveBlock === undefined ? undefined : (saveBlock ?? null)}
-                        saveBlockTooBig={saveBlockTooBig}
-                      />
-                    ),
-                  },
-                ]),
-            {
-              id: "layers",
-              content: (
-                <LayerList
-                  elements={elements}
-                  selection={selection}
-                  readOnly={readOnly}
-                  nameOf={nameOf}
-                  onSelect={(id) => setSelection([id])}
-                  onToggle={(id, state) =>
-                    apply((current) =>
-                      updateElements(current, page, [id], (one) =>
-                        state === "locked"
-                          ? { ...one, locked: !one.locked }
-                          : { ...one, hidden: !one.hidden },
-                      ),
-                    )
-                  }
-                />
-              ),
-            },
-            // The host's Stil drawer (`SUI-FEATURE-384`), openable under `readOnly` too.
-            ...(host.styleDrawer === undefined
-              ? []
-              : [{ id: "style" as const, content: host.styleDrawer.content }]),
-            // Read-only with one page under a cap of 1 and no host section, the pane would hold
-            // nothing: no item (`SUI-FEATURE-381`).
-            ...(onePage && readOnly && host.documentPanel === undefined
-              ? []
-              : [
-                  {
-                    id: "document" as const,
-                    content: (
-                      <DocumentPanel
-                        sorter={
-                          onePage
-                            ? undefined
-                            : {
-                                document: history.document,
-                                layouts: offered,
-                                page,
-                                view,
-                                readOnly,
-                                limitText: pagesFull
-                                  ? t("slides.editor.pageLimitReached", { count: pageCap })
-                                  : undefined,
-                                onShow: showPage,
-                                onMove: (from, to) =>
-                                  changePages(movePage(history.document, from, to), to, (id) => id),
-                                onDuplicate: (index) => {
-                                  if (pagesFull) return;
-                                  const made = duplicatePage(history.document, index);
-                                  if (!fits(made.document, "slides.editor.pageRefused")) return;
-                                  changePages(
-                                    made.document,
-                                    made.index,
-                                    () => made.document.pages[made.index]!.id,
-                                  );
-                                },
-                                onHidden: (index, hidden) =>
-                                  changePages(
-                                    setPageHidden(history.document, index, hidden),
-                                    index,
-                                    (id) => id,
-                                  ),
-                                onDelete: (index) => {
-                                  const next = deletePage(history.document, index);
-                                  if (pageCap === 1 && next.pages.length === 1)
-                                    focusCanvasOnOnePage.current = true;
-                                  const shown = Math.min(index, next.pages.length - 1);
-                                  changePages(next, shown, (id) =>
-                                    next.pages.some((one) => one.id === id)
-                                      ? id
-                                      : next.pages[shown]!.id,
-                                  );
-                                },
-                                onNew: (layoutId) => {
-                                  if (pagesFull) return;
-                                  const made = newPage(
-                                    holding(history.document, layoutId),
-                                    page,
-                                    layoutId,
-                                  );
-                                  if (!fits(made.document, "slides.editor.pageRefused")) return;
-                                  changePages(
-                                    made.document,
-                                    made.index,
-                                    () => made.document.pages[made.index]!.id,
-                                  );
-                                },
-                              }
-                        }
-                        grid={
-                          readOnly
-                            ? undefined
-                            : {
-                                value: grid,
-                                titleId: gridTitle,
-                                onChange: (value) =>
-                                  apply((current) => ({ ...current, grid: value }), "grid"),
-                              }
-                        }
-                        hostPanel={host.documentPanel}
-                        hostPanelTitleId={documentPanelTitle}
-                      />
-                    ),
-                  },
-                ]),
-          ]}
+        <EditorDrawers
+          readOnly={readOnly}
+          library={{
+            term: libraryTerm,
+            onTerm: setLibraryTerm,
+            onInsert: (entry, label) => insertEntry(entry, undefined, label),
+            onPickMedia: pickFromMedia,
+            appEntries,
+            atCaret: editing !== undefined && textRange !== undefined,
+            onSaveBlock: onSaveBlock === undefined ? undefined : (saveBlock ?? null),
+            saveBlockTooBig,
+          }}
+          layers={{ elements, selection, nameOf, onSelect: (id) => setSelection([id]) }}
+          ctx={fieldContext}
+          // The host's Stil drawer (`SUI-FEATURE-384`), openable under `readOnly` too.
+          styleDrawer={host.styleDrawer}
+          // Read-only with one page under a cap of 1 and no host section, the pane would hold
+          // nothing: no item (`SUI-FEATURE-381`).
+          documentPanel={
+            onePage && readOnly && host.documentPanel === undefined
+              ? undefined
+              : {
+                  sorter: onePage
+                    ? undefined
+                    : {
+                        document: history.document,
+                        layouts: offered,
+                        page,
+                        view,
+                        readOnly,
+                        limitText: pagesFull
+                          ? t("slides.editor.pageLimitReached", { count: pageCap })
+                          : undefined,
+                        onShow: showPage,
+                        ...pageSorterActions({
+                          document: history.document,
+                          page,
+                          pageCap,
+                          pagesFull,
+                          fits,
+                          holding,
+                          changePages,
+                          onOnePage: () => {
+                            focusCanvasOnOnePage.current = true;
+                          },
+                        }),
+                      },
+                  grid: readOnly
+                    ? undefined
+                    : {
+                        value: grid,
+                        titleId: gridTitle,
+                        onChange: (value) =>
+                          apply((current) => ({ ...current, grid: value }), "grid"),
+                      },
+                  hostPanel: host.documentPanel,
+                  hostPanelTitleId: documentPanelTitle,
+                }
+          }
           open={drawer}
           onOpen={setDrawer}
-          {...(styleSave === undefined ? {} : { styleSave })}
+          styleSave={styleSave}
         />
         <div className="flex min-w-0 flex-1 flex-col">
           <EditorToolbar
@@ -3663,44 +2478,17 @@ function Editor({
               />
               {/* The app's overlay over the page, unscaled, never taking a press; the editor's only
                   (`SUI-FEATURE-163`). */}
-              {view.extensions?.overlay === undefined ? null : (
-                <div
-                  className="pointer-events-none absolute inset-0 overflow-hidden"
-                  data-testid="slide-editor-overlay"
-                >
-                  {/* A component of its own, so the app's overlay may use hooks. */}
-                  <view.extensions.overlay
-                    page={page}
-                    format={document.format}
-                    zoom={zoom}
-                    width={pageWidth * zoom}
-                    height={pageHeight * zoom}
-                  />
-                </div>
-              )}
-              {/* The app's further overlays, a labelled one while it is shown (`SUI-FEATURE-134`). */}
-              {/* With a bleed its box reaches that far beyond each page edge (rev 7). */}
-              {overlays.map((overlay) => {
-                if (!overlayDrawn(overlay)) return null;
-                const { id, render: Overlay } = overlay;
-                const room = bleedOf(overlay) * zoom;
-                return (
-                  <div
-                    key={id}
-                    className="pointer-events-none absolute overflow-hidden"
-                    style={{ inset: -room }}
-                    data-testid={`slide-editor-overlay-${id}`}
-                  >
-                    <Overlay
-                      page={page}
-                      format={document.format}
-                      zoom={zoom}
-                      width={pageWidth * zoom}
-                      height={pageHeight * zoom}
-                    />
-                  </div>
-                );
-              })}
+              <AppOverlays
+                overlay={view.extensions?.overlay}
+                overlays={overlays}
+                drawn={overlayDrawn}
+                bleedOf={bleedOf}
+                page={page}
+                format={document.format}
+                zoom={zoom}
+                width={pageWidth * zoom}
+                height={pageHeight * zoom}
+              />
               {/* The grid above the elements, below the selection and the guides (rev 5). */}
               {gridShown && grid !== null ? (
                 <GridOverlay
@@ -3711,109 +2499,27 @@ function Editor({
               ) : null}
               {/* Each open placeholder of the layout with its hint (`SUI-FEATURE-192`), the
                   editor's only: a double click or a drop fills it. */}
-              {(readOnly ? [] : placeholders).map(({ placeholder, box, rotation }) => (
-                <div
-                  key={placeholder.id}
-                  aria-hidden="true"
-                  className="pointer-events-none absolute overflow-hidden border-2 border-dashed border-muted-foreground/70 p-1"
-                  style={{
-                    left: box.x * zoom,
-                    top: box.y * zoom,
-                    width: box.width * zoom,
-                    height: box.height * zoom,
-                    transform: rotation === 0 ? undefined : `rotate(${rotation}deg)`,
-                  }}
-                  data-testid="slide-editor-placeholder"
-                  data-placeholder-role={placeholder.role}
-                >
-                  <span className="rounded-sm bg-background px-1 text-xs text-muted-foreground">
-                    {t("slides.editor.placeholderHint", {
-                      name: placeholderName(placeholder),
-                      interpolation: { escapeValue: false },
-                    })}
-                  </span>
-                </div>
-              ))}
+              {readOnly ? null : (
+                <PlaceholderHints
+                  placeholders={placeholders}
+                  zoom={zoom}
+                  nameOf={placeholderName}
+                />
+              )}
               {/* While cropping, the image's rest outside its frame, dimmed: what a drag can bring in
                   (`SUI-FEATURE-230`). It runs past the page edge onto the work area (rev 4), clipped
                   to the area's content with its padding so it adds no scrolling; the frame is cut out
                   where the image itself is drawn. */}
               {cropRest === undefined ? null : (
-                <div
-                  aria-hidden="true"
-                  className="pointer-events-none absolute overflow-hidden"
-                  style={cropRestBounds}
-                >
-                  <div
-                    className="absolute"
-                    style={{
-                      left: cropRest.whole.box.x * zoom - cropRestBounds.left,
-                      top: cropRest.whole.box.y * zoom - cropRestBounds.top,
-                      width: cropRest.whole.box.width * zoom,
-                      height: cropRest.whole.box.height * zoom,
-                      transform:
-                        cropRest.whole.rotation === 0
-                          ? undefined
-                          : `rotate(${cropRest.whole.rotation}deg)`,
-                      clipPath: cropRest.clip,
-                    }}
-                    data-testid="slide-editor-crop-rest"
-                  >
-                    <img
-                      src={cropRest.src}
-                      alt=""
-                      draggable={false}
-                      className="size-full max-w-none object-cover"
-                      style={{
-                        transform: cropRest.flipped
-                          ? cropRest.flippedVertical
-                            ? "scale(-1, -1)"
-                            : "scaleX(-1)"
-                          : cropRest.flippedVertical
-                            ? "scaleY(-1)"
-                            : undefined,
-                      }}
-                      onError={() => {
-                        setBrokenCropSrc(cropRest.src);
-                        // Without a size the image keeps the area's proportions, as before
-                        // (`SUI-FEATURE-280`): a crop past that reach comes within it (#538).
-                        setCropping((current) => {
-                          if (current === undefined || cropFrame === undefined) return current;
-                          const crop = clampCrop(cropFrame.width, cropFrame.height, current.crop);
-                          return sameCrop(crop, current.crop) ? current : { ...current, crop };
-                        });
-                      }}
-                      onLoad={(event) => {
-                        const { naturalWidth: width, naturalHeight: height } = event.currentTarget;
-                        const size = { width, height };
-                        if (
-                          loadedCropSrc?.src !== cropRest.src ||
-                          loadedCropSrc.size.width !== width ||
-                          loadedCropSrc.size.height !== height
-                        ) {
-                          setLoadedCropSrc({ src: cropRest.src, size });
-                        }
-                        // A crop taken up before the image's size was known comes within its
-                        // reach now, as the view draws it; the stored crop stays as it is.
-                        setCropping((current) => {
-                          if (current === undefined || cropFrame === undefined) return current;
-                          const crop = clampCrop(
-                            cropFrame.width,
-                            cropFrame.height,
-                            current.crop,
-                            size,
-                          );
-                          return sameCrop(crop, current.crop) ? current : { ...current, crop };
-                        });
-                      }}
-                    />
-                    {/* Darkened as the package's `CropEditor` darkens what lies outside its frame. */}
-                    <div
-                      className="absolute inset-0 bg-black/50"
-                      data-testid="slide-editor-crop-scrim"
-                    />
-                  </div>
-                </div>
+                <CropRest
+                  rest={cropRest}
+                  bounds={cropRestBounds}
+                  zoom={zoom}
+                  loaded={loadedCropSrc}
+                  setBrokenCropSrc={setBrokenCropSrc}
+                  setLoadedCropSrc={setLoadedCropSrc}
+                  setCropping={setCropping}
+                />
               )}
               <ContextMenu
                 onOpenChange={(open) => {
@@ -3888,45 +2594,18 @@ function Editor({
                 <ContextMenuContent data-testid="slide-editor-menu">
                   {/* The entries call their command only when chosen; it reads the queue's refs
                       then, never while rendering (#535). */}
-                  {/* Under `readOnly` Copy alone (`SUI-FEATURE-133`). */}
-                  {readOnly ? null : (
-                    <CanvasMenuEntry
-                      name="cut"
-                      usable={selected.length > 0 || menuChained}
-                      shortcut={CUT_SHORTCUT}
-                      onSelect={cutKey}
-                    />
-                  )}
-                  <CanvasMenuEntry
-                    name="copy"
-                    usable={selected.length > 0 || menuChained}
-                    shortcut={COPY_SHORTCUT}
-                    onSelect={copyKey}
+                  <CanvasMenuItems
+                    readOnly={readOnly}
+                    selected={selected.length > 0}
+                    chained={menuChained}
+                    clipboardFilled={clipboardFilled}
+                    saveBlock={saveBlock}
+                    saveBlockTooBig={saveBlockTooBig}
+                    onCut={cutKey}
+                    onCopy={copyKey}
+                    onPaste={() => void paste()}
+                    onDuplicate={duplicateKey}
                   />
-                  {readOnly ? null : (
-                    <CanvasMenuEntry
-                      name="paste"
-                      usable={clipboardFilled}
-                      shortcut={PASTE_SHORTCUT}
-                      onSelect={() => void paste()}
-                    />
-                  )}
-                  {readOnly ? null : (
-                    <CanvasMenuEntry
-                      name="duplicate"
-                      usable={selected.length > 0 || menuChained}
-                      shortcut={DUPLICATE_SHORTCUT}
-                      onSelect={duplicateKey}
-                    />
-                  )}
-                  {(saveBlock === undefined && !saveBlockTooBig) || selected.length === 0 ? null : (
-                    <CanvasMenuEntry
-                      name="saveAsBlock"
-                      usable={saveBlock !== undefined}
-                      shortcut={undefined}
-                      onSelect={() => saveBlock?.()}
-                    />
-                  )}
                 </ContextMenuContent>
               </ContextMenu>
               {/* Over the whole window during a gesture, so nothing under the pointer changes it; the
@@ -3950,18 +2629,7 @@ function Editor({
                   })}
                 </span>
               )}
-              {marquee === undefined ? null : (
-                <div
-                  className="pointer-events-none absolute border border-dashed border-ring bg-ring/10"
-                  style={{
-                    left: marquee.x * zoom,
-                    top: marquee.y * zoom,
-                    width: marquee.width * zoom,
-                    height: marquee.height * zoom,
-                  }}
-                  data-testid="slide-editor-marquee"
-                />
-              )}
+              {marquee === undefined ? null : <Marquee box={marquee} zoom={zoom} />}
               <CanvasOverlay
                 hovered={
                   hoveredElement === undefined || selection.includes(hoveredElement.id)
@@ -3999,34 +2667,7 @@ function Editor({
                   element, and below its name badge, which lies a layer up (#332). */}
               {/* In a turned group's frame turned with its groups, outermost first (`SUI-FEATURE-190`);
                   clipped to the page, so a turned line never adds scroll overflow mid-drag. */}
-              <div
-                className={cn(
-                  "pointer-events-none absolute inset-0",
-                  guideTurn !== undefined && "overflow-hidden",
-                )}
-              >
-                <div
-                  className="pointer-events-none absolute inset-0 origin-top-left"
-                  style={{ transform: guideTurn }}
-                >
-                  {guides.x === undefined ? null : (
-                    <div
-                      className={cn(guideClass, "top-0 bottom-0 w-px")}
-                      style={{ left: guides.x * zoom }}
-                      data-testid="slide-editor-guide-x"
-                      data-guide={guides.x}
-                    />
-                  )}
-                  {guides.y === undefined ? null : (
-                    <div
-                      className={cn(guideClass, "right-0 left-0 h-px")}
-                      style={{ top: guides.y * zoom }}
-                      data-testid="slide-editor-guide-y"
-                      data-guide={guides.y}
-                    />
-                  )}
-                </div>
-              </div>
+              <GuideLines guides={guides} zoom={zoom} />
               {/* The handles above the floating actions, so none lies under them. */}
               {/* Over the element where it is drawn, turned with its groups (#324); a layer above
                   the name badge (#332), so the badge never covers a handle. */}
@@ -4037,240 +2678,107 @@ function Editor({
               cropping !== undefined ||
               editing !== undefined ||
               drag?.kind === "move" ? null : (
-                <div
-                  className="pointer-events-none absolute z-[2]"
-                  style={{
-                    left: handlesBox.box.x * zoom,
-                    top: handlesBox.box.y * zoom,
-                    width: handlesBox.box.width * zoom,
-                    height: handlesBox.box.height * zoom,
-                    transform:
-                      handlesBox.rotation === 0 ? undefined : `rotate(${handlesBox.rotation}deg)`,
-                  }}
-                  data-testid="slide-editor-handles"
-                >
-                  {HANDLES.filter((handle) => offersHandle(single, handle)).map((handle) => (
-                    <div
-                      key={handle}
-                      aria-hidden="true"
-                      className="pointer-events-auto absolute rounded-sm border-2 border-ring bg-background"
-                      style={{
-                        width: HANDLE_PX,
-                        height: HANDLE_PX,
-                        left: `calc(${handle.includes("w") ? 0 : handle.includes("e") ? 100 : 50}% - ${HANDLE_PX / 2}px)`,
-                        top: `calc(${handle.includes("n") ? 0 : handle.includes("s") ? 100 : 50}% - ${HANDLE_PX / 2}px)`,
-                        cursor: resizeCursor(handle, handlesBox.rotation),
-                      }}
-                      onPointerDown={(event) => startHandle(event, "resize", handle)}
-                      // The canvas keeps the focus (a press elsewhere would move it to the page).
-                      onMouseDown={(event) => event.preventDefault()}
-                      data-testid={`slide-editor-handle-${handle}`}
-                    />
-                  ))}
-                  {/* A table's column borders, dragged to share the width of their two columns. */}
-                  {single.type !== "table"
-                    ? null
-                    : layoutOf(single)
-                        .columns.slice(1, -1)
-                        .map((border, index) => (
-                          <div
-                            key={`column-${index}`}
-                            aria-hidden="true"
-                            className="pointer-events-auto absolute inset-y-0 w-2 -translate-x-1/2 hover:bg-ring/40"
-                            style={{
-                              left: border * zoom,
-                              cursor: columnBorderCursor(handlesBox.rotation),
-                            }}
-                            onPointerDown={(event) => startColumn(event, index)}
-                            onMouseDown={(event) => event.preventDefault()}
-                            data-testid={`slide-editor-table-border-${index}`}
-                          />
-                        ))}
-                  <div
-                    aria-hidden="true"
-                    className="pointer-events-auto absolute left-1/2 size-3 -translate-x-1/2 cursor-grab rounded-full border-2 border-ring bg-background"
-                    style={{ top: -ROTATE_OFFSET }}
-                    onPointerDown={(event) => startHandle(event, "rotate")}
-                    onMouseDown={(event) => event.preventDefault()}
-                    data-testid="slide-editor-handle-rotate"
-                  />
-                </div>
+                <SelectionHandles
+                  element={single}
+                  placed={handlesBox}
+                  zoom={zoom}
+                  columns={
+                    single.type === "table" ? layoutOf(single).columns.slice(1, -1) : undefined
+                  }
+                  onHandle={startHandle}
+                  onColumn={startColumn}
+                />
               )}
-              {editing === undefined || edited === undefined
-                ? null
-                : (() => {
-                    const body = bodyOf(edited, editing.cell);
-                    if (body === undefined) return null;
-                    const inner =
-                      editing.cell === undefined || edited.type !== "table"
-                        ? undefined
-                        : cellBox(layoutOf(edited), editing.cell);
-                    return (
-                      <InlineTextEditor
-                        key={editing.session}
-                        body={body}
-                        brand={view.brand}
-                        resolveMedia={view.resolveMedia}
-                        focusRequest={fieldFocus}
-                        frame={placedBox(elements, edited)}
-                        inner={inner}
-                        padding={inner === undefined ? 0 : CELL_PADDING}
-                        unwrapped={
-                          editing.cell === undefined &&
-                          edited.type === "text" &&
-                          edited.sizing === "both"
-                        }
-                        zoom={zoom}
-                        label={
-                          editing.cell === undefined
-                            ? nameOf(edited)
-                            : t("slides.editor.tableCellName", {
-                                name: nameOf(edited),
-                                row: editing.cell.row + 1,
-                                column: editing.cell.column + 1,
-                                interpolation: { escapeValue: false },
-                              })
-                        }
-                        range={textRange}
-                        onRuns={(runs, range) => {
-                          if (!runsFit(runs, body.runs)) {
-                            // Refused only by the paragraph cap: say so, and that a line break still goes in.
-                            const hint = partsFit(runs, body.runs)
-                              ? "slides.editor.paragraphsRefused"
-                              : "slides.editor.textRefused";
-                            toast.error(t(hint), { id: TEXT_REFUSED_TOAST });
-                            return false;
-                          }
-                          setTextRange(range);
-                          changeBody(
-                            editing.id,
-                            editing.cell,
-                            (one) => ({ ...one, runs }),
-                            `text:${editing.session}`,
-                          );
-                          return true;
-                        }}
-                        onRange={setTextRange}
-                        onEnd={endEditing}
-                        onUndo={() => travel("undo")}
-                        onRedo={() => travel("redo")}
-                        onTab={
-                          editing.cell === undefined || edited.type !== "table"
-                            ? undefined
-                            : tabToCell
-                        }
-                        onComposing={onComposing}
-                        onToggle={(format, range) => {
-                          // A toggle that splits the runs past a limit is refused like text.
-                          const span = formatSpan(body, range);
-                          const runs = formatRange(
-                            body.runs,
-                            span.start,
-                            span.end,
-                            toggledFormat(body, range, format),
-                          );
-                          if (!runsFit(runs, body.runs)) {
-                            toast.error(t("slides.editor.formatRefused"), {
-                              id: TEXT_REFUSED_TOAST,
-                            });
-                            return;
-                          }
-                          changeBody(editing.id, editing.cell, (one) => ({ ...one, runs }));
-                        }}
-                      />
-                    );
-                  })()}
+              {editing === undefined || edited === undefined ? null : (
+                <InlineTextField
+                  key={editing.session}
+                  element={edited}
+                  editing={editing}
+                  frame={placedBox(elements, edited)}
+                  layoutOf={layoutOf}
+                  nameOf={nameOf}
+                  ctx={inlineTextContext}
+                />
+              )}
             </div>
           </div>
         </div>
         {/* Its read-only fields carry the lock reason with their hint (`SUI-FEATURE-195` rev 3). */}
         <ElementLockedContext.Provider value={single?.locked === true}>
           <RecentColorsContext.Provider value={{ recent: recentColors, applied: colorsApplied }}>
-            {readOnly ? (
-              <PropertyPanel
-                path={path}
-                tabs={[
-                  ...(readOnlyContent === undefined
-                    ? []
-                    : [{ id: "content" as const, content: readOnlyContent }]),
-                  { id: "layout", content: readOnlyLayout },
-                ]}
-                activeTab={readOnlyContent === undefined ? "layout" : builtInTab}
-                onTab={setBuiltInTab}
-              />
-            ) : (
-              <PropertyPanel
-                path={path}
-                tabs={[
-                  ...(single !== undefined && hasContent
-                    ? [
-                        {
-                          id: "content" as const,
-                          content: (
-                            <div className="flex flex-col gap-4" data-testid="slide-editor-content">
-                              {unloadedNote}
-                              {single.type === "table" ? (
-                                <TableFields
-                                  key={single.id}
-                                  table={single}
-                                  cell={currentCell}
-                                  brand={view.brand}
-                                  readOnly={single.locked}
-                                  revision={travels}
-                                  // Its rows and columns, like the formats, wait for a composition to
-                                  // end (GL-UI-039 rev 2, #736).
-                                  onChange={(next, merge, move) => {
-                                    if (composingText.current) return;
-                                    apply(
-                                      (current) =>
-                                        updateElements(current, page, [single.id], () => next),
-                                      merge === undefined
-                                        ? undefined
-                                        : `table:${single.id}:${merge}`,
-                                    );
-                                    // The open cell field follows its cell; its row or column deleted,
-                                    // editing ends (#740).
-                                    if (
-                                      move === undefined ||
-                                      editing?.id !== single.id ||
-                                      editing.cell === undefined
-                                    )
-                                      return;
-                                    const moved = move(editing.cell);
-                                    if (moved === undefined) leaveCell();
-                                    else setEditing({ ...editing, cell: moved });
-                                  }}
-                                  onCell={(cell) => {
-                                    if (!composingText.current)
-                                      setTableCell({ id: single.id, cell });
-                                  }}
-                                />
-                              ) : null}
-                              {textFields}
-                              {numberedFields}
-                              {single.type === "chart" ? (
-                                <ChartData
-                                  key={single.id}
-                                  chart={single}
-                                  revision={travels}
-                                  readOnly={single.locked}
-                                  onChange={(next, merge) => changeChart(next, merge)}
-                                />
-                              ) : null}
-                              {iconFields}
-                              {typeFields}
-                              {addOnFields}
-                            </div>
-                          ),
-                        },
-                      ]
-                    : []),
-                  { id: "layout", content: layoutTab },
-                ]}
-                activeTab={!hasContent ? "layout" : contentFirst ? panelTab : builtInTab}
-                onTab={contentFirst ? setPanelTab : setBuiltInTab}
-              />
-            )}
+            <PropertyPanel
+              path={path}
+              onTab={!readOnly && contentFirst ? setPanelTab : setBuiltInTab}
+              {...(readOnly
+                ? readOnlyPanelTabs({
+                    element: single,
+                    selectedCount: selected.length,
+                    rotation:
+                      single === undefined
+                        ? 0
+                        : inTurnedGroup
+                          ? (((single.rotation + turn) % 360) + 360) % 360
+                          : single.rotation,
+                    brand: view.brand,
+                    page: pageData,
+                    format: { name: document.format.name, width: pageWidth, height: pageHeight },
+                    pagePanel,
+                    tab: builtInTab,
+                    t,
+                  })
+                : {
+                    tabs: [
+                      ...(single !== undefined && hasContent
+                        ? [
+                            {
+                              id: "content" as const,
+                              content: (
+                                <div
+                                  className="flex flex-col gap-4"
+                                  data-testid="slide-editor-content"
+                                >
+                                  {unloadedNote}
+                                  {single.type === "table" ? (
+                                    <TableContentFields
+                                      key={single.id}
+                                      table={single}
+                                      cell={currentCell}
+                                      editing={editing}
+                                      ctx={textFieldContext}
+                                      onEditing={setEditing}
+                                      onLeaveCell={leaveCell}
+                                      onTableCell={setTableCell}
+                                    />
+                                  ) : null}
+                                  {textFields}
+                                  {numberedFields}
+                                  {single.type === "chart" ? (
+                                    <ChartData
+                                      key={single.id}
+                                      chart={single}
+                                      revision={travels}
+                                      readOnly={single.locked}
+                                      onChange={(next, merge) => changeChart(next, merge)}
+                                    />
+                                  ) : null}
+                                  {iconFields}
+                                  {typeFields}
+                                  <AddOnFields
+                                    element={single}
+                                    addOns={addOns}
+                                    lockedReason={lockedReason}
+                                    changePayload={changePayload}
+                                  />
+                                </div>
+                              ),
+                            },
+                          ]
+                        : []),
+                      { id: "layout", content: layoutTab },
+                    ],
+                    activeTab: !hasContent ? "layout" : contentFirst ? panelTab : builtInTab,
+                  })}
+            />
           </RecentColorsContext.Provider>
         </ElementLockedContext.Provider>
       </div>

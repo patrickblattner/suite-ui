@@ -129,6 +129,18 @@ export function refitGroup(element: Group, next: SlideElement[]): Group {
   let children = next;
   const bounds = boundsOf(children.map(drawnBox));
   if (bounds === undefined) return { ...element, children };
+  // Children whose box lies within the grain of the stored one changed nothing the grain can hold: a
+  // turned group shifts nothing, so an edit elsewhere never moves its children by a rounding at any
+  // angle (#993 finding #881).
+  const steady = (["x", "y", "width", "height"] as const).every(
+    (key) => Math.abs(round(bounds[key]) - element[key]) <= ROUNDING_GRAIN,
+  );
+  if (steady) {
+    const unchanged = children.every((child, index) => child === element.children[index]);
+    return unchanged && children.length === element.children.length
+      ? element
+      : { ...element, children };
+  }
   const offset = { x: 0, y: 0 };
   if (element.rotation !== 0) {
     const old = centreOf(boxOf(element));
@@ -543,7 +555,16 @@ function measureSizeRange(group: Group, key: "width" | "height"): SizeRange {
   }
   // The current size is always reached.
   if (min > max) return { min: model.size[key], max: model.size[key] };
-  return { min, max };
+  return onGrain(min, max);
+}
+
+// A range's ends on the 1/1000 px grain every stored value is rounded to, inside the exact range, so
+// the limit named is one a side can be stored at (#993 finding #881); a range narrower than a grain
+// stays as it is.
+function onGrain(min: number, max: number): { min: number; max: number } {
+  const low = Number.isFinite(min) ? Math.ceil(min * 1000 - 1e-6) / 1000 : min;
+  const high = Number.isFinite(max) ? Math.floor(max * 1000 + 1e-6) / 1000 : max;
+  return low <= high ? { min: low, max: high } : { min, max };
 }
 
 // A side as a linear form in the two factors: `a·factorX + b·factorY` (#406).

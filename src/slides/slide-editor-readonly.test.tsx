@@ -125,17 +125,18 @@ const PORTRAIT = { name: "Portrait", width: 1080, height: 1920 };
 // #789: `readOnly` turned on while a text is edited on the canvas ends the editing: no field stays
 // editable, and it does not come back when `readOnly` turns off.
 describe("SlideEditor readOnly switched on mid-session (#789)", () => {
+  const editor = (readOnly: boolean) => (
+    <SlideEditor
+      document={DOC}
+      title="Deck"
+      brand={SLIDE_BRAND}
+      onSave={() => true}
+      onBack={() => {}}
+      readOnly={readOnly}
+    />
+  );
+
   it("ends text editing when readOnly turns on", () => {
-    const editor = (readOnly: boolean) => (
-      <SlideEditor
-        document={DOC}
-        title="Deck"
-        brand={SLIDE_BRAND}
-        onSave={() => true}
-        onBack={() => {}}
-        readOnly={readOnly}
-      />
-    );
     const view = render(editor(false));
     select("words");
     fireEvent.keyDown(canvas(), { key: "Enter" });
@@ -144,6 +145,24 @@ describe("SlideEditor readOnly switched on mid-session (#789)", () => {
     expect(document.querySelector("[contenteditable='true']")).toBeNull();
     view.rerender(editor(false));
     expect(document.querySelector("[contenteditable='true']")).toBeNull();
+  });
+
+  // R10 review (#993): the inspector is one PropertyPanel either way, so flipping `readOnly` keeps it
+  // mounted: a focused tab keeps the focus, with and without a selection, in both directions.
+  it.each([
+    ["without a selection", false],
+    ["with a selection", true],
+  ])("keeps the focused property tab when readOnly flips, %s", (_, selected) => {
+    for (const start of [false, true]) {
+      const view = render(editor(start));
+      if (selected) select("words");
+      const tab = screen.getByTestId("property-tab-layout");
+      act(() => tab.focus());
+      view.rerender(editor(!start));
+      expect(screen.getByTestId("property-tab-layout")).toBe(tab);
+      expect(tab).toHaveFocus();
+      view.unmount();
+    }
   });
 
   // #798: an Undo or Redo held behind a drag never reaches the host once `readOnly` turned on.

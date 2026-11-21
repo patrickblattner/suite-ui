@@ -550,6 +550,56 @@ describe("slide editor operations on turned groups", () => {
     }
   });
 
+  // #993 finding #881 (SUI-FEATURE-411): an edit elsewhere on the page leaves a turned group's
+  // children where they are, at any angle, not only at quarter turns (#511).
+  it.each([135, 37, 90, 180, -90])(
+    "keeps the children of a group turned %i° in place over 500 edits elsewhere",
+    (angle) => {
+      const { document: grouped, id } = groupElements(
+        doc([
+          { ...shape("t", 100.123, 101.7, 200.5, 99.3), rotation: 30 },
+          shape("u", 600.41, 100.2, 100.7, 300.3),
+          shape("v", 1000, 300),
+        ]),
+        0,
+        ["t", "u"],
+      );
+      // A child moved and another resized inside the turned group leave its box off the grain.
+      let turned = setRotation(grouped, 0, id!, angle);
+      turned = setBox(turned, 0, id!, { ...box(turned, id!), width: 333.333 });
+      turned = moveBy(turned, 0, ["t"], 3.3, 1.7);
+      turned = setBox(turned, 0, "u", { ...box(turned, "u"), width: 77.7 });
+      let edited = turned;
+      for (let step = 0; step < 500; step++)
+        edited = moveBy(edited, 0, ["v"], step % 2 ? -1 : 1, 0);
+      for (const child of ["t", "u", id!]) expect(box(edited, child)).toEqual(box(turned, child));
+    },
+  );
+
+  // #993 finding #881: the limit a group's side reaches is a value it can store: the range's ends lie on
+  // the 1/1000 px grain, inside the exact range, so typing the limit the note shows is no longer past it.
+  it("names reachable size limits on the 1/1000 px grain", () => {
+    const { document: grouped, id } = groupElements(
+      doc([{ ...shape("t", 100, 100, 200, 100), rotation: 45 }, shape("u", 600, 100)]),
+      0,
+      ["t", "u"],
+    );
+    for (const angle of [0, 135]) {
+      const turned = setRotation(grouped, 0, id!, angle);
+      const group = findElement(turned.pages[0]!.elements, id!)!.element;
+      if (group.type !== "group") throw new Error("expected the group");
+      for (const key of ["width", "height"] as const) {
+        const range = groupSizeRange(group, key)!;
+        for (const end of [range.min, range.max]) {
+          if (!Number.isFinite(end)) continue;
+          expect(Math.abs(end * 1000 - Math.round(end * 1000))).toBeLessThan(1e-6);
+          const stored = box(setBox(turned, 0, id!, { ...boxOf(group), [key]: end }), id!)[key];
+          expect(stored).toBe(end);
+        }
+      }
+    }
+  });
+
   // #511 review: the stored box is kept only within one 1/1000 px grain; a child moved further
   // moves the group's edge with it, so the grain cannot widen unnoticed.
   it("keeps the stored group box within one grain only", () => {

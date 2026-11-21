@@ -32,9 +32,10 @@
   /* How much of the sidebar width a panel or maximized preview leaves free on its left: all of it
      beside the sidebar, none below `md`, where the sidebar is an overlay (`SUI-FEATURE-110`). */
   --sidebar-inset: 1;
-  /* The cap of every measured select width (`GL-UI-024` rev 15): FilterSelect, SortSelect and the
-     page size grow to their longest text up to here; a longer value truncates with its tooltip. */
-  --select-width-max: 18rem;
+  /* The width cap of the filter dropdowns (`GL-UI-024` rev 17): FilterSelect and the page size grow
+     to their longest text up to here; a longer value truncates with its tooltip. SortSelect keeps
+     its measured width. */
+  --select-width-max: 16rem;
 
   /* The tight gap that keeps the pager's chevrons and "Page X / Y" one compact cluster. */
   --pager-gap: 0.25rem;
