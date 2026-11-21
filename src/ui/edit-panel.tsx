@@ -24,6 +24,7 @@ import {
 import { Button } from "./button.js";
 import { inAppFrame, PanelTabBoundary } from "../lib/panel-tab.js";
 import { DisabledReasonRow, type SubmitLock } from "../lib/disabled-reason-row.js";
+import { hintedSave } from "../lib/hinted-save.js";
 import { FIELD_SELECTOR } from "./dialog.js";
 import { returnFocus, useAutoFocused } from "./focus-return.js";
 import { createFieldDrafts, FieldDraftsContext } from "./field-drafts-internal.js";
@@ -34,7 +35,7 @@ import {
   submitLocked,
   useFieldSubmits,
 } from "./field-error.js";
-import { Hint, type HintProps } from "./hint.js";
+import { Hint } from "./hint.js";
 import { useLeaveConfirm } from "./leave-guard.js";
 import { Sheet, SheetDescription, SheetTitle } from "./sheet.js";
 import { IconButtonTooltip } from "./tooltip.js";
@@ -198,13 +199,6 @@ function pagesRecords(event: KeyboardEvent, panel: HTMLElement | null): boolean 
   return !isInOtherDialog(focused, panel);
 }
 
-// The leave dialog's locked Save in a `Hint` with the lock's reason (`SUI-FEATURE-250` rev 6).
-const hintedSave = (reason: string | undefined) => (save: React.ReactElement) => (
-  <Hint text="" disabledText={reason}>
-    {save as HintProps["children"]}
-  </Hint>
-);
-
 // The edit panel (`GL-UI-027` §Bearbeitungsflächen, `SUI-FEATURE-030`): from the right over the whole
 // content area, its left edge at the current sidebar width, so the navigation stays visible and
 // operable — hence non-modal, without an overlay, and an interaction outside does not close it. The
@@ -296,7 +290,7 @@ function EditPanel({
         : () => attempt(submit.current?.form),
     applies: submitKind === "apply",
     // A locked submit locks the dialog's Save or Apply with the same reason (`SUI-FEATURE-250` rev 6).
-    saveLocked: submitDisabled ? hintedSave(submitDisabledHint) : undefined,
+    saveLock: { locked: submitDisabled, carry: hintedSave(submitDisabledHint) },
     // Save or Apply in the leave dialog that set the call site's `busy` closes the dialog into the
     // working panel: the focus goes to its working primary action (`SUI-FEATURE-171`).
     workingFocus: () =>

@@ -122,6 +122,7 @@
     "./settings/settings-block": { "recommended": 1896, "maximum": 1991 },
     "./settings/settings-field": { "recommended": 23459, "maximum": 24127 },
     "./settings/settings-footer": { "recommended": 41666, "maximum": 43749 },
+    "./settings/settings-save-lock": { "recommended": 33392, "maximum": 35062 },
     "./settings/settings-save-reset": { "recommended": 40505, "maximum": 40963 },
     "./settings/settings-scaffold": { "recommended": 56583, "maximum": 58805 },
     "./settings/settings-section": { "recommended": 767, "maximum": 806 },

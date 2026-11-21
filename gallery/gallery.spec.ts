@@ -22218,6 +22218,37 @@ test("data table: a click into a partly hidden text field does not scroll, a key
   await expect.poll(async () => (await placement()).hiddenAtStart).toBe(false);
 });
 
+// SUI-FEATURE-250 rev 8 AC 7 (#1001): a settings page whose submit is locked hands the lock to its
+// leave guard (`settingsSaveLock`): "Save changes?" shows Save locked with the same reason,
+// `aria-disabled`, the reason as its description, the focus on Cancel; Discard and Cancel stay free.
+for (const lng of ["de", "en"] as const) {
+  for (const theme of THEMES) {
+    test(`settings: the leave dialog's Save is locked with the page's reason (${lng}, ${theme})`, async ({
+      page,
+    }) => {
+      await page.goto(`/?page=settings&layout=leave-locked&lng=${lng}&theme=${theme}`);
+      const field = page.getByTestId("settings-leave-field");
+      await field.fill("2");
+      await field.press("Escape");
+      const dialog = page.getByTestId("leave-guard");
+      await expect(dialog).toBeVisible();
+      const save = dialog.getByTestId("leave-guard-save");
+      await expect(save).toHaveAttribute("aria-disabled", "true");
+      await expect(save).toHaveAccessibleDescription(
+        lng === "de" ? "Zuerst die Verbindung testen" : "Test the connection first",
+      );
+      await expect(dialog.getByTestId("leave-guard-cancel")).toBeFocused();
+      await expect(dialog.getByTestId("leave-guard-cancel")).toBeEnabled();
+      await expect(dialog.getByTestId("leave-guard-discard")).toBeEnabled();
+      await parkPointer(page);
+      await expect(dialog).toHaveScreenshot(`settings-leave-locked-${lng}-${theme}.png`);
+      await dialog.getByTestId("leave-guard-cancel").click();
+      await expect(dialog).toBeHidden();
+      await expect(field).toHaveValue("2");
+    });
+  }
+}
+
 // SUI-FEATURE-250 rev 6 AC 6 (#996): a panel whose submit is locked asks on leaving with its Save
 // locked by the same reason, `aria-disabled`, the reason as its description, the focus on Cancel.
 for (const lng of ["de", "en"] as const) {

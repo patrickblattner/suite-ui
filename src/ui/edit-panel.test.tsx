@@ -2162,6 +2162,38 @@ describe("EditPanel field errors", () => {
     },
   );
 
+  // #1002 (Codex CX1): a lock that comes or goes while the dialog is open (async validation) changes
+  // only Save's attributes; the focused Save stays the same element and keeps the focus.
+  it("a lock toggled while the leave dialog is open keeps the focused Save", async () => {
+    const panel = (locked: boolean) => (
+      <EditPanel
+        open
+        onOpenChange={() => {}}
+        title="Channel"
+        dirty
+        onSubmit={() => true}
+        submitDisabled={locked}
+        submitDisabledHint="Fill in every field."
+      >
+        <Input aria-label="Name" defaultValue="Main" />
+      </EditPanel>
+    );
+    const { rerender } = render(panel(false));
+    fireEvent.keyDown(screen.getByLabelText("Name"), { key: "Escape" });
+    const save = await screen.findByTestId("leave-guard-save");
+    await waitFor(() => expect(save).toHaveFocus());
+    rerender(panel(true));
+    expect(screen.getByTestId("leave-guard-save")).toBe(save);
+    expect(save).toHaveFocus();
+    expect(save).toHaveAttribute("aria-disabled", "true");
+    expect(save).toHaveAccessibleDescription("Fill in every field.");
+    rerender(panel(false));
+    expect(screen.getByTestId("leave-guard-save")).toBe(save);
+    expect(save).toHaveFocus();
+    expect(save).not.toHaveAttribute("aria-disabled");
+    expect(save).toHaveAccessibleDescription("");
+  });
+
   it("a free panel: the leave dialog's Save is free and has the focus", async () => {
     render(
       <MemoryRouter initialEntries={["/list"]}>

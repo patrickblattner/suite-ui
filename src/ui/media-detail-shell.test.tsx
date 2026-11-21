@@ -32,7 +32,18 @@ function renderShell(props: Partial<MediaDetailShellProps> = {}) {
     onSave: vi.fn(),
     onReset: vi.fn(),
   };
-  render(
+  const view = render(shellOf(props, handlers));
+  return {
+    ...handlers,
+    rerender: (next: Partial<MediaDetailShellProps>) => view.rerender(shellOf(next, handlers)),
+  };
+}
+
+function shellOf(
+  props: Partial<MediaDetailShellProps>,
+  handlers: Record<"onPrev" | "onNext" | "onClose" | "onSave" | "onReset", () => void>,
+) {
+  return (
     <MediaDetailShell
       position={3}
       total={65}
@@ -45,9 +56,8 @@ function renderShell(props: Partial<MediaDetailShellProps> = {}) {
       {...handlers}
       // Unchecked: TypeScript cannot check a partial of the whole props union.
       {...(props as object)}
-    />,
+    />
   );
-  return handlers;
 }
 
 const panel = () => screen.getByTestId("media-detail");
@@ -1980,6 +1990,27 @@ describe("MediaDetailShell: visible lock reason (SUI-FEATURE-125, SUI-FEATURE-13
     fireEvent.click(screen.getByTestId("leave-guard-discard"));
     expect(onNext).toHaveBeenCalledTimes(1);
     expect(onSave).not.toHaveBeenCalled();
+  });
+
+  // #1002 (Codex CX1): the same in the shell's dialog, a lock toggled while Save has the focus.
+  it("app lock toggled while the leave dialog is open keeps the focused Save", async () => {
+    const shell = (submitDisabled: boolean) => ({
+      dirty: true,
+      submitDisabled,
+      submitDisabledHint: "Add a caption first",
+    });
+    const { rerender } = renderShell(shell(false));
+    fireEvent.keyDown(panel(), { key: "ArrowRight" });
+    const save = await screen.findByTestId("leave-guard-save");
+    await waitFor(() => expect(save).toHaveFocus());
+    rerender(shell(true));
+    expect(screen.getByTestId("leave-guard-save")).toBe(save);
+    expect(save).toHaveFocus();
+    expect(save).toHaveAccessibleDescription("Add a caption first");
+    rerender(shell(false));
+    expect(screen.getByTestId("leave-guard-save")).toBe(save);
+    expect(save).toHaveFocus();
+    expect(save).not.toHaveAttribute("aria-disabled");
   });
 
   // SUI-FEATURE-131 AC 2

@@ -242,7 +242,10 @@ describe("EditPanel leave guard (GL-UI-007)", () => {
     openRow();
     edit();
     escape();
-    const footer = screen.getByTestId("leave-guard-save").parentElement!;
+    // Save stands in the panel's carrier of its lock reason (#1002), so the footer is an ancestor.
+    const footer = screen
+      .getByTestId("leave-guard-save")
+      .closest<HTMLElement>("[data-slot=dialog-footer]")!;
     expect(footer).toHaveClass("justify-end");
     expect([...footer.querySelectorAll("button")].map((b) => b.dataset.testid)).toEqual([
       "leave-guard-cancel",
@@ -268,7 +271,10 @@ describe("EditPanel leave guard (GL-UI-007)", () => {
       escape();
       const dialog = screen.getByTestId("leave-guard");
       expect(within(dialog).getByRole("heading")).toHaveTextContent(title);
-      const footer = screen.getByTestId("leave-guard-save").parentElement!;
+      // Save stands in the panel's carrier of its lock reason (#1002), so the footer is an ancestor.
+      const footer = screen
+        .getByTestId("leave-guard-save")
+        .closest<HTMLElement>("[data-slot=dialog-footer]")!;
       expect([...footer.querySelectorAll("button")].map((b) => b.textContent)).toEqual([
         cancel,
         discard,

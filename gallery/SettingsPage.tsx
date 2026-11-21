@@ -6,6 +6,7 @@ import { SecretCardHeader, SettingsActionButton } from "../src/settings/secret-c
 import { SettingsActionRow } from "../src/settings/settings-action-row.js";
 import { SettingsBlock } from "../src/settings/settings-block.js";
 import { SettingsField } from "../src/settings/settings-field.js";
+import { settingsSaveLock } from "../src/settings/settings-save-lock.js";
 import { SettingsScaffold } from "../src/settings/settings-scaffold.js";
 import { SettingsSection } from "../src/settings/settings-section.js";
 import { SettingsToggleField } from "../src/settings/settings-toggle-field.js";
@@ -15,6 +16,7 @@ import { Checkbox } from "../src/ui/checkbox.js";
 import { Hint } from "../src/ui/hint.js";
 import { Input } from "../src/ui/input.js";
 import { Label } from "../src/ui/label.js";
+import { useLeaveGuard } from "../src/ui/leave-guard.js";
 import { RadioGroup, RadioGroupItem } from "../src/ui/radio-group.js";
 import { StatusChip } from "../src/ui/status-chip.js";
 import { Switch } from "../src/ui/switch.js";
@@ -127,6 +129,10 @@ const REASON_LAYOUT = PARAMS.get("layout") === "reason";
 // rev 3): locked while nothing changed or field 1 is empty, the body long enough to scroll under the
 // fixed footer.
 const PAGE_REASON_LAYOUT = PARAMS.get("layout") === "page-reason";
+// `?layout=leave-locked` (`SUI-FEATURE-250` rev 8 AC 7): a settings page whose submit the app locks
+// until the connection is tested, with the page's own leave guard; it hands the lock to the guard
+// through `settingsSaveLock`, so its "Save changes?" Save is locked with the same reason.
+const LEAVE_LOCKED_LAYOUT = PARAMS.get("layout") === "leave-locked";
 const OPTIONS = ["a", "b", "c"] as const;
 const TAB_KEYS = ["provider", "areas", "prompts"] as const;
 // Long enough for a check of the working state, short enough for the test to wait for its end.
@@ -184,6 +190,8 @@ export function SettingsPage({ theme }: { theme: "light" | "dark" }) {
       </div>
     );
   }
+
+  if (LEAVE_LOCKED_LAYOUT) return <LeaveLockedPage labels={labels} />;
 
   if (PAGE_REASON_LAYOUT) {
     return (
@@ -558,6 +566,45 @@ function ReplaceBlock({ labels }: { labels: (typeof LABELS)[keyof typeof LABELS]
 }
 
 // The visible lock reason on SettingsActionRow (`SUI-FEATURE-125`, `SUI-FEATURE-131`).
+function LeaveLockedPage({ labels }: { labels: (typeof LABELS)[keyof typeof LABELS] }) {
+  const [value, setValue] = useState("1");
+  const dirty = value !== "1";
+  const { dialog } = useLeaveGuard({
+    dirty,
+    onLeave: () => {},
+    onSave: () => true,
+    // Always the slot, locked with the reason while the page's submit is locked.
+    saveLocked: settingsSaveLock(labels.testFirst),
+  });
+  return (
+    <PageScroll>
+      <SettingsScaffold
+        pageKey="general"
+        title={labels.title}
+        subtitle={labels.subtitle}
+        body={
+          <SettingsField label={`${labels.field} 1`} htmlFor="leave-field">
+            <Input
+              id="leave-field"
+              data-testid="settings-leave-field"
+              value={value}
+              onChange={(event) => setValue(event.target.value)}
+            />
+          </SettingsField>
+        }
+        form={{
+          dirty,
+          onSave: () => {},
+          onReset: () => setValue("1"),
+          submitDisabled: true,
+          submitDisabledHint: labels.testFirst,
+        }}
+      />
+      {dialog}
+    </PageScroll>
+  );
+}
+
 function ReasonBlocks({ labels }: { labels: (typeof LABELS)[keyof typeof LABELS] }) {
   const { t } = useTranslation("suite");
   const [value, setValue] = useState("");
