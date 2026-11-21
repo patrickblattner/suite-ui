@@ -900,7 +900,7 @@ function SaveButton({
       <Button
         type="button"
         variant="success"
-        size="icon"
+        size="icon-sm"
         busy={saving}
         {...saveLock}
         data-testid="editor-save"
@@ -913,7 +913,7 @@ function SaveButton({
       <Button
         type="button"
         variant="success"
-        size="default"
+        size="sm"
         busy={saving}
         {...saveLock}
         data-testid="editor-save"
@@ -938,7 +938,7 @@ function ResetButton({ locks, onConfirm }: { locks: EditorLocks; onConfirm: () =
       <Button
         type="button"
         variant="outline"
-        size="default"
+        size="sm"
         {...(resetLock ? { "aria-disabled": true } : {})}
         onMouseDown={(event) => {
           if (hasDrafts) event.preventDefault();
@@ -1512,7 +1512,7 @@ function PreviewButton({
     <Button
       type="button"
       variant="outline"
-      size="default"
+      size="sm"
       disabled={disabledText !== undefined}
       onClick={onClick}
       data-testid="editor-preview"
@@ -1549,7 +1549,7 @@ function NextStep({
     <Button
       type="button"
       variant="success"
-      size={iconOnly ? "icon" : "default"}
+      size={iconOnly ? "icon-sm" : "sm"}
       disabled={reason !== undefined}
       {...(busy !== undefined ? { busy } : {})}
       onClick={onClick}

@@ -984,6 +984,63 @@ describe("MediaDetailShell field errors", () => {
 // #728 (GL-UI-038 §Absenden, SUI-FEATURE-150 §Primäraktion der Rückfrage): Save in the leave dialog
 // is a submit, the same as the page's own: a failed one closes the dialog, keeps the page and the
 // route, and shows the errors of fields the user never left, the focus in the first.
+// #984 (Codex CX1): the save starts valid; the server's field error, once it failed, takes the focus.
+describe("MediaDetailShell: a server field error after Save", () => {
+  it("focuses the field the failed save marks invalid", async () => {
+    let fail!: () => void;
+    function Server() {
+      const [error, setError] = React.useState<string | undefined>(undefined);
+      const [note, setNote] = React.useState("");
+      return (
+        <MediaDetailShell
+          position={1}
+          total={1}
+          kind="image"
+          src="/media/1.jpg"
+          alt=""
+          dirty={note !== ""}
+          saving={false}
+          onSave={() =>
+            new Promise<boolean>((resolve) => {
+              fail = () => {
+                setError("Title taken.");
+                resolve(false);
+              };
+            })
+          }
+          onReset={() => setNote("")}
+          onPrev={() => undefined}
+          onNext={() => undefined}
+          onClose={() => undefined}
+          fields={
+            <>
+              <Field label="Title" htmlFor="title" error={error}>
+                <Input id="title" defaultValue="Ada" />
+              </Field>
+              <Field label="Note" htmlFor="note">
+                <Input id="note" value={note} onChange={(event) => setNote(event.target.value)} />
+              </Field>
+            </>
+          }
+        />
+      );
+    }
+    render(<Server />);
+    fireEvent.change(screen.getByLabelText("Note"), { target: { value: "Changed" } });
+    const save = screen.getByTestId("media-detail-save");
+    act(() => save.focus());
+    fireEvent.click(save);
+    await act(() => Promise.resolve());
+    expect(save).toHaveFocus();
+    await act(async () => {
+      fail();
+      await Promise.resolve();
+    });
+    expect(screen.getByText("Title taken.")).toBeInTheDocument();
+    expect(screen.getByLabelText("Title")).toHaveFocus();
+  });
+});
+
 describe("MediaDetailShell: Save in the leave dialog is a submit", () => {
   function Guarded({
     onSave,

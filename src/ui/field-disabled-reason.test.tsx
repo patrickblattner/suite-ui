@@ -11,6 +11,7 @@ import { Hint } from "./hint.js";
 import { Input } from "./input.js";
 import { RadioGroup, RadioGroupItem } from "./radio-group.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select.js";
+import { Slider } from "./slider.js";
 import { Switch } from "./switch.js";
 import { TagInput } from "./tag-input.js";
 import { Textarea } from "./textarea.js";
@@ -499,6 +500,38 @@ describe("Field disabledReason on a DateTimeField (AC4)", () => {
   });
 });
 
+// SUI-FEATURE-450 rev 5 AC2: the Slider locks with its field's reason like the other choice fields.
+describe("Field disabledReason on a Slider (AC2)", () => {
+  it("aria-disabled on the thumb, focusable, keys and track change nothing, hint then reason", () => {
+    const onChange = vi.fn();
+    render(
+      <Field label="Width" htmlFor="w" valueHint={HINT} disabledReason={REASON}>
+        <Slider
+          id="w"
+          aria-label="Width"
+          value={50}
+          onValueChange={onChange}
+          disabled
+          data-testid="width"
+        />
+      </Field>,
+    );
+    const thumb = screen.getByRole("slider", { name: "Width" });
+    expect(thumb).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByTestId("width")).not.toHaveAttribute("data-disabled");
+    expect(thumb).toHaveAccessibleDescription(`${HINT} ${REASON}`);
+    thumb.focus();
+    expect(thumb).toHaveFocus();
+    for (const key of ["ArrowRight", "ArrowUp", "End", "Home", "PageUp"]) {
+      fireEvent.keyDown(thumb, { key });
+    }
+    expect(onChange).not.toHaveBeenCalled();
+    expect(thumb).toHaveAttribute("aria-valuenow", "50");
+    hoverFor(screen.getByTestId("width"), 1500);
+    expect(bubble()).toHaveTextContent(`${HINT} ${REASON}`);
+  });
+});
+
 describe("A disabled field (AC5)", () => {
   it("without a reason is not focusable, and hover still shows its value hint", () => {
     render(
@@ -512,6 +545,29 @@ describe("A disabled field (AC5)", () => {
     expect(field).not.toHaveFocus();
     expect(field.className).not.toMatch(/pointer-events-none/);
     hoverFor(field, 1500);
+    expect(bubble()).toHaveTextContent(HINT);
+  });
+
+  // SUI-FEATURE-057 rev 5 AC 4: a disabled Slider is a field too; its whole slider is the trigger.
+  it("a Slider without a reason is not focusable, and hover shows its value hint", () => {
+    const onChange = vi.fn();
+    render(
+      <Field label="Width" htmlFor="w" valueHint={HINT}>
+        <Slider
+          id="w"
+          aria-label="Width"
+          value={50}
+          onValueChange={onChange}
+          disabled
+          data-testid="width"
+        />
+      </Field>,
+    );
+    const thumb = screen.getByRole("slider", { name: "Width" });
+    thumb.focus();
+    expect(thumb).not.toHaveFocus();
+    expect(thumb).toHaveAccessibleDescription(HINT);
+    hoverFor(screen.getByTestId("width"), 1500);
     expect(bubble()).toHaveTextContent(HINT);
   });
 

@@ -108,9 +108,9 @@ describe("Slider", () => {
     }
   });
 
-  // As a disabled Button under a Hint without `disabledText`: no bubble on hover (the browser sends a
-  // disabled control no pointer events), the description still on the control.
-  it("AC7: a disabled slider opens no hover hint and keeps its description", () => {
+  // SUI-FEATURE-057 rev 5 AC 4 (SUI-FEATURE-450 rev 5): disabled, the slider keeps its hover, so its
+  // hint, and a field's value hint, still shows; the description stays on the thumb.
+  it("AC4: a disabled slider still shows its hint on hover and keeps its description", () => {
     vi.useFakeTimers();
     try {
       render(
@@ -125,12 +125,11 @@ describe("Slider", () => {
         </Hint>,
       );
       const track = screen.getByTestId("width").querySelector("[data-slot=slider-track]")!;
-      fireEvent.pointerMove(screen.getByTestId("width"), { pointerType: "mouse" });
       fireEvent.pointerMove(track, { pointerType: "mouse" });
       act(() => {
-        vi.advanceTimersByTime(2000);
+        vi.advanceTimersByTime(1500);
       });
-      expect(screen.queryByRole("tooltip")).toBeNull();
+      expect(screen.getByRole("tooltip")).toHaveTextContent("Sets the image width in percent.");
       expect(thumb()).toHaveAccessibleDescription("Sets the image width in percent.");
     } finally {
       vi.useRealTimers();

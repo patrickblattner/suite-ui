@@ -394,7 +394,7 @@ describe("EditorHeader lifecycle", () => {
     const next = screen.getByTestId("editor-next");
     expect(next).toHaveTextContent("Publish");
     expect(next).toHaveAttribute("data-variant", "success");
-    expect(next).toHaveAttribute("data-size", "default");
+    expect(next).toHaveAttribute("data-size", "sm");
     expect(screen.getByTestId("editor-lifecycle-separator")).toHaveAttribute("aria-hidden", "true");
   });
 
@@ -1472,8 +1472,9 @@ describe("EditorHeader at narrow width", () => {
         return sum + (el.hasAttribute("data-compact") ? 24 : stateWidth(el.textContent ?? ""));
       // Icon-only (steps 5 to 7).
       const size = el.getAttribute("data-size");
-      if (size === "icon-sm" && id === "editor-back") return sum + 32;
-      if (size === "icon") return sum + 36;
+      // Every control of the row is `sm` (`GL-UI-011` §Eine Höhenskala, #586): icon-only, 32 px.
+      if (size === "icon-sm" && ["editor-back", "editor-save", "editor-next"].includes(id))
+        return sum + 32;
       return sum + (WIDTHS[id] ?? 0);
     }, 60);
 
@@ -1556,6 +1557,33 @@ describe("EditorHeader at narrow width", () => {
     [...document.querySelectorAll("[data-slot=editor-actions] [data-testid]")].map((el) =>
       el.getAttribute("data-testid"),
     );
+
+  // #586 (`GL-UI-011` §Eine Höhenskala, `SUI-FEATURE-069` rev 3): every control in the header row is
+  // `sm` (h-8), labelled or icon-only, in every head and at every width.
+  it.each([
+    ["draft", {}],
+    [
+      "draft with tools and restore",
+      { tools: headerTools(), restoreDefaults: { onClick: vi.fn() } },
+    ],
+    ["record", { kind: "record" as const }],
+    ["read-only", { readOnly: true as const }],
+    ["content read-only", { readOnly: "content" as const }],
+  ])("%s: no control in the row is h-9, wide or folded at 390 px", (_, props) => {
+    for (const width of [2000, 390]) {
+      available = width;
+      renderHeader({
+        lifecycle: lifecycle(),
+        ...props,
+      } as Partial<EditorHeaderProps>);
+      const sizes = [
+        ...document.querySelectorAll("[data-slot=editor-header] [data-slot=button]"),
+      ].map((button) => button.getAttribute("data-size"));
+      expect(sizes.length).toBeGreaterThan(0);
+      for (const size of sizes) expect(["sm", "icon-sm"]).toContain(size);
+      cleanup();
+    }
+  });
 
   it("with room for everything nothing folds; the ⋯ holds only the app's entries", () => {
     renderHeader({ lifecycle: lifecycle() });
@@ -2090,7 +2118,7 @@ describe("EditorHeader at narrow width", () => {
     expect(next).toHaveAttribute("aria-disabled", "true");
     expect(next).toHaveAccessibleName("Publish");
     expect(next).toHaveAccessibleDescription("In review");
-    expect(next).toHaveAttribute("data-size", width === 250 ? "icon" : "default");
+    expect(next).toHaveAttribute("data-size", width === 250 ? "icon-sm" : "sm");
     const lockedClick = vi.fn();
     cleanup();
     record({ disabledText: "In review", onClick: lockedClick });
@@ -2155,7 +2183,7 @@ describe("EditorHeader at narrow width", () => {
     );
     // Back and the next step do reach their icons.
     expect(draft.at(-1)).toContain('"back":"icon-sm"');
-    expect(draft.at(-1)).toContain('"next":"icon"');
+    expect(draft.at(-1)).toContain('"next":"icon-sm"');
     expect(record).toHaveLength(4);
     expect(record).toEqual(draft);
   });
@@ -2369,7 +2397,7 @@ describe("EditorHeader at narrow width", () => {
       }
       render(<Saving />);
       const save = screen.getByTestId("editor-save");
-      expect(save).toHaveAttribute("data-size", "icon");
+      expect(save).toHaveAttribute("data-size", "icon-sm");
       save.focus();
       fireEvent.click(save);
       act(() => finish());
@@ -2954,7 +2982,7 @@ describe("EditorHeader at narrow width", () => {
     expect(screen.getByTestId("editor-read-only")).toHaveAttribute("data-compact");
     expect(screen.getByTestId("editor-back")).toHaveAttribute("data-size", "icon-sm");
     const next = screen.getByTestId("editor-next");
-    expect(next).toHaveAttribute("data-size", "icon");
+    expect(next).toHaveAttribute("data-size", "icon-sm");
     expect(next).toHaveAccessibleName("Publish");
     expect(next).not.toHaveTextContent("Publish");
     expect(next).toBeEnabled();

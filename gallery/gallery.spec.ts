@@ -384,7 +384,7 @@ for (const lng of LANGUAGES) {
     // a narrowing or at a jump: the folds the narrower width left give the label no room either. #601: the last two on a dirty deck,
     // widened to a width where a fresh dirty load is compact and a clean one shows the label.
     const narrowed = { de: 600, en: 500, es: 600 }[lng];
-    const compact = { de: 900, en: 760, es: 860 }[lng];
+    const compact = { de: 900, en: 720, es: 860 }[lng];
     const dirtyCompact = { de: 1040, en: 800, es: 920 }[lng];
     for (const [widths, dirty] of theme === "light"
       ? ([
@@ -21649,12 +21649,15 @@ test.describe("locked package fields (SUI-FEATURE-450)", () => {
     ["tag input", "locked-tags-disabled-input", "Where it shows up."],
     ["date-time field", "locked-datetime-disabled", "When it goes live."],
     ["timezone combobox", "locked-timezone-disabled", "Times are shown in it."],
+    // SUI-FEATURE-057 rev 5 AC 4: a disabled Slider keeps its hover over the whole slider.
+    ["slider", "locked-slider-disabled", "How wide it shows."],
   ] as const;
   for (const [field, testId, hint] of hovered) {
     test(`a disabled ${field} without a reason shows its value hint on hover`, async ({ page }) => {
       await page.goto("/?page=components&lng=en");
       const control = page.getByTestId(testId);
-      await expect(control).toBeDisabled();
+      if (field === "slider") await expect(control).toHaveAttribute("data-disabled", "");
+      else await expect(control).toBeDisabled();
       await control.hover();
       await expect(page.getByRole("tooltip")).toHaveText(hint, { timeout: 5000 });
     });
@@ -21713,6 +21716,14 @@ test.describe("locked package fields (SUI-FEATURE-450)", () => {
     await expect(zone).toBeFocused();
     await expect(zone).toHaveAttribute("aria-disabled", "true");
     await expect(zone).toHaveAccessibleDescription(`Times are shown in it. ${reason}`);
+    // SUI-FEATURE-450 rev 5 AC 2: the Slider's thumb is the next stop, locked with `aria-disabled`.
+    await page.keyboard.press("Tab");
+    const slider = page.getByTestId("locked-slider-reason").getByRole("slider");
+    await expect(slider).toBeFocused();
+    await expect(slider).toHaveAttribute("aria-disabled", "true");
+    await expect(slider).toHaveAccessibleDescription(`How wide it shows. ${reason}`);
+    await page.keyboard.press("ArrowRight");
+    await expect(slider).toHaveAttribute("aria-valuenow", "40");
     await page.getByTestId("locked-select-reason").hover();
     await expect(page.getByRole("tooltip")).toHaveText(`How often it runs. ${reason}`, {
       timeout: 5000,

@@ -131,19 +131,34 @@ function watchRegion(changed: () => void): () => void {
   const watch = new MutationObserver((records) => {
     if (chain.size === 0 || records.some(touchesChain) || contentRegion() !== region) run();
   });
-  // A change after the chain node in its parent (a tooltip, toast or popover portal mounting at the
-  // end of `<body>`) neither moves the region nor replaces it; its size is the ResizeObserver's
-  // (#981 finding #846). Unless it changes which element is the region (a sidebar coming or going
-  // after the chain): that is read with a DOM query, no layout read.
+  // Out-of-flow nodes added after the chain, so their removal is known to be out of the flow too.
+  const outOfFlow = new WeakSet<Node>();
+  // A portal mounting after the chain node in its parent (a tooltip, toast or popover root, which
+  // stands `fixed` or `absolute`) neither moves the region nor replaces it, and so does its removal
+  // (#981 finding #846). An in-flow node after it may move it without any resize (a centring column,
+  // #984), so it re-runs, as does a change that makes a different element the region (a sidebar
+  // coming or going after the chain), read with a DOM query and no layout read.
   function touchesChain(record: MutationRecord): boolean {
     const own = chain.get(record.target);
     if (own === undefined || own.parentNode !== record.target) return true;
     if ([...record.removedNodes].includes(own)) return true;
     const before = record.previousSibling;
-    return (
-      before === null ||
-      (before !== own && !(own.compareDocumentPosition(before) & Node.DOCUMENT_POSITION_FOLLOWING))
-    );
+    const after =
+      before !== null &&
+      (before === own ||
+        (own.compareDocumentPosition(before) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0);
+    return !after || !outsideFlow(record);
+  }
+  function outsideFlow(record: MutationRecord): boolean {
+    const added = [...record.addedNodes];
+    const out =
+      added.every(
+        (node) =>
+          node instanceof Element &&
+          ["fixed", "absolute"].includes(getComputedStyle(node).position),
+      ) && [...record.removedNodes].every((node) => outOfFlow.has(node));
+    if (out) for (const node of added) outOfFlow.add(node);
+    return out;
   }
   function run() {
     changed();

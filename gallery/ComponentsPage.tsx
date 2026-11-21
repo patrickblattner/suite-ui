@@ -2060,6 +2060,22 @@ function LockedChoiceFields({ id, reason }: { id: string; reason: string | undef
           disabled
         />
       </Field>
+      {/* `SUI-FEATURE-450` rev 5, `SUI-FEATURE-057` rev 5: the Slider is a field too. */}
+      <Field
+        label="Slider"
+        htmlFor={`locked-slider-${id}`}
+        valueHint="How wide it shows."
+        disabledReason={reason}
+      >
+        <Slider
+          id={`locked-slider-${id}`}
+          aria-label="Slider"
+          data-testid={`locked-slider-${id}`}
+          value={40}
+          onValueChange={() => undefined}
+          disabled
+        />
+      </Field>
     </>
   );
 }

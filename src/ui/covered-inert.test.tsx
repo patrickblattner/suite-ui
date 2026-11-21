@@ -536,12 +536,42 @@ describe("portals beside the region (#846)", () => {
     await act(() => Promise.resolve());
     const reads = () => rects.mock.contexts.filter((node) => node === content()).length;
     const before = reads();
+    // A portal root stands out of the flow (Radix positions its wrappers `fixed`).
     const portal = document.createElement("div");
+    portal.style.position = "fixed";
     act(() => document.body.append(portal));
     await act(() => Promise.resolve());
     act(() => portal.remove());
     await act(() => Promise.resolve());
     expect(reads()).toBe(before);
+  });
+
+  // #984 (Codex CX2): an in-flow sibling after the region moves it in a centring column without any
+  // resize: the top edge follows it.
+  it("follows the region an in-flow sibling after it moves", async () => {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      if (this.dataset.testid !== "content") return new DOMRect();
+      const centred = this.parentElement!.children.length > 1 ? 150 : 200;
+      return new DOMRect(0, centred, 800, 200);
+    });
+    render(
+      <div data-testid="column">
+        <main data-testid="content">
+          <EditPanel open onOpenChange={() => {}} title="Item" mode="view">
+            x
+          </EditPanel>
+        </main>
+      </div>,
+    );
+    const panel = screen.getByRole("dialog");
+    expect(panel.style.top).toBe("200px");
+    const footer = document.createElement("div");
+    act(() => screen.getByTestId("column").append(footer));
+    await waitFor(() => expect(panel.style.top).toBe("150px"));
+    act(() => footer.remove());
+    await waitFor(() => expect(panel.style.top).toBe("200px"));
   });
 
   // Review of #981: a sidebar that comes or goes after the chain changes which element is the region.

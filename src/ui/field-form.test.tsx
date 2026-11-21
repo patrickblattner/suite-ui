@@ -313,3 +313,44 @@ describe("FieldForm: the submit state ends with record and reset, not with value
     expect(screen.getByText("Enter a title.")).toBeInTheDocument();
   });
 });
+
+describe("FieldForm: a server field error after a submit (#984)", () => {
+  // #984 (Codex CX1): a save that starts valid and fails with a field error from the server focuses
+  // that field once it fails; an outdated attempt's failure moves nothing.
+  it("a server field error on a failed submit takes the focus to that field", async () => {
+    let fail!: () => void;
+    function Server() {
+      const [error, setError] = useState<string | undefined>(undefined);
+      return (
+        <FieldForm
+          data-testid="drawer-form"
+          onSubmit={() =>
+            new Promise<boolean>((resolve) => {
+              fail = () => {
+                setError("Name taken.");
+                resolve(false);
+              };
+            })
+          }
+        >
+          <Field label="Name" htmlFor="name" error={error}>
+            <Input id="name" defaultValue="Ada" />
+          </Field>
+          <button type="submit">Save</button>
+        </FieldForm>
+      );
+    }
+    render(<Server />);
+    const save = screen.getByRole("button", { name: "Save" });
+    act(() => save.focus());
+    fireEvent.submit(form());
+    await act(() => Promise.resolve());
+    expect(save).toHaveFocus();
+    await act(async () => {
+      fail();
+      await Promise.resolve();
+    });
+    expect(screen.getByText("Name taken.")).toBeInTheDocument();
+    expect(screen.getByLabelText("Name")).toHaveFocus();
+  });
+});

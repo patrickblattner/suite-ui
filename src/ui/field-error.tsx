@@ -75,7 +75,9 @@ const FieldUserEditContext = React.createContext<(() => void) | null>(null);
 // a different record shown; also during its render), and those ends (their count, the submits before
 // the last) it passes to `FieldSubmitEndContext`. Fifth: a whole submit attempt (#837) — notes it on `form` (when given),
 // runs the app's submit and ends the state when it reports success (`true`, or a promise resolving
-// `true`); an older attempt, or one made before the state last ended, settling later ends nothing.
+// `true`); a promise that fails instead notes the submit again, so a field error from the server
+// shows and takes the focus (#984). An older attempt, or one made before the state last ended,
+// settling later does neither.
 // Returns the submit's result.
 function useFieldSubmits(): [
   number,
@@ -118,12 +120,16 @@ function useFieldSubmits(): [
     if (form != null) submitted(form);
     const own = ++attempts.current;
     const settle = (value: unknown) => {
-      if (value === true && own === attempts.current) end();
+      if (own !== attempts.current) return;
+      if (value === true) end();
+      // A later failure (a field error from the server) is a submit again: every field shows its
+      // error and the first invalid one takes the focus (#984).
+      else if (form != null) submitted(form);
     };
     const result = run();
     if (typeof (result as { then?: unknown } | null)?.then === "function")
-      (result as PromiseLike<unknown>).then(settle, () => undefined);
-    else settle(result);
+      (result as PromiseLike<unknown>).then(settle, () => settle(false));
+    else if (result === true) settle(result);
     return result;
   };
   return [submit.count, submitted, end, ends, attempt];
