@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.258.0 — #986 useToastClearance: toasts clear a list header at the top of the content (minor)
+
 - **Added (#986, SUI-FEATURE-147 rev 2) — minor:** `useToastClearance(ref)` from `@suite/ui/ui/toaster`: while the referenced list header is mounted, the hook measures its bottom edge (again after a resize or a wrap, the same measuring as `useEditorShellToastOffset`) and moves `--toast-offset-top` down to that edge plus `--toast-gap` whenever that lies below the app shell's default. Both hooks now share one contribution registry: with several calls (one per list header, and `useEditorShellToastOffset`) the lowest edge wins, and unmounting takes back only its own contribution; without one the app shell's default applies. `styles.css` names that default `--toast-offset-shell` (`--toast-offset-top` is `var(--toast-offset-shell)`, same computed value). No package list block renders a list header of its own (`DataTableShell`'s header is the column row), so no block takes `headerRef`. Adoption: each page with several lists whose list header sits at the top of the content calls `useToastClearance(ref)` once per header, with a ref to that header; cockpit `/series` first.
 - Gallery (#986): `?page=two-lists`, two lists side by side whose headers each call the hook, with a test that the toast after Add starts below the lowest header plus the gap and covers no header action at 1920×1080 and 1440×900; the page is in the axe scan. No baseline changes.
 
